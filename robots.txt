@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# EDITAR: troque pelo domínio comprado no Registro.br
+Sitemap: https://www.seudominio.com.br/sitemap.xml

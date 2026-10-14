@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- EDITAR: título que aparece na aba do navegador e no Google -->
+  <title>Nome Sobrenome | Advocacia em Cidade/UF</title>
+  <!-- EDITAR: resumo que aparece embaixo do título no Google (até ~155 caracteres) -->
+  <meta name="description" content="Nome Sobrenome, advogada OAB/UF 000.000. Atuação em Direito de Família, Previdenciário, Trabalhista e do Consumidor. Atendimento presencial em Cidade/UF e online.">
+
+  <!-- EDITAR: troque "www.seudominio.com.br" pelo domínio comprado no Registro.br -->
+  <link rel="canonical" href="https://www.seudominio.com.br/">
+
+  <!-- Prévia ao compartilhar o link no WhatsApp, Instagram, LinkedIn etc. -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:title" content="Nome Sobrenome | Advocacia">
+  <meta property="og:description" content="Orientação jurídica clara e acompanhamento próximo. Atendimento presencial e online.">
+  <meta property="og:url" content="https://www.seudominio.com.br/">
+  <!-- Quando tiver uma imagem de capa (1200x630), descomente a linha abaixo -->
+  <!-- <meta property="og:image" content="https://www.seudominio.com.br/assets/img/capa.jpg"> -->
+
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="assets/css/style.css">
+
+  <!-- Dados estruturados: ajudam o Google a mostrar o escritório na busca e no Maps. EDITAR os dados. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Attorney",
+    "name": "Nome Sobrenome — Advocacia",
+    "url": "https://www.seudominio.com.br/",
+    "telephone": "+55-00-00000-0000",
+    "email": "contato@seudominio.com.br",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Rua Exemplo, 123, Sala 45",
+      "addressLocality": "Cidade",
+      "addressRegion": "UF",
+      "postalCode": "00000-000",
+      "addressCountry": "BR"
+    },
+    "openingHours": "Mo-Fr 09:00-18:00",
+    "knowsAbout": ["Direito de Família", "Direito Previdenciário", "Direito do Trabalho", "Direito do Consumidor", "Direito Civil", "Direito Imobiliário"]
+  }
+  </script>
+</head>
+<body>
+  <!-- Ícones usados no site (desenhados uma vez e reaproveitados com <use href="#i-nome">) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-balanca" viewBox="0 0 24 24"><path d="M12 5v15M7 20h10M5 7h14M5 7l-3 7M5 7l3 7M19 7l-3 7M19 7l3 7M2 14h6a3 3 0 0 1-6 0M16 14h6a3 3 0 0 1-6 0"/><circle cx="12" cy="4" r="1"/></symbol>
+      <symbol id="i-familia" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+      <symbol id="i-escudo" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+      <symbol id="i-maleta" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></symbol>
+      <symbol id="i-sacola" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></symbol>
+      <symbol id="i-contrato" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></symbol>
+      <symbol id="i-casa" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol>
+      <symbol id="i-mensagem" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></symbol>
+      <symbol id="i-email" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="m22 6-10 7L2 6"/></symbol>
+      <symbol id="i-local" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></symbol>
+      <symbol id="i-relogio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+      <symbol id="i-tela" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></symbol>
+      <symbol id="i-selo" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><path d="M8.21 13.89 7 23l5-3 5 3-1.21-9.12"/></symbol>
+      <symbol id="i-instagram" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><path d="M17.5 6.5h.01"/></symbol>
+      <symbol id="i-linkedin" viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></symbol>
+      <symbol id="i-pessoa" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    </defs>
+  </svg>
+
+  <a class="pular-conteudo" href="#conteudo">Pular para o conteúdo</a>
+
+  <!-- ===================== CABEÇALHO ===================== -->
+  <header class="cabecalho" id="cabecalho">
+    <div class="container cabecalho__interno">
+      <a href="#inicio" class="logo" aria-label="Nome Sobrenome — página inicial">
+        <span class="logo__marca"><svg class="icone"><use href="#i-balanca"/></svg></span>
+        <span class="logo__texto">
+          <!-- EDITAR: nome e OAB -->
+          <strong>Nome Sobrenome</strong>
+          <small>Advocacia · OAB/UF 000.000</small>
+        </span>
+      </a>
+
+      <button class="menu-botao" id="menu-botao" aria-expanded="false" aria-controls="menu" aria-label="Abrir menu">
+        <span></span><span></span><span></span>
+      </button>
+
+      <nav class="menu" id="menu" aria-label="Menu principal">
+        <ul>
+          <li><a href="#sobre">Sobre</a></li>
+          <li><a href="#areas">Áreas de atuação</a></li>
+          <li><a href="#atendimento">Atendimento</a></li>
+          <li><a href="#duvidas">Dúvidas</a></li>
+          <li><a href="#contato" class="botao botao--pequeno">Contato</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="conteudo">
+
+    <!-- ===================== INÍCIO (HERO) ===================== -->
+    <section class="hero" id="inicio">
+      <div class="container hero__interno">
+        <div class="hero__texto">
+          <p class="sobretitulo sobretitulo--claro">Advocacia · Cidade/UF</p>
+          <h1>Nome Sobrenome</h1>
+          <p class="hero__subtitulo">
+            Orientação jurídica clara e acompanhamento próximo em Direito de Família,
+            Previdenciário, Trabalhista e do Consumidor.
+          </p>
+          <div class="hero__botoes">
+            <a href="#contato" class="botao" data-whatsapp>Fale pelo WhatsApp</a>
+            <a href="#areas" class="botao botao--contorno-claro">Áreas de atuação</a>
+          </div>
+        </div>
+
+        <aside class="hero__cartao" aria-label="Resumo do atendimento">
+          <h2 class="hero__cartao-titulo">Atendimento</h2>
+          <ul class="lista-icones">
+            <li><svg class="icone"><use href="#i-local"/></svg> Presencial em Cidade/UF</li>
+            <li><svg class="icone"><use href="#i-tela"/></svg> Online para todo o Brasil</li>
+            <li><svg class="icone"><use href="#i-relogio"/></svg> Segunda a sexta, 9h às 18h</li>
+            <li><svg class="icone"><use href="#i-selo"/></svg> OAB/UF nº 000.000</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===================== SOBRE ===================== -->
+    <section class="secao" id="sobre">
+      <div class="container sobre">
+        <div class="sobre__foto">
+          <!--
+            EDITAR: para colocar a foto, salve a imagem em assets/img/foto.jpg
+            e troque o <div class="foto-provisoria"> abaixo por:
+            <img src="assets/img/foto.jpg" alt="Foto de Nome Sobrenome" width="480" height="600">
+          -->
+          <div class="foto-provisoria">
+            <svg class="icone"><use href="#i-pessoa"/></svg>
+            <span>Foto da advogada</span>
+          </div>
+        </div>
+
+        <div class="sobre__texto">
+          <p class="sobretitulo">Sobre</p>
+          <h2>Prazer, sou a Dra. Nome Sobrenome</h2>
+          <!-- EDITAR: escreva a história dela com as próprias palavras -->
+          <p>
+            Sou advogada inscrita na OAB/UF sob o nº 000.000, formada em Direito pela
+            Universidade Exemplo. Aqui vai um pouco da sua trajetória: por que escolheu a
+            advocacia, quais causas a movem e como é a sua forma de trabalhar.
+          </p>
+          <p>
+            Acredito que cada pessoa merece entender o próprio caso. Por isso, explico cada
+            etapa em linguagem simples, mantenho o cliente informado sobre o andamento e
+            estou disponível para tirar dúvidas.
+          </p>
+
+          <h3>Formação</h3>
+          <!--
+            ATENÇÃO (OAB): só use a palavra "especialista" se houver título de
+            especialização (pós-graduação) na área. Sem título, use "atuação em".
+          -->
+          <ul class="lista-formacao">
+            <li><strong>Graduação em Direito</strong> — Universidade Exemplo (ano)</li>
+            <li><strong>Pós-graduação em Área</strong> — Instituição (ano)</li>
+            <li><strong>Cursos e certificações</strong> — Nome do curso (ano)</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== ÁREAS DE ATUAÇÃO ===================== -->
+    <!-- EDITAR: cada <article class="area"> é um cartão. Para adicionar uma área, copie um
+         cartão inteiro; para remover, apague o cartão. Os ícones disponíveis estão no topo do arquivo. -->
+    <section class="secao secao--alternada" id="areas">
+      <div class="container">
+        <header class="secao__cabecalho">
+          <p class="sobretitulo">Áreas de atuação</p>
+          <h2>Como posso ajudar</h2>
+          <p>Conheça os principais temas em que atuo. Se a sua situação não estiver listada, entre em contato para conversarmos.</p>
+        </header>
+
+        <div class="grade-areas">
+          <article class="area">
+            <span class="area__icone"><svg class="icone"><use href="#i-familia"/></svg></span>
+            <h3>Família e Sucessões</h3>
+            <p>Questões familiares tratadas com sensibilidade e discrição.</p>
+            <ul>
+              <li>Divórcio consensual e litigioso</li>
+              <li>Pensão alimentícia</li>
+              <li>Guarda e convivência</li>
+              <li>Inventário e partilha</li>
+              <li>Testamentos</li>
+            </ul>
+          </article>
+
+          <article class="area">
+            <span class="area__icone"><svg class="icone"><use href="#i-escudo"/></svg></span>
+            <h3>Previdenciário</h3>
+            <p>Orientação sobre benefícios do INSS e planejamento da aposentadoria.</p>
+            <ul>
+              <li>Aposentadorias</li>
+              <li>Auxílio por incapacidade</li>
+              <li>BPC/LOAS</li>
+              <li>Pensão por morte</li>
+              <li>Revisão de benefícios</li>
+            </ul>
+          </article>
+
+          <article class="area">
+            <span class="area__icone"><svg class="icone"><use href="#i-maleta"/></svg></span>
+            <h3>Trabalhista</h3>
+            <p>Orientação em questões da relação de trabalho.</p>
+            <ul>
+              <li>Verbas rescisórias</li>
+              <li>Horas extras</li>
+              <li>Reconhecimento de vínculo</li>
+              <li>Assédio moral</li>
+              <li>Acidente de trabalho</li>
+            </ul>
+          </article>
+
+          <article class="area">
+            <span class="area__icone"><svg class="icone"><use href="#i-sacola"/></svg></span>
+            <h3>Consumidor</h3>
+            <p>Problemas com compras, bancos, planos de saúde e serviços.</p>
+            <ul>
+              <li>Cobranças indevidas</li>
+              <li>Negativação indevida</li>
+              <li>Planos de saúde</li>
+              <li>Voos atrasados ou cancelados</li>
+              <li>Produtos com defeito</li>
+            </ul>
+          </article>
+
+          <article class="area">
+            <span class="area__icone"><svg class="icone"><use href="#i-contrato"/></svg></span>
+            <h3>Civil</h3>
+            <p>Contratos, indenizações e relações do dia a dia.</p>
+            <ul>
+              <li>Elaboração e revisão de contratos</li>
+              <li>Ações de indenização</li>
+              <li>Cobranças</li>
+              <li>Responsabilidade civil</li>
+            </ul>
+          </article>
+
+          <article class="area">
+            <span class="area__icone"><svg class="icone"><use href="#i-casa"/></svg></span>
+            <h3>Imobiliário</h3>
+            <p>Segurança jurídica na compra, venda e locação de imóveis.</p>
+            <ul>
+              <li>Compra e venda</li>
+              <li>Contratos de locação</li>
+              <li>Ações de despejo</li>
+              <li>Usucapião</li>
+              <li>Regularização de imóveis</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== COMO FUNCIONA O ATENDIMENTO ===================== -->
+    <section class="secao" id="atendimento">
+      <div class="container">
+        <header class="secao__cabecalho">
+          <p class="sobretitulo">Atendimento</p>
+          <h2>Como funciona</h2>
+          <p>Atendimento presencial no escritório ou online, por videochamada.</p>
+        </header>
+
+        <ol class="etapas">
+          <li class="etapa">
+            <h3>Primeiro contato</h3>
+            <p>Você envia uma mensagem pelo WhatsApp ou e-mail contando brevemente a sua situação.</p>
+          </li>
+          <li class="etapa">
+            <h3>Análise do caso</h3>
+            <p>Agendamos uma consulta, presencial ou online, para entender os detalhes e avaliar os documentos.</p>
+          </li>
+          <li class="etapa">
+            <h3>Orientação</h3>
+            <p>Você recebe uma explicação clara sobre os caminhos possíveis e a proposta de honorários por escrito.</p>
+          </li>
+          <li class="etapa">
+            <h3>Acompanhamento</h3>
+            <p>Durante todo o processo, você é informado sobre cada movimentação importante.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===================== DÚVIDAS FREQUENTES ===================== -->
+    <!-- EDITAR: cada <details> é uma pergunta. Copie ou apague conforme necessário. -->
+    <section class="secao secao--alternada" id="duvidas">
+      <div class="container container--estreito">
+        <header class="secao__cabecalho">
+          <p class="sobretitulo">Dúvidas</p>
+          <h2>Perguntas frequentes</h2>
+        </header>
+
+        <div class="perguntas">
+          <details>
+            <summary>A consulta pode ser online?</summary>
+            <p>Sim. O atendimento pode ser feito por videochamada, e os documentos podem ser enviados digitalmente. Também é possível agendar um atendimento presencial no escritório.</p>
+          </details>
+          <details>
+            <summary>O que devo levar para a primeira consulta?</summary>
+            <p>Documento de identificação, comprovante de residência e os documentos relacionados ao seu caso, como contratos, mensagens, comprovantes e decisões anteriores. Na dúvida, leve tudo o que tiver — separamos juntos o que é relevante.</p>
+          </details>
+          <details>
+            <summary>Como vou acompanhar o andamento do meu caso?</summary>
+            <p>Você recebe atualizações sempre que houver uma movimentação importante e pode tirar dúvidas pelos canais de atendimento.</p>
+          </details>
+          <details>
+            <summary>Atende casos de outras cidades?</summary>
+            <p>Sim. Com o processo eletrônico, é possível atuar em casos de diversas cidades. Na análise do caso, verificamos a melhor forma de conduzi-lo.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== CONTATO ===================== -->
+    <section class="secao" id="contato">
+      <div class="container contato">
+        <div class="contato__info">
+          <p class="sobretitulo">Contato</p>
+          <h2>Vamos conversar sobre o seu caso</h2>
+          <p>Envie uma mensagem e retorno assim que possível, em horário comercial.</p>
+
+          <!-- EDITAR: dados de contato (o número do WhatsApp dos botões fica em assets/js/main.js) -->
+          <ul class="lista-icones lista-icones--contato">
+            <li><svg class="icone"><use href="#i-mensagem"/></svg> <a href="#contato" data-whatsapp>(00) 00000-0000</a></li>
+            <li><svg class="icone"><use href="#i-email"/></svg> <a href="mailto:contato@seudominio.com.br">contato@seudominio.com.br</a></li>
+            <li><svg class="icone"><use href="#i-local"/></svg> Rua Exemplo, 123, Sala 45 — Bairro, Cidade/UF</li>
+            <li><svg class="icone"><use href="#i-relogio"/></svg> Segunda a sexta, das 9h às 18h</li>
+            <li><svg class="icone"><use href="#i-instagram"/></svg> <a href="https://www.instagram.com/seuperfil" target="_blank" rel="noopener">@seuperfil</a></li>
+            <li><svg class="icone"><use href="#i-linkedin"/></svg> <a href="https://www.linkedin.com/in/seuperfil" target="_blank" rel="noopener">LinkedIn</a></li>
+          </ul>
+        </div>
+
+        <form class="formulario" id="formulario-contato">
+          <h3>Envie sua mensagem</h3>
+          <label for="campo-nome">Seu nome</label>
+          <input id="campo-nome" name="nome" type="text" autocomplete="name" required>
+
+          <label for="campo-assunto">Assunto</label>
+          <select id="campo-assunto" name="assunto">
+            <option>Família e Sucessões</option>
+            <option>Previdenciário</option>
+            <option>Trabalhista</option>
+            <option>Consumidor</option>
+            <option>Civil</option>
+            <option>Imobiliário</option>
+            <option>Outro assunto</option>
+          </select>
+
+          <label for="campo-mensagem">Conte brevemente a sua situação</label>
+          <textarea id="campo-mensagem" name="mensagem" rows="5" required></textarea>
+
+          <button type="submit" class="botao botao--largo">Enviar pelo WhatsApp</button>
+          <p class="formulario__aviso">
+            Ao enviar, o WhatsApp será aberto com a sua mensagem. Nenhum dado é armazenado neste site.
+          </p>
+        </form>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===================== RODAPÉ ===================== -->
+  <footer class="rodape">
+    <div class="container rodape__interno">
+      <div>
+        <p class="rodape__nome">Nome Sobrenome</p>
+        <p>Advogada · OAB/UF nº 000.000</p>
+      </div>
+      <nav aria-label="Links do rodapé">
+        <ul class="rodape__links">
+          <li><a href="#sobre">Sobre</a></li>
+          <li><a href="#areas">Áreas de atuação</a></li>
+          <li><a href="#atendimento">Atendimento</a></li>
+          <li><a href="#contato">Contato</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="container rodape__legal">
+      <p>
+        As informações deste site têm caráter meramente informativo, em conformidade com o
+        Código de Ética e Disciplina da OAB e o Provimento nº 205/2021 do Conselho Federal da OAB.
+      </p>
+      <p>© <span id="ano-atual">2026</span> Nome Sobrenome. Todos os direitos reservados.</p>
+    </div>
+  </footer>
+
+  <a href="#contato" class="whatsapp-flutuante" data-whatsapp aria-label="Conversar pelo WhatsApp">
+    <svg class="icone"><use href="#i-mensagem"/></svg>
+  </a>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

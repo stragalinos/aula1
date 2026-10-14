@@ -1,0 +1,744 @@
+/* =========================================================
+   CORES E FONTES
+   Para mudar a identidade visual, altere só as variáveis abaixo.
+   ========================================================= */
+:root {
+  --cor-primaria: #1f2a44;        /* azul-marinho: hero, rodapé, títulos */
+  --cor-primaria-escura: #151d31;
+  --cor-destaque: #c9a46a;        /* dourado: detalhes sobre fundo escuro */
+  --cor-destaque-texto: #8a6a3b;  /* dourado escuro: textos sobre fundo claro */
+  --cor-fundo: #faf8f5;
+  --cor-fundo-alternado: #f1ede6;
+  --cor-superficie: #ffffff;
+  --cor-texto: #2b2b2b;
+  --cor-texto-suave: #5f6368;
+  --cor-borda: #e4ded3;
+  --cor-whatsapp: #1fa855;
+
+  --fonte-titulo: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --fonte-texto: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --raio: 10px;
+  --sombra: 0 10px 30px rgba(31, 42, 68, 0.08);
+  --altura-cabecalho: 72px;
+}
+
+/* =========================================================
+   BASE
+   ========================================================= */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: var(--altura-cabecalho);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition: none !important; }
+}
+
+body {
+  margin: 0;
+  font-family: var(--fonte-texto);
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--cor-texto);
+  background: var(--cor-fundo);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--fonte-titulo);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--cor-primaria);
+  margin: 0 0 0.5em;
+}
+
+h1 { font-size: clamp(2.6rem, 6vw, 4rem); }
+h2 { font-size: clamp(2rem, 4vw, 2.75rem); }
+h3 { font-size: 1.5rem; }
+
+p { margin: 0 0 1em; }
+
+a { color: var(--cor-primaria); }
+
+img { max-width: 100%; height: auto; display: block; }
+
+.icone {
+  width: 1.25em;
+  height: 1.25em;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.container--estreito { max-width: 800px; }
+
+@media (min-width: 600px) {
+  .container { padding: 0 24px; }
+}
+
+.pular-conteudo {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 100;
+  padding: 8px 16px;
+  background: var(--cor-superficie);
+}
+
+.pular-conteudo:focus { left: 8px; }
+
+:focus-visible {
+  outline: 2px solid var(--cor-destaque);
+  outline-offset: 3px;
+}
+
+/* =========================================================
+   BOTÕES
+   ========================================================= */
+.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 26px;
+  border: 1px solid var(--cor-destaque);
+  border-radius: 999px;
+  background: var(--cor-destaque);
+  color: var(--cor-primaria-escura);
+  font: 600 0.95rem var(--fonte-texto);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, transform 0.2s;
+}
+
+.botao:hover {
+  background: #d8b57d;
+  transform: translateY(-1px);
+}
+
+.botao--contorno-claro {
+  background: transparent;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.botao--contorno-claro:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.botao--pequeno { padding: 9px 20px; }
+
+.botao--largo { width: 100%; }
+
+/* =========================================================
+   CABEÇALHO E MENU
+   ========================================================= */
+.cabecalho {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(250, 248, 245, 0.96);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.cabecalho--rolado {
+  border-color: var(--cor-borda);
+  box-shadow: 0 4px 20px rgba(31, 42, 68, 0.06);
+}
+
+.cabecalho__interno {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--altura-cabecalho);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--cor-primaria);
+}
+
+.logo__marca {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--cor-destaque);
+  border-radius: 50%;
+  color: var(--cor-destaque-texto);
+}
+
+.logo__texto {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.logo__texto strong {
+  font-family: var(--fonte-titulo);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.logo__texto small {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--cor-texto-suave);
+}
+
+.menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.menu a:not(.botao) {
+  color: var(--cor-texto);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.menu a:not(.botao):hover,
+.menu a.ativo {
+  color: var(--cor-destaque-texto);
+}
+
+/* Botão "hambúrguer" (só aparece no celular) */
+.menu-botao {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.menu-botao span {
+  display: block;
+  height: 2px;
+  background: var(--cor-primaria);
+  border-radius: 2px;
+  transition: transform 0.25s, opacity 0.25s;
+}
+
+.menu-botao[aria-expanded="true"] span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.menu-botao[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+.menu-botao[aria-expanded="true"] span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+@media (max-width: 899px) {
+  .menu {
+    position: absolute;
+    top: var(--altura-cabecalho);
+    left: 0;
+    right: 0;
+    display: none;
+    background: var(--cor-fundo);
+    border-bottom: 1px solid var(--cor-borda);
+    box-shadow: 0 12px 24px rgba(31, 42, 68, 0.08);
+  }
+
+  .menu--aberto { display: block; }
+
+  .menu ul {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 16px 20px;
+  }
+
+  .menu a:not(.botao) {
+    display: block;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--cor-borda);
+  }
+
+  .menu .botao { margin-top: 12px; width: 100%; }
+}
+
+@media (min-width: 900px) {
+  .menu-botao { display: none; }
+
+  .menu ul {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+}
+
+/* =========================================================
+   HERO (INÍCIO)
+   ========================================================= */
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 72px 0 80px;
+  background:
+    radial-gradient(circle at 85% 20%, rgba(201, 164, 106, 0.16), transparent 45%),
+    linear-gradient(160deg, var(--cor-primaria) 0%, var(--cor-primaria-escura) 100%);
+  color: #fff;
+}
+
+.hero__interno {
+  display: grid;
+  gap: 48px;
+  align-items: center;
+}
+
+.hero h1 { color: #fff; }
+
+.hero__subtitulo {
+  max-width: 34rem;
+  font-size: 1.125rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.hero__botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.hero__cartao {
+  padding: 32px;
+  border: 1px solid rgba(201, 164, 106, 0.35);
+  border-radius: var(--raio);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hero__cartao-titulo {
+  color: var(--cor-destaque);
+  font-size: 1.6rem;
+  margin-bottom: 16px;
+}
+
+.hero .lista-icones li { color: rgba(255, 255, 255, 0.9); }
+.hero .lista-icones .icone { color: var(--cor-destaque); }
+
+@media (min-width: 900px) {
+  .hero { padding: 120px 0 128px; }
+  .hero__interno { grid-template-columns: 1.4fr 1fr; gap: 72px; }
+}
+
+/* =========================================================
+   SEÇÕES (estrutura comum)
+   ========================================================= */
+.secao { padding: 72px 0; }
+
+.secao--alternada { background: var(--cor-fundo-alternado); }
+
+@media (min-width: 900px) {
+  .secao { padding: 104px 0; }
+}
+
+.secao__cabecalho {
+  max-width: 640px;
+  margin: 0 auto 48px;
+  text-align: center;
+}
+
+.secao__cabecalho p:last-child { color: var(--cor-texto-suave); }
+
+.sobretitulo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cor-destaque-texto);
+}
+
+.sobretitulo::before {
+  content: "";
+  width: 28px;
+  height: 1px;
+  background: currentColor;
+}
+
+.sobretitulo--claro { color: var(--cor-destaque); }
+
+.lista-icones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.lista-icones li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.lista-icones .icone { margin-top: 0.15em; }
+
+/* =========================================================
+   SOBRE
+   ========================================================= */
+.sobre {
+  display: grid;
+  gap: 48px;
+  align-items: center;
+}
+
+.sobre__foto img,
+.foto-provisoria {
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 4 / 5;
+  margin: 0 auto;
+  border-radius: var(--raio);
+  object-fit: cover;
+  box-shadow: 18px 18px 0 var(--cor-fundo-alternado);
+}
+
+.foto-provisoria {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: linear-gradient(160deg, #e9e3d8, #d9d0c1);
+  color: var(--cor-texto-suave);
+  font-size: 0.9rem;
+}
+
+.foto-provisoria .icone { width: 64px; height: 64px; stroke-width: 1; }
+
+.sobre__texto h3 {
+  margin-top: 32px;
+  font-size: 1.4rem;
+}
+
+.lista-formacao {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lista-formacao li {
+  padding: 12px 0 12px 20px;
+  border-bottom: 1px solid var(--cor-borda);
+  position: relative;
+}
+
+.lista-formacao li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1.35em;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cor-destaque);
+}
+
+@media (min-width: 900px) {
+  .sobre { grid-template-columns: 5fr 7fr; gap: 80px; }
+}
+
+/* =========================================================
+   ÁREAS DE ATUAÇÃO
+   ========================================================= */
+.grade-areas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 24px;
+}
+
+.area {
+  padding: 32px 28px;
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio);
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+
+.area:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--sombra);
+  border-color: var(--cor-destaque);
+}
+
+.area__icone {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 20px;
+  border-radius: 50%;
+  background: var(--cor-fundo-alternado);
+  color: var(--cor-destaque-texto);
+}
+
+.area__icone .icone { width: 26px; height: 26px; }
+
+.area p { color: var(--cor-texto-suave); }
+
+.area ul {
+  margin: 0;
+  padding: 16px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--cor-borda);
+  font-size: 0.93rem;
+}
+
+.area li {
+  padding: 4px 0 4px 18px;
+  position: relative;
+}
+
+.area li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.95em;
+  width: 8px;
+  height: 1px;
+  background: var(--cor-destaque-texto);
+}
+
+/* =========================================================
+   COMO FUNCIONA (ETAPAS)
+   ========================================================= */
+.etapas {
+  counter-reset: etapa;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 32px;
+}
+
+.etapa {
+  counter-increment: etapa;
+  padding-top: 24px;
+  border-top: 1px solid var(--cor-borda);
+}
+
+.etapa::before {
+  content: "0" counter(etapa);
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--fonte-titulo);
+  font-size: 2.5rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--cor-destaque);
+}
+
+.etapa h3 { font-size: 1.35rem; }
+
+.etapa p { color: var(--cor-texto-suave); margin: 0; }
+
+/* =========================================================
+   DÚVIDAS FREQUENTES
+   ========================================================= */
+.perguntas details {
+  border-bottom: 1px solid var(--cor-borda);
+}
+
+.perguntas summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 0;
+  font-weight: 600;
+  color: var(--cor-primaria);
+  cursor: pointer;
+  list-style: none;
+}
+
+.perguntas summary::-webkit-details-marker { display: none; }
+
+.perguntas summary::after {
+  content: "+";
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--cor-destaque-texto);
+  transition: transform 0.2s;
+}
+
+.perguntas details[open] summary::after { transform: rotate(45deg); }
+
+.perguntas details p {
+  padding-bottom: 20px;
+  margin: 0;
+  color: var(--cor-texto-suave);
+}
+
+/* =========================================================
+   CONTATO
+   ========================================================= */
+.contato {
+  display: grid;
+  gap: 48px;
+}
+
+.lista-icones--contato { margin-top: 32px; }
+.lista-icones--contato .icone { color: var(--cor-destaque-texto); }
+.lista-icones--contato a { text-decoration: none; overflow-wrap: anywhere; }
+.lista-icones--contato a:hover { text-decoration: underline; }
+
+.formulario {
+  padding: 32px 24px;
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+
+.formulario h3 { margin-bottom: 20px; }
+
+.formulario label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.formulario input,
+.formulario select,
+.formulario textarea {
+  display: block;
+  width: 100%;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--cor-borda);
+  border-radius: 8px;
+  background: var(--cor-fundo);
+  font: inherit;
+  color: inherit;
+}
+
+.formulario textarea { resize: vertical; }
+
+.formulario input:focus,
+.formulario select:focus,
+.formulario textarea:focus {
+  outline: none;
+  border-color: var(--cor-destaque);
+  box-shadow: 0 0 0 3px rgba(201, 164, 106, 0.25);
+}
+
+.formulario__aviso {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: var(--cor-texto-suave);
+  text-align: center;
+}
+
+@media (min-width: 900px) {
+  .contato { grid-template-columns: 1fr 1fr; gap: 80px; align-items: start; }
+  .formulario { padding: 40px; }
+}
+
+/* =========================================================
+   RODAPÉ
+   ========================================================= */
+.rodape {
+  padding: 56px 0 32px;
+  background: var(--cor-primaria-escura);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+}
+
+.rodape p { margin: 0; }
+
+.rodape__interno {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 32px;
+}
+
+.rodape__nome {
+  font-family: var(--fonte-titulo);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.rodape__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rodape a {
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+}
+
+.rodape a:hover { color: var(--cor-destaque); }
+
+.rodape__legal {
+  display: grid;
+  gap: 8px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* =========================================================
+   BOTÃO FLUTUANTE DO WHATSAPP
+   ========================================================= */
+.whatsapp-flutuante {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--cor-whatsapp);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s;
+}
+
+.whatsapp-flutuante:hover { transform: scale(1.06); }
+
+.whatsapp-flutuante .icone { width: 28px; height: 28px; stroke-width: 2; }
