@@ -65,10 +65,18 @@ RE_PEDIDO_ROTULO = re.compile(
 RE_CHAVE_AGRUPADA = re.compile(r"(?<![0-9A-Z])(?:[0-9A-Z]{4}[ .]{0,2}){10}[0-9A-Z]{4}(?![0-9A-Z])")
 RE_SEQ_DIGITOS = re.compile(r"\d(?:[ .]{0,2}\d){43,}")
 
-# Número da NF no DANFE: "Nº 000.012.345"
+RE_ROTULO_CHAVE = re.compile(r"CHAVE\s+DE\s+ACESSO")
+
+# Número da NF no DANFE: "Nº 000.012.345" (o OCR às vezes põe espaço junto dos pontos)
+_NF_PONTUADO = r"\d{3}\s?\.\s?\d{3}\s?\.\s?\d{3}"
 RE_NF_DANFE_ROTULO = re.compile(
-    r"\bN\s*[O0°.:\-]{0,3}\s*[:.]?\s*(\d{3}\.\d{3}\.\d{3})(?!\d|[.,/-]\d)")
-RE_NF_DANFE = re.compile(r"(?<![\d./,-])(\d{3}\.\d{3}\.\d{3})(?!\d|[.,/-]\d)")
+    rf"\bN\s*[O0°.:\-]{{0,3}}\s*[:.]?\s*({_NF_PONTUADO})(?!\d|[.,/-]\d)")
+# "Nº 93269  SÉRIE 1" / "Nº 000093269" e na linha de baixo "SÉRIE 001"
+RE_NF_ANTES_SERIE = re.compile(
+    r"\bN\s*[O0°.:\-]{0,3}\s*[:.]?\s*(\d{1,9}|\d{1,3}(?:\.\d{3}){1,2})\s*[-|]?\s*\n?\s*SERIE\b")
+RE_NF_DANFE = re.compile(rf"(?<![\d./,-])({_NF_PONTUADO})(?!\d|[.,/-]\d)")
+# A inscrição estadual de SC (e de outros estados) tem o mesmo formato 999.999.999
+RE_CONTEXTO_IE = re.compile(r"INSCRI|\bI\.?\s?E\b")
 RE_NF_OUTROS = [  # outros layouts (NFS-e, notas antigas...)
     re.compile(r"NUMERO\s+DA\s+(?:NOTA|NFS?-?E|NF)\b[^\d\n]{0,25}(\d[\d.]{0,10})"),
     re.compile(r"\bN[O0°.]*\s*(?:DA\s+)?(?:NOTA|NFS?-?E|NF)\b[^\d\n]{0,10}(\d[\d.]{0,10})"),
@@ -87,9 +95,16 @@ RE_PRESTADOR = re.compile(r"PRESTADOR")
 RE_RAZAO_SOCIAL = re.compile(r"(?:NOME\s*/\s*)?RAZAO\s+SOCIAL\s*[:.]?\s*")
 RE_FIM_EMITENTE = re.compile(r"DESTINAT|TOMADOR")
 RE_SUFIXO = re.compile(r"\b(?:LTDA|EIRELI|EPP|ME|S[./]?\s?A)\b\.?")
+RE_TOKEN_LEGIVEL = re.compile(r"[\w&.,'/()\-]+")
+CONECTORES = {"DE", "DO", "DA", "DOS", "DAS", "E", "EM"}
+SUFIXOS_EMPRESA = {"LTDA", "LTD", "LT", "SA", "ME", "EPP", "EIRELI", "CIA"}
+RE_ENDERECO = re.compile(r"^\s*(?:RUA|AV|AVENIDA|RODOVIA|ROD|ESTRADA|ALAMEDA|TRAVESSA|PRACA|LARGO)\b")
+RE_CIDADE_UF = re.compile(r"[-/]\s*(?:AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\s*$")
 RE_ROTULOS = re.compile(
     r"\b(?:DANFE|DOCUMENTO\s+AUXILIAR|NOTA\s+FISCAL|CNPJ|INSCRICAO|CHAVE\s+DE\s+ACESSO|"
-    r"ENTRADA|SAIDA|NATUREZA|IDENTIFICACAO|PROTOCOLO|FOLHA|SERIE|ENDERECO|FONE|CEP)\b")
+    r"ENTRADA|SAIDA|NATUREZA|IDENTIFICACAO|PROTOCOLO|FOLHA|SERIE|ENDERECO|FONE|CEP|"
+    r"DESTINAT\w*|REMETENTE|CODIGO|DESCRICAO|NCM|CFOP|QTDE?|QUANTIDADE|VALOR\s+TOTAL|"
+    r"DADOS\s+(?:DOS?|ADICIONAIS)|CALCULO\s+DO\s+IMPOSTO|TRANSPORTADOR\w*|FATURA|DUPLICATAS?)\b")
 
 # Letras que o OCR costuma confundir com números
 _TROCA_DIGITOS = str.maketrans({"O": "0", "Q": "0", "D": "0", "I": "1", "L": "1",
@@ -110,7 +125,7 @@ class DadosNF:
     serie: str = ""
     pedidos: list[str] = field(default_factory=list)
     chave: str = ""
-    origem_nf: str = ""  # "chave", "danfe" ou "texto"
+    origem_nf: str = ""  # "chave", "danfe", "texto", "chave_parcial" ou "divergente"
 
     @property
     def completo(self) -> bool:
@@ -183,6 +198,13 @@ def chave_plausivel(chave: str) -> bool:
     return dv_mod11(chave[42::-1], pesos) == int(chave[43])
 
 
+def chave_estrutura_ok(chave: str) -> bool:
+    """Chave com estrutura e CNPJ válidos, sem conferir o último dígito (o OCR errou algum número)."""
+    return (bool(re.fullmatch(r"\d{6}[0-9A-Z]{12}\d{26}", chave or ""))
+            and int(chave[:2]) in CODIGOS_UF and 1 <= int(chave[4:6]) <= 12
+            and chave[20:22] in ("55", "65") and cnpj_valido(chave[6:20]))
+
+
 def cnpj_valido(cnpj: str) -> bool:
     if not re.fullmatch(r"[0-9A-Z]{12}\d{2}", cnpj) or len(set(cnpj)) == 1:
         return False
@@ -197,15 +219,18 @@ def formatar_cnpj(cnpj: str) -> str:
     return f"{cnpj[:2]}.{cnpj[2:5]}.{cnpj[5:8]}/{cnpj[8:12]}-{cnpj[12:]}"
 
 
-def encontrar_chave(texto: str) -> str:
+def encontrar_chave(texto: str, validar=chave_plausivel) -> str:
     for m in RE_CHAVE_AGRUPADA.finditer(texto):
         chave = re.sub(r"[ .]", "", m.group())
-        if chave_plausivel(chave):
+        if validar(chave):
             return chave
-    for m in RE_SEQ_DIGITOS.finditer(texto):
-        digitos = re.sub(r"\D", "", m.group())
+    trechos = [m.group() for m in RE_SEQ_DIGITOS.finditer(texto)]
+    # chave quebrada em mais de uma linha: junta os dígitos logo depois de "CHAVE DE ACESSO"
+    trechos += [texto[m.end():m.end() + 250] for m in RE_ROTULO_CHAVE.finditer(texto)]
+    for trecho in trechos:
+        digitos = re.sub(r"\D", "", trecho)
         for i in range(len(digitos) - 43):
-            if chave_plausivel(digitos[i:i + 44]):
+            if validar(digitos[i:i + 44]):
                 return digitos[i:i + 44]
     return ""
 
@@ -215,12 +240,20 @@ def _so_numero(trecho: str) -> str:
     return str(int(digitos)) if digitos and len(digitos) <= 9 and int(digitos) else ""
 
 
+def _perto_de_ie(texto: str, inicio: int) -> bool:
+    return bool(RE_CONTEXTO_IE.search(texto[max(0, inicio - 40):inicio]))
+
+
 def encontrar_numero_nf(texto: str) -> tuple[str, str]:
     """Devolve (número, origem). Texto já normalizado e com dígitos corrigidos."""
-    m = RE_NF_DANFE_ROTULO.search(texto)
-    if m and _so_numero(m.group(1)):
-        return _so_numero(m.group(1)), "danfe"
-    candidatos = Counter(_so_numero(x) for x in RE_NF_DANFE.findall(texto))
+    for regex in (RE_NF_DANFE_ROTULO, RE_NF_ANTES_SERIE):
+        for m in regex.finditer(texto):
+            numero = _so_numero(m.group(1))
+            if numero and not _perto_de_ie(texto, m.start()):
+                return numero, "danfe"
+    # Sem o "Nº" na frente: só números com zeros à esquerda (000.012.345), que não são a IE
+    candidatos = Counter(_so_numero(m.group(1)) for m in RE_NF_DANFE.finditer(texto)
+                         if m.group(1).startswith("0") and not _perto_de_ie(texto, m.start()))
     candidatos.pop("", None)
     if candidatos:
         return candidatos.most_common(1)[0][0], "danfe"
@@ -286,14 +319,47 @@ def _limpar_nome(nome: str) -> str:
     return nome[:100]
 
 
+def _palavra_boa(token: str) -> bool:
+    """Palavra com cara de nome: MAIÚSCULA, Capitalizada ou conector (de, da, e...)."""
+    for parte in re.split(r"[.,'/()\-&]+", token):
+        if not parte or parte.isdigit():
+            continue
+        if not parte.isalpha():  # letras e números misturados: "st501", "UN00Nd"
+            return False
+        if not (parte.isupper() or (parte[0].isupper() and parte[1:].islower())
+                or (parte.islower() and parte.upper() in CONECTORES)):
+            return False
+    return True
+
+
+def _nome_plausivel(nome: str) -> str:
+    """Tira pedaços ilegíveis e descarta o nome se ele for "lixo" do OCR."""
+    todos = nome.split()
+    tokens = [t for t in todos if RE_TOKEN_LEGIVEL.fullmatch(t)]
+    boas = [t for t in tokens if _palavra_boa(t)]
+    principais = [t for t in boas if sum(c.isalpha() for c in t) >= 3
+                  and re.sub(r"\W", "", t).upper() not in SUFIXOS_EMPRESA | CONECTORES]
+    com_numero = sum(1 for t in tokens if any(c.isdigit() for c in t))
+    norm = normalizar(nome)
+    if (not principais or len(boas) < 0.7 * len(todos) or com_numero > 1  # lixo / linha de produto
+            or RE_ENDERECO.match(norm) or RE_CIDADE_UF.search(norm)):  # endereço / cidade - UF
+        return ""
+    return _limpar_nome(" ".join(tokens))
+
+
+def _sufixos(linha: str, linha_norm: str) -> list:
+    """LTDA, S.A., ME... (ignora "sa", "me" minúsculos, que costumam ser lixo do OCR)."""
+    return [m for m in RE_SUFIXO.finditer(linha_norm) if not linha[m.start():m.end()].islower()]
+
+
 def _nome_da_linha(linha: str, linha_norm: str) -> str:
     """Corta rótulos do DANFE que o OCR juntou na mesma linha do nome."""
     corte = RE_ROTULOS.search(linha_norm)
     fim = corte.start() if corte else len(linha)
-    sufixos = list(RE_SUFIXO.finditer(linha_norm[:fim]))
+    sufixos = _sufixos(linha[:fim], linha_norm[:fim])
     if sufixos:
         fim = sufixos[-1].end()
-    nome = _limpar_nome(linha[:fim])
+    nome = _nome_plausivel(_limpar_nome(linha[:fim]))
     return nome if sum(c.isalpha() for c in nome) >= 4 else ""
 
 
@@ -301,7 +367,7 @@ def encontrar_fornecedor(texto: str, norm: str) -> str:
     # 1) Canhoto: "RECEBEMOS DE <FORNECEDOR> OS PRODUTOS..."
     m = RE_RECEBEMOS.search(norm)
     if m:
-        nome = _limpar_nome(texto[m.start(1):m.end(1)])
+        nome = _nome_plausivel(_limpar_nome(texto[m.start(1):m.end(1)]))
         if sum(c.isalpha() for c in nome) >= 4:
             return nome
 
@@ -322,6 +388,8 @@ def encontrar_fornecedor(texto: str, norm: str) -> str:
         if nome:
             return nome
         for j in range(i + 1, min(i + 7, len(linhas))):
+            if RE_FIM_EMITENTE.search(linhas_norm[j]):
+                break
             nome = _nome_da_linha(linhas[j], linhas_norm[j])
             if nome:
                 return nome
@@ -341,7 +409,7 @@ def encontrar_fornecedor(texto: str, norm: str) -> str:
     fim = RE_FIM_EMITENTE.search(norm)
     ultima = linha_de(fim.start()) if fim else len(linhas)
     for j in range(ultima):
-        if "RECEBEMOS" in linhas_norm[j] or not RE_SUFIXO.search(linhas_norm[j]):
+        if "RECEBEMOS" in linhas_norm[j] or not _sufixos(linhas[j], linhas_norm[j]):
             continue
         nome = _nome_da_linha(linhas[j], linhas_norm[j])
         if nome:
@@ -354,6 +422,7 @@ def extrair_dados(texto: str, chave_barras: str = "", cadastro: dict | None = No
     norm = normalizar(texto)
     num = corrigir_digitos(norm)
     dados = DadosNF()
+    parcial = ""
 
     if chave_plausivel(chave_barras):
         dados.chave = chave_barras
@@ -369,8 +438,18 @@ def extrair_dados(texto: str, chave_barras: str = "", cadastro: dict | None = No
         dados.numero_nf, dados.origem_nf = encontrar_numero_nf(num)
         dados.serie = encontrar_serie(num)
         dados.cnpj = encontrar_cnpj_emitente(norm)
+        # Chave com algum dígito ilegível: o CNPJ dela é confiável; o número precisa de conferência
+        parcial = encontrar_chave(num, chave_estrutura_ok)
+        if parcial:
+            dados.cnpj = parcial[6:20]
+            dados.serie = dados.serie or str(int(parcial[22:25]))
+            numero_chave = str(int(parcial[25:34]))
+            if not dados.numero_nf:
+                dados.numero_nf, dados.origem_nf = numero_chave, "chave_parcial"
+            elif dados.numero_nf != numero_chave:
+                dados.origem_nf = "divergente"
 
-    dados.pedidos = encontrar_pedidos(num, ignorar=dados.chave)
+    dados.pedidos = encontrar_pedidos(num, ignorar=dados.chave or parcial)
 
     if cadastro and dados.cnpj in cadastro:
         dados.fornecedor = cadastro[dados.cnpj]
@@ -493,30 +572,27 @@ def ocr(img, idioma: str, psm: int) -> str:
     return pytesseract.image_to_string(img, lang=idioma, config=f"--psm {psm}")
 
 
-def _textos_ocr(img, idioma: str):
-    """Tentativas de OCR, da mais rápida para a mais insistente."""
-    yield ocr(img, idioma, psm=3)
-    girada = corrigir_rotacao(img)
-    if girada is not None:
-        img = girada
-        yield ocr(img, idioma, psm=3)
-    yield ocr(binarizar(img), idioma, psm=6)
-
-
 def ler_pagina(img, texto_embutido: str, idioma: str, cadastro: dict) -> tuple[DadosNF, str]:
     img = preparar_imagem(img)
     chave_barras = ler_codigo_barras(img)
-    textos = []
-    dados = DadosNF()
-    if len(texto_embutido.strip()) >= 100:  # PDF com texto (não precisa de OCR)
-        textos.append(texto_embutido)
-        dados = extrair_dados(texto_embutido, chave_barras, cadastro)
+    base = [texto_embutido] if len(texto_embutido.strip()) >= 100 else []  # PDF com texto
+    textos = list(base)
+    dados = extrair_dados("\n".join(textos), chave_barras, cadastro)
+
+    def tentar(texto: str, descartar_anteriores: bool = False) -> None:
+        nonlocal dados, textos
+        textos = base + ([] if descartar_anteriores else textos[len(base):]) + [texto]
+        dados = extrair_dados("\n".join(textos), chave_barras, cadastro)
+
     if not dados.completo:
-        for texto in _textos_ocr(img, idioma):
-            textos.append(texto)
-            dados = extrair_dados("\n".join(textos), chave_barras, cadastro)
-            if dados.completo:
-                break
+        tentar(ocr(img, idioma, psm=3))
+    if not dados.completo:
+        girada = corrigir_rotacao(img)
+        if girada is not None:  # folha virada: o texto lido antes era lixo
+            img = girada
+            tentar(ocr(img, idioma, psm=3), descartar_anteriores=True)
+    if not dados.completo:
+        tentar(ocr(binarizar(img), idioma, psm=6))
     return dados, "\n\n".join(textos)
 
 
@@ -572,6 +648,17 @@ def carregar_cadastro(caminho: Path) -> dict[str, str]:
     return cadastro
 
 
+def completar_fornecedores(registros: list[RegistroNF]) -> None:
+    """NFs do mesmo CNPJ: o nome lido em uma preenche as outras."""
+    nomes: dict[str, str] = {}
+    for r in registros:
+        if r.dados.cnpj and r.dados.fornecedor:
+            nomes.setdefault(r.dados.cnpj, r.dados.fornecedor)
+    for r in registros:
+        if not r.dados.fornecedor and r.dados.cnpj in nomes:
+            r.dados.fornecedor = nomes[r.dados.cnpj]
+
+
 def marcar_avisos(registros: list[RegistroNF]) -> None:
     chaves = Counter((r.dados.cnpj or r.dados.fornecedor, r.dados.numero_nf)
                      for r in registros if r.dados.numero_nf)
@@ -588,6 +675,10 @@ def marcar_avisos(registros: list[RegistroNF]) -> None:
             r.avisos.append("nº da NF não encontrado")
         elif d.origem_nf == "texto":
             r.avisos.append("nº da NF lido fora do padrão DANFE")
+        elif d.origem_nf == "chave_parcial":
+            r.avisos.append("nº da NF lido da chave de acesso com dígito ilegível")
+        elif d.origem_nf == "divergente":
+            r.avisos.append("nº impresso diferente do nº da chave de acesso")
         elif chaves[(d.cnpj or d.fornecedor, d.numero_nf)] > 1:
             r.avisos.append("NF repetida em outro arquivo")
         if not d.pedidos:
@@ -719,6 +810,7 @@ def main(argv: list[str] | None = None) -> int:
                   f"Pedido {' / '.join(d.pedidos) or '?'}")
         registros.extend(novos)
 
+    completar_fornecedores(registros)
     marcar_avisos(registros)
     caminho = gerar_planilha(registros, saida)
     conferir = sum(1 for r in registros if r.avisos)

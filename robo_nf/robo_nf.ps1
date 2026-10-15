@@ -63,8 +63,16 @@ $ReChaveAgrupada = NovaRegex '(?<![0-9A-Z])(?:[0-9A-Z]{4}[ .]{0,2}){10}[0-9A-Z]{
 $ReSeqDigitos = NovaRegex '\d(?:[ .]{0,2}\d){43,}'
 
 # Numero da NF no DANFE: "N. 000.012.345"
-$ReNfDanfeRotulo = NovaRegex '\bN\s*[O0\u00B0.:\-]{0,3}\s*[:.]?\s*(\d{3}\.\d{3}\.\d{3})(?!\d|[.,/-]\d)'
-$ReNfDanfe = NovaRegex '(?<![\d./,-])(\d{3}\.\d{3}\.\d{3})(?!\d|[.,/-]\d)'
+$ReRotuloChave = NovaRegex 'CHAVE\s+DE\s+ACESSO'
+
+# (o OCR as vezes poe espaco junto dos pontos)
+$NfPontuado = '\d{3}\s?\.\s?\d{3}\s?\.\s?\d{3}'
+$ReNfDanfeRotulo = NovaRegex ('\bN\s*[O0\u00B0.:\-]{0,3}\s*[:.]?\s*(' + $NfPontuado + ')(?!\d|[.,/-]\d)')
+# "N. 93269  SERIE 1" / "N. 000093269" e na linha de baixo "SERIE 001"
+$ReNfAntesSerie = NovaRegex '\bN\s*[O0\u00B0.:\-]{0,3}\s*[:.]?\s*(\d{1,9}|\d{1,3}(?:\.\d{3}){1,2})\s*[-|]?\s*\n?\s*SERIE\b'
+$ReNfDanfe = NovaRegex ('(?<![\d./,-])(' + $NfPontuado + ')(?!\d|[.,/-]\d)')
+# A inscricao estadual de SC (e de outros estados) tem o mesmo formato 999.999.999
+$ReContextoIE = NovaRegex 'INSCRI|\bI\.?\s?E\b'
 $ReNfOutros = @(  # outros layouts (NFS-e, notas antigas...)
     (NovaRegex 'NUMERO\s+DA\s+(?:NOTA|NFS?-?E|NF)\b[^\d\n]{0,25}(\d[\d.]{0,10})'),
     (NovaRegex '\bN[O0\u00B0.]*\s*(?:DA\s+)?(?:NOTA|NFS?-?E|NF)\b[^\d\n]{0,10}(\d[\d.]{0,10})'),
@@ -81,8 +89,19 @@ $RePrestador = NovaRegex 'PRESTADOR'
 $ReRazaoSocial = NovaRegex '(?:NOME\s*/\s*)?RAZAO\s+SOCIAL\s*[:.]?\s*'
 $ReFimEmitente = NovaRegex 'DESTINAT|TOMADOR'
 $ReSufixo = NovaRegex '\b(?:LTDA|EIRELI|EPP|ME|S[./]?\s?A)\b\.?'
+$ReTokenLegivel = NovaRegex "^[\w&.,'/()\-]+\z"
+$Conectores = 'DE', 'DO', 'DA', 'DOS', 'DAS', 'E', 'EM'
+$SufixosEmpresa = 'LTDA', 'LTD', 'LT', 'SA', 'ME', 'EPP', 'EIRELI', 'CIA'
+$ReEndereco = NovaRegex '^\s*(?:RUA|AV|AVENIDA|RODOVIA|ROD|ESTRADA|ALAMEDA|TRAVESSA|PRACA|LARGO)\b'
+$ReCidadeUF = NovaRegex '[-/]\s*(?:AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\s*\z'
 $ReRotulos = NovaRegex ('\b(?:DANFE|DOCUMENTO\s+AUXILIAR|NOTA\s+FISCAL|CNPJ|INSCRICAO|CHAVE\s+DE\s+ACESSO|' +
-                'ENTRADA|SAIDA|NATUREZA|IDENTIFICACAO|PROTOCOLO|FOLHA|SERIE|ENDERECO|FONE|CEP)\b')
+                'ENTRADA|SAIDA|NATUREZA|IDENTIFICACAO|PROTOCOLO|FOLHA|SERIE|ENDERECO|FONE|CEP|' +
+                'DESTINAT\w*|REMETENTE|CODIGO|DESCRICAO|NCM|CFOP|QTDE?|QUANTIDADE|VALOR\s+TOTAL|' +
+                'DADOS\s+(?:DOS?|ADICIONAIS)|CALCULO\s+DO\s+IMPOSTO|TRANSPORTADOR\w*|FATURA|DUPLICATAS?)\b')
+# Palavras que aparecem em qualquer DANFE: servem para saber se a folha foi lida na posicao certa
+$RePalavrasDanfe = NovaRegex ('\b(?:DANFE|NOTA|FISCAL|CNPJ|EMITENTE|DESTINAT\w*|PRODUTOS?|VALOR|TOTAL|ICMS|' +
+    'DATA|SERIE|CHAVE|ACESSO|NATUREZA|OPERACAO|INSCRICAO|ESTADUAL|ENDERECO|MUNICIPIO|QUANTIDADE|PEDIDO|' +
+    'TRANSPORTADOR|FRETE|RECEBEMOS|EMISSAO|BAIRRO|CEP|FONE|PESO|IMPOSTO|DESCRICAO|CODIGO)\b')
 
 # Letras que o OCR costuma confundir com numeros
 $ReLetraEntreDigitos = NovaRegex '(?<=\d)[OQDILS|B]{1,3}(?=[\d.])|(?<=[\d.])[OQDILS|B]{1,3}(?=\d)'
@@ -95,7 +114,7 @@ function NovoDados {
     [pscustomobject]@{
         Fornecedor = ''; Cnpj = ''; NumeroNF = ''; Serie = ''
         Pedidos = (New-Object 'System.Collections.Generic.List[string]')
-        Chave = ''; OrigemNF = ''  # OrigemNF: "chave", "danfe" ou "texto"
+        Chave = ''; OrigemNF = ''  # OrigemNF: "chave", "danfe", "texto", "chave_parcial" ou "divergente"
     }
 }
 
@@ -163,6 +182,16 @@ function ChavePlausivel([string]$chave) {
     (DvMod11 $invertida (@(2, 3, 4, 5, 6, 7, 8, 9) * 6)) -eq [int]$chave.Substring(43, 1)
 }
 
+function ChaveEstruturaOk([string]$chave) {
+    # Chave com estrutura e CNPJ validos, sem conferir o ultimo digito (o OCR errou algum numero)
+    if (-not $chave -or $chave -cnotmatch '^\d{6}[0-9A-Z]{12}\d{26}\z') { return $false }
+    if ($CodigosUF -notcontains [int]$chave.Substring(0, 2)) { return $false }
+    $mes = [int]$chave.Substring(4, 2)
+    if ($mes -lt 1 -or $mes -gt 12) { return $false }
+    if ('55', '65' -notcontains $chave.Substring(20, 2)) { return $false }
+    CnpjValido $chave.Substring(6, 14)
+}
+
 function CnpjValido([string]$cnpj) {
     if ($cnpj -cnotmatch '^[0-9A-Z]{12}\d{2}\z' -or $cnpj -cmatch '^(.)\1*\z') { return $false }
     $pesos = 6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2
@@ -176,15 +205,22 @@ function FormatarCnpj([string]$cnpj) {
                              $cnpj.Substring(8, 4), $cnpj.Substring(12, 2)
 }
 
-function EncontrarChave([string]$texto) {
+function EncontrarChave([string]$texto, [string]$validar = 'ChavePlausivel') {
     foreach ($m in $ReChaveAgrupada.Matches($texto)) {
         $chave = $m.Value -creplace '[ .]', ''
-        if (ChavePlausivel $chave) { return $chave }
+        if (& $validar $chave) { return $chave }
     }
-    foreach ($m in $ReSeqDigitos.Matches($texto)) {
-        $digitos = $m.Value -creplace '\D', ''
+    $trechos = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($m in $ReSeqDigitos.Matches($texto)) { $trechos.Add($m.Value) }
+    # chave quebrada em mais de uma linha: junta os digitos logo depois de "CHAVE DE ACESSO"
+    foreach ($m in $ReRotuloChave.Matches($texto)) {
+        $depois = $m.Index + $m.Length
+        $trechos.Add($texto.Substring($depois, [Math]::Min(250, $texto.Length - $depois)))
+    }
+    foreach ($trecho in $trechos) {
+        $digitos = $trecho -creplace '\D', ''
         for ($i = 0; $i -le $digitos.Length - 44; $i++) {
-            if (ChavePlausivel $digitos.Substring($i, 44)) { return $digitos.Substring($i, 44) }
+            if (& $validar $digitos.Substring($i, 44)) { return $digitos.Substring($i, 44) }
         }
     }
     ''
@@ -196,14 +232,25 @@ function SoNumero([string]$trecho) {
     [string][long]$digitos
 }
 
+function PertoDeIE([string]$texto, [int]$inicio) {
+    $de = [Math]::Max(0, $inicio - 40)
+    $ReContextoIE.IsMatch($texto.Substring($de, $inicio - $de))
+}
+
 function EncontrarNumeroNF([string]$texto) {
     # Devolve @(numero, origem). Texto ja normalizado e com digitos corrigidos.
-    $m = $ReNfDanfeRotulo.Match($texto)
-    if ($m.Success -and (SoNumero $m.Groups[1].Value)) { return @((SoNumero $m.Groups[1].Value), 'danfe') }
+    foreach ($regex in @($ReNfDanfeRotulo, $ReNfAntesSerie)) {
+        foreach ($m in $regex.Matches($texto)) {
+            $n = SoNumero $m.Groups[1].Value
+            if ($n -and -not (PertoDeIE $texto $m.Index)) { return @($n, 'danfe') }
+        }
+    }
 
+    # Sem o "N." na frente: so numeros com zeros a esquerda (000.012.345), que nao sao a IE
     $contagem = @{}
     $ordem = New-Object 'System.Collections.Generic.List[string]'
     foreach ($m in $ReNfDanfe.Matches($texto)) {
+        if (-not $m.Groups[1].Value.StartsWith('0') -or (PertoDeIE $texto $m.Index)) { continue }
         $n = SoNumero $m.Groups[1].Value
         if (-not $n) { continue }
         if (-not $contagem.ContainsKey($n)) { $contagem[$n] = 0; $ordem.Add($n) }
@@ -283,13 +330,53 @@ function LimparNome([string]$nome) {
     $nome
 }
 
+function EhMaiusculo([string]$s) { ($s -ceq $s.ToUpperInvariant()) -and ($s -cne $s.ToLowerInvariant()) }
+
+function EhMinusculo([string]$s) { ($s -ceq $s.ToLowerInvariant()) -and ($s -cne $s.ToUpperInvariant()) }
+
+function PalavraBoa([string]$token) {
+    # Palavra com cara de nome: MAIUSCULA, Capitalizada ou conector (de, da, e...)
+    foreach ($parte in [regex]::Split($token, "[.,'/()\-&]+")) {
+        if (-not $parte -or $parte -cmatch '^[0-9]+\z') { continue }
+        if ($parte -cnotmatch '^\p{L}+\z') { return $false }  # letras e numeros misturados: "st501"
+        $capitalizada = $parte.Length -gt 1 -and [char]::IsUpper($parte[0]) -and (EhMinusculo $parte.Substring(1))
+        $conector = (EhMinusculo $parte) -and $Conectores -contains $parte.ToUpperInvariant()
+        if (-not ((EhMaiusculo $parte) -or $capitalizada -or $conector)) { return $false }
+    }
+    $true
+}
+
+function NomePlausivel([string]$nome) {
+    # Tira pedacos ilegiveis e descarta o nome se ele for "lixo" do OCR
+    $todos = @($nome -split '\s+' | Where-Object { $_ })
+    $tokens = @($todos | Where-Object { $ReTokenLegivel.IsMatch($_) })
+    $boas = @($tokens | Where-Object { PalavraBoa $_ })
+    $principais = @($boas | Where-Object {
+        (ContarLetras $_) -ge 3 -and
+        ($SufixosEmpresa + $Conectores) -notcontains ($_ -creplace '\W', '').ToUpperInvariant() })
+    $comNumero = @($tokens | Where-Object { $_ -cmatch '\d' }).Count
+    $norm = Normalizar $nome
+    if ($principais.Count -eq 0 -or $boas.Count -lt 0.7 * $todos.Count -or $comNumero -gt 1 -or  # lixo / produto
+        $ReEndereco.IsMatch($norm) -or $ReCidadeUF.IsMatch($norm)) { return '' }  # endereco / cidade - UF
+    LimparNome ($tokens -join ' ')
+}
+
+function Sufixos([string]$linha, [string]$linhaNorm) {
+    # LTDA, S.A., ME... (ignora "sa", "me" minusculos, que costumam ser lixo do OCR)
+    $lista = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($m in $ReSufixo.Matches($linhaNorm)) {
+        if (-not (EhMinusculo $linha.Substring($m.Index, $m.Length))) { $lista.Add($m) }
+    }
+    , $lista
+}
+
 function NomeDaLinha([string]$linha, [string]$linhaNorm) {
     # Corta rotulos do DANFE que o OCR juntou na mesma linha do nome
     $corte = $ReRotulos.Match($linhaNorm)
     $fim = if ($corte.Success) { $corte.Index } else { $linha.Length }
-    $sufixos = $ReSufixo.Matches($linhaNorm.Substring(0, $fim))
+    $sufixos = Sufixos $linha.Substring(0, $fim) $linhaNorm.Substring(0, $fim)
     if ($sufixos.Count -gt 0) { $fim = $sufixos[$sufixos.Count - 1].Index + $sufixos[$sufixos.Count - 1].Length }
-    $nome = LimparNome $linha.Substring(0, $fim)
+    $nome = NomePlausivel (LimparNome $linha.Substring(0, $fim))
     if ((ContarLetras $nome) -ge 4) { $nome } else { '' }
 }
 
@@ -297,7 +384,7 @@ function EncontrarFornecedor([string]$texto, [string]$norm) {
     # 1) Canhoto: "RECEBEMOS DE <FORNECEDOR> OS PRODUTOS..."
     $m = $ReRecebemos.Match($norm)
     if ($m.Success) {
-        $nome = LimparNome $texto.Substring($m.Groups[1].Index, $m.Groups[1].Length)
+        $nome = NomePlausivel (LimparNome $texto.Substring($m.Groups[1].Index, $m.Groups[1].Length))
         if ((ContarLetras $nome) -ge 4) { return $nome }
     }
 
@@ -317,6 +404,7 @@ function EncontrarFornecedor([string]$texto, [string]$norm) {
         $nome = NomeDaLinha $texto.Substring($depois, $tamanho) $norm.Substring($depois, $tamanho)
         if ($nome) { return $nome }
         for ($j = $i + 1; $j -lt [Math]::Min($i + 7, $linhas.Count); $j++) {
+            if ($ReFimEmitente.IsMatch($linhasNorm[$j])) { break }
             $nome = NomeDaLinha $linhas[$j] $linhasNorm[$j]
             if ($nome) { return $nome }
         }
@@ -340,7 +428,7 @@ function EncontrarFornecedor([string]$texto, [string]$norm) {
     $fim = $ReFimEmitente.Match($norm)
     $ultima = if ($fim.Success) { & $linhaDe $fim.Index } else { $linhas.Count }
     for ($j = 0; $j -lt $ultima; $j++) {
-        if ($linhasNorm[$j].Contains('RECEBEMOS') -or -not $ReSufixo.IsMatch($linhasNorm[$j])) { continue }
+        if ($linhasNorm[$j].Contains('RECEBEMOS') -or (Sufixos $linhas[$j] $linhasNorm[$j]).Count -eq 0) { continue }
         $nome = NomeDaLinha $linhas[$j] $linhasNorm[$j]
         if ($nome) { return $nome }
     }
@@ -353,6 +441,7 @@ function ExtrairDados([string]$texto, $cadastro = $null) {
     $norm = Normalizar $texto
     $num = CorrigirDigitos $norm
     $d = NovoDados
+    $parcial = ''
 
     $d.Chave = EncontrarChave $num
     if (-not $d.Chave) { $d.Chave = EncontrarChave $norm }
@@ -368,9 +457,19 @@ function ExtrairDados([string]$texto, $cadastro = $null) {
         $d.OrigemNF = $numero[1]
         $d.Serie = EncontrarSerie $num
         $d.Cnpj = EncontrarCnpjEmitente $norm
+        # Chave com algum digito ilegivel: o CNPJ dela e confiavel; o numero precisa de conferencia
+        $parcial = EncontrarChave $num 'ChaveEstruturaOk'
+        if ($parcial) {
+            $d.Cnpj = $parcial.Substring(6, 14)
+            if (-not $d.Serie) { $d.Serie = [string][int]$parcial.Substring(22, 3) }
+            $numeroChave = [string][long]$parcial.Substring(25, 9)
+            if (-not $d.NumeroNF) { $d.NumeroNF = $numeroChave; $d.OrigemNF = 'chave_parcial' }
+            elseif ($d.NumeroNF -cne $numeroChave) { $d.OrigemNF = 'divergente' }
+        }
     }
 
-    $d.Pedidos = EncontrarPedidos $num $d.Chave
+    $ignorar = if ($d.Chave) { $d.Chave } else { $parcial }
+    $d.Pedidos = EncontrarPedidos $num $ignorar
 
     if ($cadastro -and $d.Cnpj -and $cadastro.ContainsKey($d.Cnpj)) {
         $d.Fornecedor = $cadastro[$d.Cnpj]
@@ -449,7 +548,7 @@ function AbrirPaginas([string]$caminho) {
     , $paginas
 }
 
-function LerTexto($imagem, [int]$rotacao) {
+function LerTexto($imagem, [int]$rotacao, [double]$escala = 1.0) {
     $t = [Windows.Graphics.Imaging.BitmapTransform]::new()
     $t.Rotation = [Windows.Graphics.Imaging.BitmapRotation]@{
         0 = 'None'; 90 = 'Clockwise90Degrees'; 180 = 'Clockwise180Degrees'; 270 = 'Clockwise270Degrees' }[$rotacao]
@@ -459,6 +558,7 @@ function LerTexto($imagem, [int]$rotacao) {
     $limite = [Windows.Media.Ocr.OcrEngine]::MaxImageDimension
     $fator = 1.0
     if ($maior -lt 2400) { $fator = 3000.0 / $maior }
+    $fator = $fator * $escala
     if ($maior * $fator -gt $limite) { $fator = $limite / $maior }
     if ($fator -ne 1.0 -and $imagem.OrientedPixelWidth -eq $imagem.PixelWidth) {
         $t.ScaledWidth = [uint32][Math]::Floor($imagem.PixelWidth * $fator)
@@ -475,14 +575,27 @@ function LerTexto($imagem, [int]$rotacao) {
     ($resultado.Lines | ForEach-Object { $_.Text }) -join "`n"
 }
 
+function Legibilidade([string]$texto) { $RePalavrasDanfe.Matches((Normalizar $texto)).Count }
+
 function LerPagina($imagem, $cadastro) {
-    # Tenta a folha em pe; se faltar algo, tenta de cabeca para baixo e de lado
-    $textos = New-Object 'System.Collections.Generic.List[string]'
-    $dados = NovoDados
+    # Descobre a posicao da folha (em pe, de cabeca para baixo ou de lado) pelo texto mais legivel.
+    # So o texto dessa posicao e usado: o das outras posicoes e lixo e atrapalha.
+    $melhor = $null
     foreach ($rotacao in 0, 180, 90, 270) {
-        $textos.Add((LerTexto $imagem $rotacao))
+        $texto = LerTexto $imagem $rotacao
+        $pontos = Legibilidade $texto
+        if (-not $melhor -or $pontos -gt $melhor.Pontos) {
+            $melhor = @{ Rotacao = $rotacao; Texto = $texto; Pontos = $pontos }
+        }
+        if ($pontos -ge 8) { break }
+    }
+    $textos = New-Object 'System.Collections.Generic.List[string]'
+    $textos.Add($melhor.Texto)
+    $dados = ExtrairDados $melhor.Texto $cadastro
+    if (-not (Completo $dados)) {
+        # Faltou algo: le de novo, ampliada, na mesma posicao
+        $textos.Add((LerTexto $imagem $melhor.Rotacao 1.5))
         $dados = ExtrairDados ($textos -join "`n") $cadastro
-        if (Completo $dados) { break }
     }
     [pscustomobject]@{ Dados = $dados; Texto = ($textos -join "`n`n") }
 }
@@ -552,6 +665,21 @@ function CarregarCadastro([string]$caminho) {
     $cadastro
 }
 
+function CompletarFornecedores($registros) {
+    # NFs do mesmo CNPJ: o nome lido em uma preenche as outras
+    $nomes = @{}
+    foreach ($r in $registros) {
+        if ($r.Dados.Cnpj -and $r.Dados.Fornecedor -and -not $nomes.ContainsKey($r.Dados.Cnpj)) {
+            $nomes[$r.Dados.Cnpj] = $r.Dados.Fornecedor
+        }
+    }
+    foreach ($r in $registros) {
+        if (-not $r.Dados.Fornecedor -and $r.Dados.Cnpj -and $nomes.ContainsKey($r.Dados.Cnpj)) {
+            $r.Dados.Fornecedor = $nomes[$r.Dados.Cnpj]
+        }
+    }
+}
+
 function MarcarAvisos($registros) {
     $chave = { param($d) $emitente = if ($d.Cnpj) { $d.Cnpj } else { $d.Fornecedor }; "$emitente|$($d.NumeroNF)" }
     $contagem = @{}
@@ -565,6 +693,8 @@ function MarcarAvisos($registros) {
         if (-not $d.Fornecedor) { $r.Avisos.Add((U 'fornecedor n\u00e3o encontrado')) }
         if (-not $d.NumeroNF) { $r.Avisos.Add((U 'n\u00ba da NF n\u00e3o encontrado')) }
         elseif ($d.OrigemNF -eq 'texto') { $r.Avisos.Add((U 'n\u00ba da NF lido fora do padr\u00e3o DANFE')) }
+        elseif ($d.OrigemNF -eq 'chave_parcial') { $r.Avisos.Add((U 'n\u00ba da NF lido da chave de acesso com d\u00edgito ileg\u00edvel')) }
+        elseif ($d.OrigemNF -eq 'divergente') { $r.Avisos.Add((U 'n\u00ba impresso diferente do n\u00ba da chave de acesso')) }
         elseif ($contagem[(& $chave $d)] -gt 1) { $r.Avisos.Add('NF repetida em outro arquivo') }
         if ($d.Pedidos.Count -eq 0) { $r.Avisos.Add((U 'pedido n\u00e3o encontrado')) }
         elseif ($d.Pedidos.Count -gt 1) { $r.Avisos.Add('mais de um pedido') }
@@ -758,6 +888,7 @@ function Main {
         }
     }
 
+    CompletarFornecedores $registros
     MarcarAvisos $registros
     $caminho = GerarPlanilha $registros $caminhoSaida
     $conferir = @($registros | Where-Object { $_.Avisos.Count -gt 0 }).Count

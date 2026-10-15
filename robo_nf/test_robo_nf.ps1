@@ -94,6 +94,41 @@ $d = ExtrairDados $DANFE.Replace('{chave}', (Agrupar $chave)) @{ $CNPJ = 'Fornec
 Igual 'Fornecedor Exemplo (cód. SAP 100200)' $d.Fornecedor 'cadastro padroniza nome'
 Igual 'ACME SOLUCOES S.A.' (LimparNome ' ACME SOLUCOES S.A. ') 'mantem ponto de S.A.'
 
+# --- casos reais (primeiras NFs lidas com o OCR do Windows) ---
+Igual '' (ExtrairDados "INSCRIÇÃO ESTADUAL`n252.405.749`nCNPJ 05.283.785/0001-70`nPEDIDO 4501216027").NumeroNF 'IE nao vira numero da NF'
+Igual '93269' (ExtrairDados 'INSCRIÇÃO ESTADUAL 252.405.749   NF-e Nº 000.093.269 SÉRIE 1').NumeroNF 'IE ao lado do numero'
+Igual '|' ((EncontrarNumeroNF 'DANFE 252.405.749') -join '|') 'sem rotulo precisa de zeros a esquerda'
+Igual '93269|danfe' ((EncontrarNumeroNF 'DANFE 000.093.269') -join '|') 'sem rotulo com zeros'
+Igual '93269|danfe' ((EncontrarNumeroNF (CorrigirDigitos (Normalizar 'Nº 000. 093 .269'))) -join '|') 'espacos do OCR no numero'
+foreach ($t in "NF-e`nNº 93269`nSÉRIE 1", 'Nº. 000093269 SÉRIE: 001') {
+    Igual '93269|danfe' ((EncontrarNumeroNF (CorrigirDigitos (Normalizar $t))) -join '|') "numero antes da serie: $t"
+}
+$grupos = Agrupar (MontarChave $CNPJ 85482)
+Igual '85482' (ExtrairDados "CHAVE DE ACESSO`n$($grupos.Substring(0, 27))`n$($grupos.Substring(27))`nConsulta de autenticidade").NumeroNF 'chave em duas linhas'
+$boa = MontarChave $CNPJ 85482
+$errada = (0..9 | ForEach-Object { $boa.Substring(0, 40) + $_ + $boa.Substring(41) } | Where-Object { -not (ChavePlausivel $_) } | Select-Object -First 1)
+$d = ExtrairDados "CHAVE DE ACESSO $(Agrupar $errada)"
+Igual "85482|chave_parcial|$CNPJ|" ("$($d.NumeroNF)|$($d.OrigemNF)|$($d.Cnpj)|$($d.Chave)") 'chave com digito ilegivel'
+$d = ExtrairDados "Nº 000.085.482 SÉRIE 1`nCHAVE DE ACESSO $(Agrupar $errada)"
+Igual '85482|danfe' ("$($d.NumeroNF)|$($d.OrigemNF)") 'chave parcial confirma numero impresso'
+$d = ExtrairDados "Nº 000.085.483 SÉRIE 1`nCHAVE DE ACESSO $(Agrupar $errada)"
+Igual '85483|divergente' ("$($d.NumeroNF)|$($d.OrigemNF)") 'chave parcial diverge do impresso'
+foreach ($lixo in 'trtVtE a 1.1-snrv oagoav sa', 'eoyssuw oavt ov sa', '•v•s sa', 'IV ayJ.sa',
+                  'svax•UN00Nd a sa.', 'bd.Remget•gçi0 Ltda', 'van wu.st501 SA.', 'OL18LSta•a-m ¿•z sa') {
+    Igual '' (Fornecedor "$lixo`nDESTINATÁRIO / REMETENTE`nMINHA EMPRESA LTDA") "lixo antes do destinatario: $lixo"
+    Igual '' (Fornecedor "IDENTIFICAÇÃO DO EMITENTE`n$lixo`nDESTINATÁRIO / REMETENTE") "lixo no bloco do emitente: $lixo"
+}
+foreach ($nome in 'DAL PINO INDUSTRIA DE SERRAS LTDA', 'Frigostrella do Brasil Ind.Refrigeracao Ltda',
+                  'BETTCHER DO BRASIL COMERCIO DE MAQUINAS LTDA', 'METALÚRGICA SILVA S/A',
+                  'PAPELARIA CENTRAL LTDA - ME', 'JBT MAREL BRASIL LTDA', 'FORTUNCERES S.A.') {
+    Igual $nome (NomePlausivel $nome) "nome real aceito: $nome"
+}
+foreach ($linha in 'RUA DAS INDÚSTRIAS, 1500 - DISTRITO INDUSTRIAL', 'AV. BRASIL, 100', 'SÃO PAULO - SP CEP 01000-000',
+                   '000123 PARAFUSO SEXTAVADO M8 73181500 100 1,50', 'ossaovadaavHS — WIVHTOS TOO IIHAS') {
+    Igual '' (Fornecedor "IDENTIFICAÇÃO DO EMITENTE`n$linha`nDESTINATÁRIO / REMETENTE") "nao e fornecedor: $linha"
+}
+Igual 'COMERCIO DE VALVULAS LTDA' (Fornecedor 'RECEBEMOS DE sn«ox COMERCIO DE VALVULAS LTDA OS PRODUTOS CONSTANTES DA NOTA') 'tira pedaco ilegivel'
+
 # --- cadastro e planilha ---
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("robo_nf_" + [guid]::NewGuid())
 [void](New-Item -ItemType Directory -Path $tmp)
@@ -114,6 +149,10 @@ try {
         (Reg 'b.pdf' @(1, 2) 'FORN B & CIA LTDA' '' '20' @('4500000002', '4500000003')),
         (Reg 'c.jpg' @(1) 'FORN C LTDA' '' '30' @()),
         (Reg 'd.jpg' @(1) 'FORN A LTDA' $CNPJ '10' @('4500000001')))
+    $semNome = Reg '19.pdf' @(1) '' '06913480002616' '2' @('4501229433')
+    CompletarFornecedores @((Reg '20.pdf' @(1) 'DIMENSIONAL BRASIL LTDA' '06913480002616' '1' @()), $semNome)
+    Igual 'DIMENSIONAL BRASIL LTDA' $semNome.Dados.Fornecedor 'fornecedor pelo CNPJ de outra NF'
+
     MarcarAvisos $registros
     Igual 'mais de um pedido' ($registros[1].Avisos -join '|') 'aviso mais de um pedido'
     Igual (U 'pedido não encontrado') ($registros[2].Avisos -join '|') 'aviso sem pedido'

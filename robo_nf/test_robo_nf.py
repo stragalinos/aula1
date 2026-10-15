@@ -146,6 +146,77 @@ class TestFornecedor(unittest.TestCase):
         self.assertEqual(dados.fornecedor, "Fornecedor Exemplo (cód. SAP 100200)")
 
 
+class TestCasosReais(unittest.TestCase):
+    """Erros vistos nas primeiras NFs reais (lidas com o OCR do Windows)."""
+
+    def test_inscricao_estadual_nao_vira_numero_da_nf(self):
+        texto = "INSCRIÇÃO ESTADUAL\n252.405.749\nCNPJ 05.283.785/0001-70\nPEDIDO 4501216027"
+        self.assertEqual(r.extrair_dados(texto).numero_nf, "")
+        texto = "INSCRIÇÃO ESTADUAL 252.405.749   NF-e Nº 000.093.269 SÉRIE 1"
+        self.assertEqual(r.extrair_dados(texto).numero_nf, "93269")
+
+    def test_numero_sem_rotulo_precisa_de_zeros_a_esquerda(self):
+        self.assertEqual(r.encontrar_numero_nf("DANFE 252.405.749"), ("", ""))
+        self.assertEqual(r.encontrar_numero_nf("DANFE 000.093.269"), ("93269", "danfe"))
+
+    def test_espacos_do_ocr_no_numero(self):
+        num = r.corrigir_digitos(r.normalizar("Nº 000. 093 .269"))
+        self.assertEqual(r.encontrar_numero_nf(num), ("93269", "danfe"))
+
+    def test_numero_sem_pontos_antes_da_serie(self):
+        for texto in ("NF-e\nNº 93269\nSÉRIE 1", "Nº. 000093269 SÉRIE: 001"):
+            num = r.corrigir_digitos(r.normalizar(texto))
+            self.assertEqual(r.encontrar_numero_nf(num), ("93269", "danfe"), texto)
+
+    def test_chave_quebrada_em_duas_linhas(self):
+        grupos = agrupar(montar_chave(CNPJ, 85482))
+        texto = f"CHAVE DE ACESSO\n{grupos[:27]}\n{grupos[27:]}\nConsulta de autenticidade"
+        self.assertEqual(r.extrair_dados(texto).numero_nf, "85482")
+
+    def test_chave_com_digito_ilegivel(self):
+        chave = montar_chave(CNPJ, 85482)
+        errada = next(e for e in (chave[:40] + str(d) + chave[41:] for d in range(10))
+                      if not r.chave_plausivel(e))
+        dados = r.extrair_dados(f"CHAVE DE ACESSO {agrupar(errada)}")
+        self.assertEqual((dados.numero_nf, dados.origem_nf, dados.cnpj), ("85482", "chave_parcial", CNPJ))
+        self.assertEqual(dados.chave, "")  # chave errada não vai para a planilha
+        dados = r.extrair_dados(f"Nº 000.085.482 SÉRIE 1\nCHAVE DE ACESSO {agrupar(errada)}")
+        self.assertEqual((dados.numero_nf, dados.origem_nf), ("85482", "danfe"))
+        dados = r.extrair_dados(f"Nº 000.085.483 SÉRIE 1\nCHAVE DE ACESSO {agrupar(errada)}")
+        self.assertEqual((dados.numero_nf, dados.origem_nf), ("85483", "divergente"))
+
+    def test_lixo_do_ocr_nao_vira_fornecedor(self):
+        for lixo in ("trtVtE a 1.1-snrv oagoav sa", "eoyssuw oavt ov sa", "•v•s sa", "IV ayJ.sa",
+                     "svax•UN00Nd a sa.", "bd.Remget•gçi0 Ltda", "van wu.st501 SA.",
+                     "OL18LSta•a-m ¿•z sa"):
+            for texto in (f"{lixo}\nDESTINATÁRIO / REMETENTE\nMINHA EMPRESA LTDA",
+                          f"IDENTIFICAÇÃO DO EMITENTE\n{lixo}\nDESTINATÁRIO / REMETENTE"):
+                self.assertEqual(r.encontrar_fornecedor(texto, r.normalizar(texto)), "", texto)
+
+    def test_nomes_reais_continuam_aceitos(self):
+        for nome in ("DAL PINO INDUSTRIA DE SERRAS LTDA", "Frigostrella do Brasil Ind.Refrigeracao Ltda",
+                     "BETTCHER DO BRASIL COMERCIO DE MAQUINAS LTDA", "METALÚRGICA SILVA S/A",
+                     "PAPELARIA CENTRAL LTDA - ME", "JBT MAREL BRASIL LTDA", "FORTUNCERES S.A."):
+            self.assertEqual(r._nome_plausivel(nome), nome)
+
+    def test_endereco_cidade_e_produto_nao_viram_fornecedor(self):
+        for linha in ("RUA DAS INDÚSTRIAS, 1500 - DISTRITO INDUSTRIAL", "AV. BRASIL, 100",
+                      "SÃO PAULO - SP CEP 01000-000", "000123 PARAFUSO SEXTAVADO M8 73181500 100 1,50",
+                      "ossaovadaavHS — WIVHTOS TOO IIHAS"):
+            texto = f"IDENTIFICAÇÃO DO EMITENTE\n{linha}\nDESTINATÁRIO / REMETENTE"
+            self.assertEqual(r.encontrar_fornecedor(texto, r.normalizar(texto)), "", linha)
+
+    def test_tira_pedaco_ilegivel_do_nome(self):
+        texto = "RECEBEMOS DE sn«ox COMERCIO DE VALVULAS LTDA OS PRODUTOS CONSTANTES DA NOTA"
+        self.assertEqual(r.encontrar_fornecedor(texto, r.normalizar(texto)), "COMERCIO DE VALVULAS LTDA")
+
+    def test_fornecedor_pelo_cnpj_de_outra_nf(self):
+        com_nome = r.RegistroNF("20.pdf", [1], r.DadosNF("DIMENSIONAL BRASIL LTDA", "06913480002616", "1"))
+        sem_nome = r.RegistroNF("19.pdf", [1], r.DadosNF("", "06913480002616", "2"))
+        r.completar_fornecedores([sem_nome, com_nome])
+        self.assertEqual(sem_nome.dados.fornecedor, "DIMENSIONAL BRASIL LTDA")
+
+
 class TestPlanilha(unittest.TestCase):
     def test_cadastro_csv_excel_brasileiro(self):
         with tempfile.TemporaryDirectory() as pasta:
