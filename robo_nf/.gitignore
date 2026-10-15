@@ -1,0 +1,5 @@
+# NFs escaneadas e resultados (dados da empresa, não vão para o GitHub)
+notas/
+textos_ocr/
+*.xlsx
+__pycache__/
