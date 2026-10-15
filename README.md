@@ -34,23 +34,20 @@ e acesse o endereço que aparecer (normalmente http://localhost:3000).
 
 ## O que trocar antes de publicar
 
-No `index.html`, todos os pontos para editar estão marcados com o comentário `EDITAR`.
-Pesquise por estes textos e substitua:
+Nome, OAB/SP, cidade e WhatsApp já estão preenchidos. No `index.html`, o que ainda falta
+está marcado com o comentário `EDITAR`:
 
 | Procure por                  | Troque por                                   |
 | ---------------------------- | -------------------------------------------- |
-| `Nome Sobrenome`             | nome profissional dela                       |
-| `OAB/UF 000.000` e `nº 000.000` | número de inscrição na OAB e o estado     |
-| `Cidade/UF`                  | cidade do escritório                         |
 | `www.seudominio.com.br`      | domínio comprado (também em `robots.txt` e `sitemap.xml`) |
-| `contato@seudominio.com.br`  | e-mail profissional                          |
-| `(00) 00000-0000`            | telefone que aparece escrito na página       |
-| `Rua Exemplo, 123`           | endereço do escritório                       |
-| `seuperfil`                  | perfis do Instagram e LinkedIn               |
+| `Universidade Exemplo`       | formação dela (graduação, pós, cursos)       |
+| `Aqui vai um pouco da sua trajetória` | texto de apresentação dela          |
+| `Segunda a sexta`            | horário de atendimento real                  |
+| `contato@seudominio.com.br`, `seuperfil` | e-mail e redes sociais (estão comentados; preencha e descomente) |
 
 E também:
 
-- **WhatsApp dos botões:** em `assets/js/main.js`, altere `whatsapp: '5500000000000'`
+- **WhatsApp dos botões:** em `assets/js/main.js`, no campo `whatsapp`
   (55 + DDD + número, só dígitos). Todos os botões e o formulário usam esse número.
 - **Foto:** salve como `assets/img/foto.jpg` (vertical, de preferência 4:5) e siga a
   instrução comentada na seção "Sobre" do `index.html`.

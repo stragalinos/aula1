@@ -4,7 +4,7 @@
 const CONFIG = {
   // Número do WhatsApp só com dígitos: 55 (Brasil) + DDD + número.
   // Exemplo: (11) 98765-4321 vira '5511987654321'
-  whatsapp: '5500000000000',
+  whatsapp: '5518998223760',
   // Mensagem que já aparece escrita quando a pessoa clica nos botões do WhatsApp
   mensagemPadrao: 'Olá! Encontrei seu site e gostaria de mais informações.'
 };
