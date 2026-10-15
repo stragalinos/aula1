@@ -411,29 +411,16 @@ img { max-width: 100%; height: auto; display: block; }
   align-items: center;
 }
 
-.sobre__foto img,
-.foto-provisoria {
-  width: 100%;
-  max-width: 420px;
-  aspect-ratio: 4 / 5;
-  margin: 0 auto;
-  border-radius: var(--raio);
+.sobre__foto img {
+  width: min(380px, calc(100% - 32px));
+  aspect-ratio: 1 / 1;
+  margin: 16px auto;
+  border-radius: 50%;
   object-fit: cover;
-  box-shadow: 18px 18px 0 var(--cor-fundo-alternado);
+  outline: 1px solid var(--cor-destaque);
+  outline-offset: 12px;
+  box-shadow: var(--sombra);
 }
-
-.foto-provisoria {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  background: linear-gradient(160deg, #efe5e3, #ddcdca);
-  color: var(--cor-texto-suave);
-  font-size: 0.9rem;
-}
-
-.foto-provisoria .icone { width: 64px; height: 64px; stroke-width: 1; }
 
 .sobre__texto h3 {
   margin-top: 32px;

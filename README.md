@@ -14,7 +14,7 @@ index.html            → todo o conteúdo do site (textos, seções, menu)
 assets/
   css/style.css       → visual: cores, fontes, espaçamentos
   js/main.js          → número do WhatsApp, menu do celular, formulário
-  img/                → favicon e, depois, a foto dela
+  img/                → favicon, logo e foto dela
 robots.txt            → orienta o Google (trocar o domínio)
 sitemap.xml           → lista de páginas para o Google (trocar o domínio)
 ```
@@ -49,8 +49,8 @@ E também:
 
 - **WhatsApp dos botões:** em `assets/js/main.js`, no campo `whatsapp`
   (55 + DDD + número, só dígitos). Todos os botões e o formulário usam esse número.
-- **Foto:** salve como `assets/img/foto.jpg` (vertical, de preferência 4:5) e siga a
-  instrução comentada na seção "Sobre" do `index.html`.
+- **Foto:** fica em `assets/img/foto.jpg` e aparece redonda na seção "Sobre". Para trocar,
+  substitua o arquivo por outra imagem quadrada com o mesmo nome.
 - **Áreas de atuação:** cada área é um bloco `<article class="area">`. Copie um bloco
   para adicionar, apague para remover. Lembre de ajustar também as opções do campo
   "Assunto" no formulário de contato.
@@ -89,7 +89,7 @@ Confira as regras dessa categoria no próprio site do Registro.br.
 
 ## Próximas ideias
 
-- Foto profissional e imagem de capa para compartilhamento (`og:image`)
+- Imagem de capa para compartilhamento (`og:image`)
 - Mapa do escritório (Google Maps incorporado)
 - Página de artigos/blog com conteúdo jurídico informativo
 - Cadastro no Perfil da Empresa no Google (Google Meu Negócio)
