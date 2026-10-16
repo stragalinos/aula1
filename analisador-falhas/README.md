@@ -24,20 +24,32 @@ Dá para filtrar por **área** e **período**, e ajustar as **horas de operaçã
 Você precisa do **Python 3.10 ou mais novo** ([python.org](https://www.python.org/downloads/)).
 No terminal, dentro da pasta `analisador-falhas`:
 
-```bash
-# 1. Crie um ambiente virtual (uma "caixinha" só para as bibliotecas deste projeto)
+**Windows (Prompt de Comando):**
+
+```bat
+:: 1. Crie um ambiente virtual (uma "caixinha" só para as bibliotecas deste projeto)
 python -m venv .venv
 
-# 2. Ative o ambiente
-source .venv/bin/activate        # Linux / Mac
-.venv\Scripts\activate           # Windows
+:: 2. Ative o ambiente (aparece "(.venv)" no começo da linha)
+.venv\Scripts\activate
 
-# 3. Instale as bibliotecas
-pip install -r requirements.txt
+:: 3. Instale as bibliotecas
+python -m pip install -r requirements.txt
 
-# 4. Abra o aplicativo (ele abre sozinho no navegador)
+:: 4. Abra o aplicativo (ele abre sozinho no navegador)
 streamlit run app.py
 ```
+
+**Linux / Mac:**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+streamlit run app.py
+```
+
+Da próxima vez, basta repetir os passos 2 e 4.
 
 O app já vem com **dados de exemplo fictícios** (6 meses de OS de um frigorífico
 inventado), então dá para explorar tudo sem ter planilha nenhuma.
