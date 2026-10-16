@@ -1,0 +1,185 @@
+﻿numero_os;equipamento;area;tipo_manutencao;componente;descricao;inicio;fim
+OS-2026-0001;Esteira de desossa 03;Desossa;Corretiva;Rolamento;Rolamento com folga, trocado;01/04/2026 09:15;01/04/2026 10:30
+OS-2026-0002;Compressor de amônia 01;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;02/04/2026 10:00;02/04/2026 10:30
+OS-2026-0003;Lavador de caixas;Higienização;Corretiva;Bomba;Vazamento no selo da bomba, selo trocado;03/04/2026 09:35;03/04/2026 10:50
+OS-2026-0004;Esteira de desossa 03;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);05/04/2026 07:00;05/04/2026 10:00
+OS-2026-0005;Embaladora a vácuo 02;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);05/04/2026 07:00;05/04/2026 08:30
+OS-2026-0006;Compressor de amônia 01;Sala de máquinas;Corretiva;Válvula de sucção;Ruído anormal na sucção, válvula substituída;05/04/2026 08:15;05/04/2026 11:30
+OS-2026-0007;Lavador de caixas;Higienização;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);07/04/2026 07:00;07/04/2026 08:00
+OS-2026-0008;Câmara fria 03;Estocagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);07/04/2026 13:00;07/04/2026 14:30
+OS-2026-0009;Condensador evaporativo 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);08/04/2026 13:00;08/04/2026 15:00
+OS-2026-0010;Lavador de caixas;Higienização;Corretiva;Bomba;Vazamento no selo da bomba, selo trocado;10/04/2026 09:55;10/04/2026 11:55
+OS-2026-0011;Lavador de caixas;Higienização;Corretiva;Bomba;Vazamento no selo da bomba, selo trocado;10/04/2026 15:05;10/04/2026 16:50
+OS-2026-0012;Esteira de desossa 05;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);13/04/2026 08:00;13/04/2026 10:00
+OS-2026-0013;Compressor de amônia 02;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;13/04/2026 10:00;13/04/2026 10:30
+OS-2026-0014;Compressor de amônia 02;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);13/04/2026 13:00;13/04/2026 14:30
+OS-2026-0015;Túnel de congelamento 01;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);13/04/2026 13:00;13/04/2026 16:00
+OS-2026-0016;Esteira de expedição 01;Expedição;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);14/04/2026 08:00;14/04/2026 09:30
+OS-2026-0017;Túnel de congelamento 02;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);15/04/2026 07:00;15/04/2026 08:00
+OS-2026-0018;Serra de carcaça;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);16/04/2026 07:00;16/04/2026 08:30
+OS-2026-0019;Compressor de amônia 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);16/04/2026 08:00;16/04/2026 10:00
+OS-2026-0020;Caldeira 01;Utilidades;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);19/04/2026 13:00;19/04/2026 16:00
+OS-2026-0021;Túnel de congelamento 01;Congelamento;Corretiva;Porta / vedação;Vedação da porta danificada, perda de frio, borracha trocada;21/04/2026 11:20;21/04/2026 13:05
+OS-2026-0022;Termoformadora 01;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);22/04/2026 08:00;22/04/2026 10:00
+OS-2026-0023;Nória de abate;Abate;Corretiva;Redutor;Vazamento no retentor do redutor, retentor trocado;22/04/2026 08:10;22/04/2026 10:10
+OS-2026-0024;Esteira de desossa 03;Desossa;Corretiva;Rolamento;Rolamento travado no lado do motor, substituído;23/04/2026 09:40;23/04/2026 10:40
+OS-2026-0025;Nória de abate;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);24/04/2026 13:00;24/04/2026 14:00
+OS-2026-0026;Serra de carcaça;Abate;Corretiva;Mangueira hidráulica;Vazamento de óleo hidráulico, mangueira substituída;28/04/2026 04:00;28/04/2026 05:00
+OS-2026-0027;Condensador evaporativo 01;Sala de máquinas;Corretiva;Correia do ventilador;Correia rompida, substituída;28/04/2026 05:50;28/04/2026 08:05
+OS-2026-0028;Termoformadora 01;Embalagem;Corretiva;Corrente de arraste;Elo quebrado na corrente de arraste, trocado;30/04/2026 09:05;30/04/2026 11:50
+OS-2026-0029;Compressor de amônia 02;Sala de máquinas;Corretiva;Válvula de sucção;Válvula de sucção travada, feita limpeza e ajuste;02/05/2026 23:15;03/05/2026 02:15
+OS-2026-0030;Lavador de caixas;Higienização;Corretiva;Bomba;Vazamento no selo da bomba, selo trocado;03/05/2026 00:55;03/05/2026 02:10
+OS-2026-0031;Embaladora a vácuo 02;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);05/05/2026 13:00;05/05/2026 14:30
+OS-2026-0032;Compressor de amônia 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);06/05/2026 13:00;06/05/2026 16:00
+OS-2026-0033;Termoformadora 01;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);07/05/2026 13:00;07/05/2026 15:00
+OS-2026-0034;Serra de carcaça;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);08/05/2026 08:00;08/05/2026 11:00
+OS-2026-0035;Esteira de expedição 01;Expedição;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);08/05/2026 13:00;08/05/2026 14:30
+OS-2026-0036;Embaladora a vácuo 02;Embalagem;Corretiva;Resistência de selagem;Selagem falhando, resistência queimada substituída;08/05/2026 13:30;08/05/2026 16:15
+OS-2026-0037;Compressor de amônia 01;Sala de máquinas;Corretiva;Selo mecânico;Vazamento de óleo pelo selo, substituído selo mecânico;10/05/2026 10:05;10/05/2026 12:35
+OS-2026-0038;Túnel de congelamento 01;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);11/05/2026 13:00;11/05/2026 14:30
+OS-2026-0039;Esteira de desossa 03;Desossa;Corretiva;Rolamento;Esteira fazendo barulho, rolamento do tambor trocado;12/05/2026 06:10;12/05/2026 06:40
+OS-2026-0040;Esteira de desossa 03;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);12/05/2026 07:00;12/05/2026 10:00
+OS-2026-0041;Compressor de amônia 01;Sala de máquinas;Corretiva;Selo mecânico;Selo com vazamento, troca do kit de vedação;13/05/2026 19:00;14/05/2026 00:15
+OS-2026-0042;Esteira de desossa 05;Desossa;Corretiva;Lona;Lona rasgada, emenda feita;14/05/2026 14:05;14/05/2026 15:35
+OS-2026-0043;Caldeira 01;Utilidades;Corretiva;Bomba de alimentação;Bomba de alimentação sem vazão, troca de selo;15/05/2026 02:20;15/05/2026 07:50
+OS-2026-0044;Compressor de amônia 02;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);15/05/2026 07:00;15/05/2026 08:30
+OS-2026-0045;Caldeira 01;Utilidades;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);15/05/2026 07:00;15/05/2026 10:00
+OS-2026-0046;Serra de carcaça;Abate;Corretiva;Mangueira hidráulica;Mangueira ressecada rompeu, trocada;16/05/2026 01:05;16/05/2026 02:35
+OS-2026-0047;Esteira de desossa 05;Desossa;Corretiva;Rolamento;Rolamento com folga, trocado;16/05/2026 20:20;16/05/2026 22:05
+OS-2026-0048;Nória de abate;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);17/05/2026 13:00;17/05/2026 14:30
+OS-2026-0049;Embaladora a vácuo 02;Embalagem;Corretiva;Resistência de selagem;Embalagem com solda fraca, resistência trocada;18/05/2026 10:15;18/05/2026 12:00
+OS-2026-0050;Embaladora a vácuo 02;Embalagem;Corretiva;Resistência de selagem;Embalagem com solda fraca, resistência trocada;20/05/2026 15:00;20/05/2026 16:30
+OS-2026-0051;Câmara fria 03;Estocagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);21/05/2026 08:00;21/05/2026 09:30
+OS-2026-0052;Compressor de amônia 02;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;21/05/2026 10:00;21/05/2026 10:30
+OS-2026-0053;Esteira de desossa 05;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);22/05/2026 07:00;22/05/2026 08:30
+OS-2026-0054;Lavador de caixas;Higienização;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);22/05/2026 08:00;22/05/2026 09:30
+OS-2026-0055;Compressor de amônia 01;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;22/05/2026 10:00;22/05/2026 10:30
+OS-2026-0056;Nória de abate;Abate;Corretiva;Redutor;Vazamento no retentor do redutor, retentor trocado;22/05/2026 20:40;22/05/2026 22:10
+OS-2026-0057;Túnel de congelamento 02;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);23/05/2026 08:00;23/05/2026 09:30
+OS-2026-0058;Condensador evaporativo 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);25/05/2026 08:00;25/05/2026 09:00
+OS-2026-0059;Esteira de expedição 01;Expedição;Corretiva;Sensor fotoelétrico;Sensor desalinhado, ajustado;27/05/2026 18:25;27/05/2026 19:40
+OS-2026-0060;Esteira de desossa 03;Desossa;Corretiva;Rolamento;Rolamento com folga, trocado;29/05/2026 14:35;29/05/2026 16:05
+OS-2026-0061;Serra de carcaça;Abate;Corretiva;Lâmina;Lâmina sem corte, substituída;01/06/2026 04:50;01/06/2026 06:50
+OS-2026-0062;Termoformadora 01;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);05/06/2026 08:00;05/06/2026 11:00
+OS-2026-0063;Compressor de amônia 02;Sala de máquinas;Corretiva;Selo mecânico;Vazamento de óleo pelo selo, substituído selo mecânico;05/06/2026 21:20;06/06/2026 03:35
+OS-2026-0064;Compressor de amônia 02;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);06/06/2026 08:00;06/06/2026 11:00
+OS-2026-0065;Túnel de congelamento 02;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);06/06/2026 13:00;06/06/2026 14:00
+OS-2026-0066;Esteira de desossa 03;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);06/06/2026 13:00;06/06/2026 14:30
+OS-2026-0067;Compressor de amônia 01;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;08/06/2026 10:00;08/06/2026 10:30
+OS-2026-0068;Esteira de desossa 05;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);09/06/2026 07:00;09/06/2026 10:00
+OS-2026-0069;Embaladora a vácuo 02;Embalagem;Corretiva;Bomba de vácuo;Bomba de vácuo com óleo contaminado, troca de óleo;09/06/2026 13:20;09/06/2026 15:50
+OS-2026-0070;Esteira de desossa 03;Desossa;Corretiva;Rolamento;Rolamento com folga, trocado;10/06/2026 12:15;10/06/2026 13:00
+OS-2026-0071;Embaladora a vácuo 02;Embalagem;Corretiva;Resistência de selagem;Selagem falhando, resistência queimada substituída;11/06/2026 13:40;11/06/2026 15:55
+OS-2026-0072;Embaladora a vácuo 02;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);12/06/2026 07:00;12/06/2026 10:00
+OS-2026-0073;Nória de abate;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);13/06/2026 07:00;13/06/2026 10:00
+OS-2026-0074;Condensador evaporativo 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);14/06/2026 08:00;14/06/2026 09:30
+OS-2026-0075;Túnel de congelamento 01;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);14/06/2026 08:00;14/06/2026 10:00
+OS-2026-0076;Caldeira 01;Utilidades;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);15/06/2026 07:00;15/06/2026 10:00
+OS-2026-0077;Esteira de expedição 01;Expedição;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);15/06/2026 07:00;15/06/2026 08:30
+OS-2026-0078;Compressor de amônia 02;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;15/06/2026 10:00;15/06/2026 10:30
+OS-2026-0079;Câmara fria 03;Estocagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);16/06/2026 07:00;16/06/2026 08:30
+OS-2026-0080;Câmara fria 03;Estocagem;Corretiva;Porta / vedação;Porta não fechando, ajuste de dobradiça e trinco;16/06/2026 18:45;16/06/2026 20:45
+OS-2026-0081;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Ventilador do evaporador com vibração alta, trocado rolamento do motor;18/06/2026 14:15;18/06/2026 19:45
+OS-2026-0082;Lavador de caixas;Higienização;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);21/06/2026 08:00;21/06/2026 11:00
+OS-2026-0083;Compressor de amônia 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);22/06/2026 07:00;22/06/2026 10:00
+OS-2026-0084;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Hélice do ventilador desbalanceada, substituída;24/06/2026 04:55;24/06/2026 10:40
+OS-2026-0085;Serra de carcaça;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);24/06/2026 13:00;24/06/2026 14:30
+OS-2026-0086;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Ventilador do evaporador com vibração alta, trocado rolamento do motor;27/06/2026 07:00;27/06/2026 09:15
+OS-2026-0087;Esteira de expedição 01;Expedição;Corretiva;Sensor fotoelétrico;Sensor desalinhado, ajustado;29/06/2026 00:05;29/06/2026 01:05
+OS-2026-0088;Compressor de amônia 02;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;05/07/2026 10:00;05/07/2026 10:30
+OS-2026-0089;Nória de abate;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);05/07/2026 13:00;05/07/2026 14:30
+OS-2026-0090;Túnel de congelamento 01;Congelamento;Corretiva;Sensor de temperatura;Leitura de temperatura incoerente, sensor trocado;07/07/2026 04:10;07/07/2026 07:10
+OS-2026-0091;Compressor de amônia 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);07/07/2026 13:00;07/07/2026 15:00
+OS-2026-0092;Esteira de desossa 03;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);08/07/2026 08:00;08/07/2026 09:30
+OS-2026-0093;Termoformadora 01;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);08/07/2026 08:00;08/07/2026 10:00
+OS-2026-0094;Embaladora a vácuo 02;Embalagem;Corretiva;Resistência de selagem;Selagem falhando, resistência queimada substituída;08/07/2026 11:15;08/07/2026 13:30
+OS-2026-0095;Embaladora a vácuo 02;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);08/07/2026 13:00;08/07/2026 14:30
+OS-2026-0096;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Ventilador do evaporador com vibração alta, trocado rolamento do motor;09/07/2026 01:45;09/07/2026 06:45
+OS-2026-0097;Esteira de desossa 05;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);09/07/2026 13:00;09/07/2026 14:30
+OS-2026-0098;Esteira de desossa 05;Desossa;Corretiva;Motor;Motor com aquecimento excessivo, troca de rolamentos;10/07/2026 05:55;10/07/2026 07:40
+OS-2026-0099;Túnel de congelamento 02;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);10/07/2026 07:00;10/07/2026 08:00
+OS-2026-0100;Serra de carcaça;Abate;Corretiva;Mangueira hidráulica;Vazamento de óleo hidráulico, mangueira substituída;10/07/2026 13:40;10/07/2026 14:10
+OS-2026-0101;Esteira de expedição 01;Expedição;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);11/07/2026 07:00;11/07/2026 10:00
+OS-2026-0102;Caldeira 01;Utilidades;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);11/07/2026 08:00;11/07/2026 10:00
+OS-2026-0103;Serra de carcaça;Abate;Corretiva;Mangueira hidráulica;Vazamento de óleo hidráulico, mangueira substituída;11/07/2026 21:05;11/07/2026 23:05
+OS-2026-0104;Serra de carcaça;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);12/07/2026 07:00;12/07/2026 08:30
+OS-2026-0105;Condensador evaporativo 01;Sala de máquinas;Corretiva;Bomba de água;Vazamento na bomba de água, troca de gaxeta;12/07/2026 08:55;12/07/2026 11:40
+OS-2026-0106;Compressor de amônia 02;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);13/07/2026 07:00;13/07/2026 08:30
+OS-2026-0107;Lavador de caixas;Higienização;Corretiva;Bico aspersor;Bico quebrado, substituído;15/07/2026 21:00;15/07/2026 21:45
+OS-2026-0108;Câmara fria 03;Estocagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);16/07/2026 08:00;16/07/2026 09:30
+OS-2026-0109;Compressor de amônia 01;Sala de máquinas;Corretiva;Selo mecânico;Selo com vazamento, troca do kit de vedação;17/07/2026 00:10;17/07/2026 06:25
+OS-2026-0110;Termoformadora 01;Embalagem;Corretiva;Corrente de arraste;Elo quebrado na corrente de arraste, trocado;19/07/2026 03:45;19/07/2026 07:00
+OS-2026-0111;Condensador evaporativo 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);19/07/2026 07:00;19/07/2026 09:00
+OS-2026-0112;Lavador de caixas;Higienização;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);19/07/2026 08:00;19/07/2026 11:00
+OS-2026-0113;Nória de abate;Abate;Corretiva;Corrente;Corrente esticada, ajuste de tensão;19/07/2026 11:55;19/07/2026 14:25
+OS-2026-0114;Túnel de congelamento 01;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);19/07/2026 13:00;19/07/2026 16:00
+OS-2026-0115;Condensador evaporativo 01;Sala de máquinas;Corretiva;Bomba de água;Bomba de água sem pressão, troca do rotor;19/07/2026 14:40;19/07/2026 16:25
+OS-2026-0116;Esteira de desossa 03;Desossa;Corretiva;Motor;Motor desarmando por sobrecarga, verificado e substituído;21/07/2026 02:35;21/07/2026 03:35
+OS-2026-0117;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Hélice do ventilador desbalanceada, substituída;25/07/2026 01:10;25/07/2026 04:40
+OS-2026-0118;Compressor de amônia 01;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;25/07/2026 10:00;25/07/2026 10:30
+OS-2026-0119;Esteira de desossa 03;Desossa;Corretiva;Rolamento;Esteira fazendo barulho, rolamento do tambor trocado;25/07/2026 10:05;25/07/2026 11:50
+OS-2026-0120;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Ventilador do evaporador com vibração alta, trocado rolamento do motor;27/07/2026 23:00;28/07/2026 03:45
+OS-2026-0121;Nória de abate;Abate;Corretiva;Corrente;Corrente com elo quebrado, emenda substituída;30/07/2026 12:25;30/07/2026 13:40
+OS-2026-0122;Embaladora a vácuo 02;Embalagem;Corretiva;Resistência de selagem;Embalagem com solda fraca, resistência trocada;31/07/2026 02:50;31/07/2026 04:20
+OS-2026-0123;Esteira de desossa 03;Desossa;Corretiva;Motor;Motor com aquecimento excessivo, troca de rolamentos;02/08/2026 05:45;02/08/2026 07:00
+OS-2026-0124;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Hélice do ventilador desbalanceada, substituída;04/08/2026 13:15;04/08/2026 15:45
+OS-2026-0125;Serra de carcaça;Abate;Corretiva;Motor;Motor com aquecimento excessivo, troca de rolamentos;05/08/2026 04:40;05/08/2026 05:10
+OS-2026-0126;Termoformadora 01;Embalagem;Corretiva;Molde;Molde danificado, substituído;05/08/2026 20:15;05/08/2026 21:30
+OS-2026-0127;Esteira de desossa 03;Desossa;Corretiva;Rolamento;Rolamento com folga, trocado;06/08/2026 17:10;06/08/2026 17:55
+OS-2026-0128;Esteira de desossa 05;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);07/08/2026 08:00;07/08/2026 11:00
+OS-2026-0129;Túnel de congelamento 01;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);08/08/2026 07:00;08/08/2026 08:30
+OS-2026-0130;Compressor de amônia 02;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;09/08/2026 10:00;09/08/2026 10:30
+OS-2026-0131;Serra de carcaça;Abate;Corretiva;Mangueira hidráulica;Mangueira ressecada rompeu, trocada;10/08/2026 06:50;10/08/2026 08:20
+OS-2026-0132;Câmara fria 03;Estocagem;Corretiva;Porta / vedação;Porta não fechando, ajuste de dobradiça e trinco;10/08/2026 07:20;10/08/2026 09:05
+OS-2026-0133;Compressor de amônia 01;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;10/08/2026 10:00;10/08/2026 10:30
+OS-2026-0134;Esteira de expedição 01;Expedição;Corretiva;Rolete;Rolete com ruído, trocado;10/08/2026 15:40;10/08/2026 17:25
+OS-2026-0135;Túnel de congelamento 02;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);12/08/2026 08:00;12/08/2026 09:00
+OS-2026-0136;Esteira de expedição 01;Expedição;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);13/08/2026 13:00;13/08/2026 15:00
+OS-2026-0137;Lavador de caixas;Higienização;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);14/08/2026 13:00;14/08/2026 14:00
+OS-2026-0138;Caldeira 01;Utilidades;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);15/08/2026 08:00;15/08/2026 10:00
+OS-2026-0139;Esteira de expedição 01;Expedição;Corretiva;Sensor fotoelétrico;Sensor desalinhado, ajustado;15/08/2026 10:25;15/08/2026 11:55
+OS-2026-0140;Nória de abate;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);16/08/2026 08:00;16/08/2026 09:00
+OS-2026-0141;Serra de carcaça;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);18/08/2026 07:00;18/08/2026 08:30
+OS-2026-0142;Túnel de congelamento 01;Congelamento;Corretiva;Ventilador do evaporador;Ventilador parado por gelo acumulado na hélice, feito degelo e limpeza;18/08/2026 17:40;18/08/2026 21:25
+OS-2026-0143;Embaladora a vácuo 02;Embalagem;Corretiva;Bomba de vácuo;Bomba de vácuo com óleo contaminado, troca de óleo;19/08/2026 12:35;19/08/2026 13:05
+OS-2026-0144;Câmara fria 03;Estocagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);19/08/2026 13:00;19/08/2026 15:00
+OS-2026-0145;Esteira de desossa 03;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);19/08/2026 13:00;19/08/2026 15:00
+OS-2026-0146;Embaladora a vácuo 02;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);19/08/2026 13:00;19/08/2026 15:00
+OS-2026-0147;Condensador evaporativo 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);21/08/2026 07:00;21/08/2026 08:00
+OS-2026-0148;Nória de abate;Abate;Corretiva;Corrente;Corrente esticada, ajuste de tensão;23/08/2026 03:30;23/08/2026 06:15
+OS-2026-0149;Compressor de amônia 02;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);23/08/2026 13:00;23/08/2026 15:00
+OS-2026-0150;Termoformadora 01;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);25/08/2026 08:00;25/08/2026 09:30
+OS-2026-0151;Compressor de amônia 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);25/08/2026 13:00;25/08/2026 15:00
+OS-2026-0152;Nória de abate;Abate;Corretiva;Corrente;Corrente com elo quebrado, emenda substituída;28/08/2026 14:25;28/08/2026 15:40
+OS-2026-0153;Embaladora a vácuo 02;Embalagem;Corretiva;Bomba de vácuo;Bomba de vácuo com óleo contaminado, troca de óleo;01/09/2026 04:45;01/09/2026 06:30
+OS-2026-0154;Compressor de amônia 01;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;03/09/2026 10:00;03/09/2026 10:30
+OS-2026-0155;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Hélice do ventilador desbalanceada, substituída;04/09/2026 03:15;04/09/2026 06:00
+OS-2026-0156;Compressor de amônia 02;Sala de máquinas;Preditiva;Análise de vibração;Coleta e análise de vibração dos mancais;05/09/2026 10:00;05/09/2026 10:30
+OS-2026-0157;Compressor de amônia 02;Sala de máquinas;Corretiva;Pressostato de óleo;Pressostato descalibrado, recalibrado;06/09/2026 12:20;06/09/2026 17:05
+OS-2026-0158;Túnel de congelamento 01;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);07/09/2026 08:00;07/09/2026 09:00
+OS-2026-0159;Esteira de expedição 01;Expedição;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);08/09/2026 07:00;08/09/2026 09:00
+OS-2026-0160;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Hélice do ventilador desbalanceada, substituída;10/09/2026 14:20;10/09/2026 18:05
+OS-2026-0161;Serra de carcaça;Abate;Corretiva;Lâmina;Lâmina trincada, troca imediata;10/09/2026 23:40;11/09/2026 00:25
+OS-2026-0162;Compressor de amônia 01;Sala de máquinas;Corretiva;Pressostato de óleo;Compressor desarmando por baixa pressão de óleo, pressostato trocado;11/09/2026 02:45;11/09/2026 07:15
+OS-2026-0163;Compressor de amônia 02;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);11/09/2026 13:00;11/09/2026 16:00
+OS-2026-0164;Esteira de desossa 03;Desossa;Corretiva;Rolamento;Rolamento travado no lado do motor, substituído;12/09/2026 23:10;13/09/2026 00:40
+OS-2026-0165;Termoformadora 01;Embalagem;Corretiva;Corrente de arraste;Corrente de arraste saindo da guia, ajustada;14/09/2026 12:30;14/09/2026 16:15
+OS-2026-0166;Serra de carcaça;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);15/09/2026 08:00;15/09/2026 09:30
+OS-2026-0167;Nória de abate;Abate;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);15/09/2026 13:00;15/09/2026 15:00
+OS-2026-0168;Esteira de desossa 05;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);15/09/2026 13:00;15/09/2026 16:00
+OS-2026-0169;Embaladora a vácuo 02;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);16/09/2026 07:00;16/09/2026 08:00
+OS-2026-0170;Caldeira 01;Utilidades;Corretiva;Queimador;Chama instável, limpeza do queimador;16/09/2026 15:35;16/09/2026 19:20
+OS-2026-0171;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Ventilador do evaporador com vibração alta, trocado rolamento do motor;17/09/2026 17:05;17/09/2026 19:20
+OS-2026-0172;Câmara fria 03;Estocagem;Corretiva;Porta / vedação;Vedação da porta danificada, perda de frio, borracha trocada;18/09/2026 02:00;18/09/2026 04:00
+OS-2026-0173;Termoformadora 01;Embalagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);18/09/2026 07:00;18/09/2026 09:00
+OS-2026-0174;Esteira de desossa 03;Desossa;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);19/09/2026 13:00;19/09/2026 16:00
+OS-2026-0175;Túnel de congelamento 01;Congelamento;Corretiva;Sensor de temperatura;Leitura de temperatura incoerente, sensor trocado;21/09/2026 02:55;21/09/2026 05:25
+OS-2026-0176;Caldeira 01;Utilidades;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);22/09/2026 07:00;22/09/2026 08:30
+OS-2026-0177;Túnel de congelamento 02;Congelamento;Corretiva;Ventilador do evaporador;Ventilador parado por gelo acumulado na hélice, feito degelo e limpeza;22/09/2026 10:05;22/09/2026 14:05
+OS-2026-0178;Compressor de amônia 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);23/09/2026 07:00;23/09/2026 08:00
+OS-2026-0179;Túnel de congelamento 02;Congelamento;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);23/09/2026 07:00;23/09/2026 08:00
+OS-2026-0180;Túnel de congelamento 02;Congelamento;Corretiva;Sensor de temperatura;Sensor com mau contato, refeita conexão;24/09/2026 07:10;24/09/2026 10:55
+OS-2026-0181;Câmara fria 03;Estocagem;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);24/09/2026 13:00;24/09/2026 14:00
+OS-2026-0182;Lavador de caixas;Higienização;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);24/09/2026 13:00;24/09/2026 14:00
+OS-2026-0183;Condensador evaporativo 01;Sala de máquinas;Preventiva;Plano preventivo;Execução do plano preventivo mensal (inspeção, lubrificação e reapertos);25/09/2026 08:00;25/09/2026 09:30
+OS-2026-0184;Condensador evaporativo 01;Sala de máquinas;Corretiva;Bomba de água;Bomba de água sem pressão, troca do rotor;30/09/2026 04:40;30/09/2026 07:10
