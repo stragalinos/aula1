@@ -150,40 +150,40 @@ class TestCasosReais(unittest.TestCase):
     """Erros vistos nas primeiras NFs reais (lidas com o OCR do Windows)."""
 
     def test_inscricao_estadual_nao_vira_numero_da_nf(self):
-        texto = "INSCRIÇÃO ESTADUAL\n252.405.749\nCNPJ 05.283.785/0001-70\nPEDIDO 4501216027"
+        texto = "INSCRIÇÃO ESTADUAL\n251.987.643\nCNPJ 05.283.785/0001-70\nPEDIDO 4500777001"
         self.assertEqual(r.extrair_dados(texto).numero_nf, "")
-        texto = "INSCRIÇÃO ESTADUAL 252.405.749   NF-e Nº 000.093.269 SÉRIE 1"
-        self.assertEqual(r.extrair_dados(texto).numero_nf, "93269")
+        texto = "INSCRIÇÃO ESTADUAL 251.987.643   NF-e Nº 000.047.158 SÉRIE 1"
+        self.assertEqual(r.extrair_dados(texto).numero_nf, "47158")
 
     def test_numero_sem_rotulo_precisa_de_zeros_a_esquerda(self):
-        self.assertEqual(r.encontrar_numero_nf("DANFE 252.405.749"), ("", ""))
-        self.assertEqual(r.encontrar_numero_nf("DANFE 000.093.269"), ("93269", "danfe"))
+        self.assertEqual(r.encontrar_numero_nf("DANFE 251.987.643"), ("", ""))
+        self.assertEqual(r.encontrar_numero_nf("DANFE 000.047.158"), ("47158", "danfe"))
 
     def test_espacos_do_ocr_no_numero(self):
-        num = r.corrigir_digitos(r.normalizar("Nº 000. 093 .269"))
-        self.assertEqual(r.encontrar_numero_nf(num), ("93269", "danfe"))
+        num = r.corrigir_digitos(r.normalizar("Nº 000. 047 .158"))
+        self.assertEqual(r.encontrar_numero_nf(num), ("47158", "danfe"))
 
     def test_numero_sem_pontos_antes_da_serie(self):
-        for texto in ("NF-e\nNº 93269\nSÉRIE 1", "Nº. 000093269 SÉRIE: 001"):
+        for texto in ("NF-e\nNº 47158\nSÉRIE 1", "Nº. 000047158 SÉRIE: 001"):
             num = r.corrigir_digitos(r.normalizar(texto))
-            self.assertEqual(r.encontrar_numero_nf(num), ("93269", "danfe"), texto)
+            self.assertEqual(r.encontrar_numero_nf(num), ("47158", "danfe"), texto)
 
     def test_chave_quebrada_em_duas_linhas(self):
-        grupos = agrupar(montar_chave(CNPJ, 85482))
+        grupos = agrupar(montar_chave(CNPJ, 54321))
         texto = f"CHAVE DE ACESSO\n{grupos[:27]}\n{grupos[27:]}\nConsulta de autenticidade"
-        self.assertEqual(r.extrair_dados(texto).numero_nf, "85482")
+        self.assertEqual(r.extrair_dados(texto).numero_nf, "54321")
 
     def test_chave_com_digito_ilegivel(self):
-        chave = montar_chave(CNPJ, 85482)
+        chave = montar_chave(CNPJ, 54321)
         errada = next(e for e in (chave[:40] + str(d) + chave[41:] for d in range(10))
                       if not r.chave_plausivel(e))
         dados = r.extrair_dados(f"CHAVE DE ACESSO {agrupar(errada)}")
-        self.assertEqual((dados.numero_nf, dados.origem_nf, dados.cnpj), ("85482", "chave_parcial", CNPJ))
+        self.assertEqual((dados.numero_nf, dados.origem_nf, dados.cnpj), ("54321", "chave_parcial", CNPJ))
         self.assertEqual(dados.chave, "")  # chave errada não vai para a planilha
-        dados = r.extrair_dados(f"Nº 000.085.482 SÉRIE 1\nCHAVE DE ACESSO {agrupar(errada)}")
-        self.assertEqual((dados.numero_nf, dados.origem_nf), ("85482", "danfe"))
-        dados = r.extrair_dados(f"Nº 000.085.483 SÉRIE 1\nCHAVE DE ACESSO {agrupar(errada)}")
-        self.assertEqual((dados.numero_nf, dados.origem_nf), ("85483", "divergente"))
+        dados = r.extrair_dados(f"Nº 000.054.321 SÉRIE 1\nCHAVE DE ACESSO {agrupar(errada)}")
+        self.assertEqual((dados.numero_nf, dados.origem_nf), ("54321", "danfe"))
+        dados = r.extrair_dados(f"Nº 000.054.322 SÉRIE 1\nCHAVE DE ACESSO {agrupar(errada)}")
+        self.assertEqual((dados.numero_nf, dados.origem_nf), ("54322", "divergente"))
 
     def test_lixo_do_ocr_nao_vira_fornecedor(self):
         for lixo in ("trtVtE a 1.1-snrv oagoav sa", "eoyssuw oavt ov sa", "•v•s sa", "IV ayJ.sa",
@@ -194,9 +194,9 @@ class TestCasosReais(unittest.TestCase):
                 self.assertEqual(r.encontrar_fornecedor(texto, r.normalizar(texto)), "", texto)
 
     def test_nomes_reais_continuam_aceitos(self):
-        for nome in ("DAL PINO INDUSTRIA DE SERRAS LTDA", "Frigostrella do Brasil Ind.Refrigeracao Ltda",
-                     "BETTCHER DO BRASIL COMERCIO DE MAQUINAS LTDA", "METALÚRGICA SILVA S/A",
-                     "PAPELARIA CENTRAL LTDA - ME", "JBT MAREL BRASIL LTDA", "FORTUNCERES S.A."):
+        for nome in ("DAL VERDE INDUSTRIA DE SERRAS LTDA", "Friolanda do Brasil Ind.Refrigeracao Ltda",
+                     "BELLAGIO DO BRASIL COMERCIO DE MAQUINAS LTDA", "METALÚRGICA SILVA S/A",
+                     "PAPELARIA CENTRAL LTDA - ME", "JKT MARES BRASIL LTDA", "FORTUNATA S.A."):
             self.assertEqual(r._nome_plausivel(nome), nome)
 
     def test_endereco_cidade_e_produto_nao_viram_fornecedor(self):
@@ -211,10 +211,10 @@ class TestCasosReais(unittest.TestCase):
         self.assertEqual(r.encontrar_fornecedor(texto, r.normalizar(texto)), "COMERCIO DE VALVULAS LTDA")
 
     def test_fornecedor_pelo_cnpj_de_outra_nf(self):
-        com_nome = r.RegistroNF("20.pdf", [1], r.DadosNF("DIMENSIONAL BRASIL LTDA", "06913480002616", "1"))
-        sem_nome = r.RegistroNF("19.pdf", [1], r.DadosNF("", "06913480002616", "2"))
+        com_nome = r.RegistroNF("20.pdf", [1], r.DadosNF("DIMENSAO BRASIL LTDA", "77888999000166", "1"))
+        sem_nome = r.RegistroNF("19.pdf", [1], r.DadosNF("", "77888999000166", "2"))
         r.padronizar_fornecedores([sem_nome, com_nome])
-        self.assertEqual(sem_nome.dados.fornecedor, "DIMENSIONAL BRASIL LTDA")
+        self.assertEqual(sem_nome.dados.fornecedor, "DIMENSAO BRASIL LTDA")
 
 
 
@@ -243,15 +243,15 @@ class TestLeituraMelhor(unittest.TestCase):
     """Zeros lidos como letra O, número sem "Nº", valor total, canhoto com erro de OCR."""
 
     def test_zeros_lidos_como_letra(self):
-        num = r.corrigir_digitos(r.normalizar("Nº OOO.O93.269  SC-401  LTDA  ISO  S/A"))
-        self.assertIn("000.093.269", num)
+        num = r.corrigir_digitos(r.normalizar("Nº OOO.O47.158  SC-401  LTDA  ISO  S/A"))
+        self.assertIn("000.047.158", num)
         self.assertIn("SC-401  LTDA  ISO  S/A", num)
-        self.assertEqual(r.encontrar_numero_nf(num), ("93269", "danfe"))
+        self.assertEqual(r.encontrar_numero_nf(num), ("47158", "danfe"))
 
     def test_numero_com_virgula_espacos_e_q(self):
-        for texto in ("Nº 000,093,269", "N° 000 093 269", "NQ 000.093.269", "000093269\nSÉRIE 1"):
+        for texto in ("Nº 000,047,158", "N° 000 047 158", "NQ 000.047.158", "000047158\nSÉRIE 1"):
             num = r.corrigir_digitos(r.normalizar(texto))
-            self.assertEqual(r.encontrar_numero_nf(num), ("93269", "danfe"), texto)
+            self.assertEqual(r.encontrar_numero_nf(num), ("47158", "danfe"), texto)
 
     def test_valor_total_na_mesma_linha(self):
         for texto in ("VALOR TOTAL DA NOTA R$ 1.234,56", "V. TOTAL DA NOTA: 1234,56", "Valor total da NF-e 1.234,56",
@@ -264,13 +264,14 @@ class TestLeituraMelhor(unittest.TestCase):
                  "0,00 0,00 0,00 0,00 120,00 2.520,00")
         self.assertEqual(r.encontrar_valor_total(r.normalizar(texto)), ("2520.00", "rotulo"))
 
-    def test_valor_total_estimado_sem_rotulo(self):
+    def test_sem_rotulo_nao_inventa_valor(self):
+        # o "maior valor da nota" gerava absurdos com o OCR do Windows: sem rótulo, fica vazio
         texto = "VALOR TOTAL DOS PRODUTOS 2.400,00\nTRIBUTOS R$ 45,32 (19,70%)\nPESO 3.500,000"
-        self.assertEqual(r.encontrar_valor_total(r.normalizar(texto)), ("2400.00", "maior"))
+        self.assertEqual(r.encontrar_valor_total(r.normalizar(texto)), ("", ""))
 
     def test_valor_total_pela_posicao_na_folha(self):
-        self.assertEqual(r.valor_pelo_rotulo(QUADRO_IMPOSTO), "2520.00")
-        self.assertEqual(r.valor_pelo_rotulo(QUADRO_IPI_PERTO), "4025.00")
+        self.assertEqual(r.valor_pelo_rotulo(QUADRO_IMPOSTO), ("2520.00", "rotulo"))
+        self.assertEqual(r.valor_pelo_rotulo(QUADRO_IPI_PERTO), ("4025.00", "rotulo"))
         visual = r.texto_visual(QUADRO_IMPOSTO).split("\n")
         self.assertEqual(visual[2], "VALOR DO IPI | VALOR TOTAL DA NOTA")
         self.assertEqual(visual[3], "120,00 | 2.520,00")
@@ -292,24 +293,96 @@ class TestLeituraMelhor(unittest.TestCase):
 
     def test_canhoto_com_erro_de_ocr(self):
         for texto, nome in (
-                ("RFEBEMOS DE DIMENSIONAL BRASIL SOLUCOES LTDA OS PRODUTOS E/OU SERVIÇOS", "DIMENSIONAL BRASIL SOLUCOES LTDA"),
-                ("RECEBEM(S DE DAL PINO INDUSTRIA DE SERRAS LTDA\nOS PRODUT0S CONSTANTES", "DAL PINO INDUSTRIA DE SERRAS LTDA")):
+                ("RFEBEMOS DE DIMENSAO BRASIL SOLUCOES LTDA OS PRODUTOS E/OU SERVIÇOS", "DIMENSAO BRASIL SOLUCOES LTDA"),
+                ("RECEBEM(S DE DAL VERDE INDUSTRIA DE SERRAS LTDA\nOS PRODUT0S CONSTANTES", "DAL VERDE INDUSTRIA DE SERRAS LTDA")):
             self.assertEqual(r.encontrar_fornecedor(texto, r.normalizar(texto)), nome)
-        self.assertEqual(r._nome_plausivel("DE JARVIS DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA"),
-                         "JARVIS DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA")
+        self.assertEqual(r._nome_plausivel("DE MARVIN DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA"),
+                         "MARVIN DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA")
         self.assertEqual(r._nome_plausivel("COMERCIAL DE FERRAGENS NOVA ERA auxiliar da"),
                          "COMERCIAL DE FERRAGENS NOVA ERA")
 
     def test_padroniza_grafias_do_mesmo_fornecedor(self):
-        certo = "JARVIS DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA"
-        nomes = [(certo, ""), (certo, ""), ("JARVIS DO BRASL", "46537536000141"), ("JARVIS DO BRASIL FERRAMTXMS", ""),
-                 ("JARVLS DO BRASIL FERRAP,mT4S", ""), ("NDUSIRIAIS LTDA", "46537536000141"),
-                 ("BETTCHER DO BRASIL COMERCIO DE MAQUINAS LTDA", ""), ("DAL PENO INDUSTRIA DE SERRAS LTDA", ""),
-                 ("COMERCIAL ELETRICA PJ LTDA", ""), ("COMERCIAL ELETRICA SC LTDA", "")]
+        certo = "MARVIN DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA"
+        nomes = [(certo, ""), (certo, ""), ("MARVIN DO BRASL", "44555666000177"), ("MARVIN DO BRASIL FERRAMTXMS", ""),
+                 ("MARVLN DO BRASIL FERRAP,mT4S", ""), ("NDUSIRIAIS LTDA", "44555666000177"),
+                 ("BELLAGIO DO BRASIL COMERCIO DE MAQUINAS LTDA", ""), ("DAL VERBE INDUSTRIA DE SERRAS LTDA", ""),
+                 ("COMERCIAL ELETRICA KM LTDA", ""), ("COMERCIAL ELETRICA SC LTDA", "")]
         registros = [r.RegistroNF(f"{i}.pdf", [1], r.DadosNF(n, c)) for i, (n, c) in enumerate(nomes)]
         r.padronizar_fornecedores(registros)
         self.assertEqual([x.dados.fornecedor for x in registros],
                          [certo] * 6 + [n for n, _ in nomes[6:]])
+
+
+
+def linha_de_palavras(textos, x, y, linha, altura=16, largura_letra=9, espaco=8):
+    """Palavras lado a lado, como o OCR devolve: [texto, x, y, largura, altura, linha]."""
+    saida = []
+    for t in textos:
+        saida.append([t, x, y, largura_letra * len(t), altura, linha])
+        x += largura_letra * len(t) + espaco
+    return saida
+
+
+class TestOcrDoWindows(unittest.TestCase):
+    """Padrões vistos nas NFs reais lidas pelo OCR do Windows (com dados inventados)."""
+
+    def test_etiqueta_de_recebimento(self):
+        texto = ("DANFE\nNº 600.027.461\nNF 27461\nMETALURGICA EXEMPLO LTDA\nCHAMAR P/ CONFERIR\n"
+                 "PED 4500777001/10 • Solic. FULANO")
+        dados = r.extrair_dados(texto)
+        self.assertEqual((dados.numero_nf, dados.origem_nf), ("27461", "etiqueta"))
+        self.assertEqual(dados.fornecedor, "METALURGICA EXEMPLO LTDA")
+        self.assertEqual(dados.pedidos, ["4500777001"])
+
+    def test_etiqueta_sem_nome_e_continuacao(self):
+        dados = r.extrair_dados("NF 61234\nDIRETO\nNO 000061234")
+        self.assertEqual((dados.numero_nf, dados.fornecedor, dados.continuacao), ("61234", "", False))
+        dados = r.extrair_dados("NF 39017 (continuação)\nlt8 SAP 999001")
+        self.assertEqual((dados.numero_nf, dados.continuacao), ("39017", True))
+
+    def test_numero_com_zeros_sem_pontos(self):
+        for texto in ("NO 000061234", "N•. 000061234"):
+            self.assertEqual(r.encontrar_numero_nf(r.corrigir_digitos(r.normalizar(texto))), ("61234", "danfe"))
+
+    def test_continuacao_em_outro_arquivo(self):
+        principal = r.RegistroNF("13.pdf", [1], r.DadosNF("METALURGICA LTDA", "", "39017", "", ["4500777002"],
+                                                       "", "etiqueta", "6085.25", "rotulo"))
+        continuacao = r.RegistroNF("14.pdf", [1], r.DadosNF("", "", "39017", "", ["4500777003"]))
+        continuacao.dados.continuacao = True
+        registros = r.juntar_continuacoes([principal, continuacao])
+        self.assertEqual(len(registros), 1)
+        self.assertEqual(registros[0].arquivo, "13.pdf + 14.pdf")
+        self.assertEqual(registros[0].dados.pedidos, ["4500777002", "4500777003"])
+
+    def test_valor_partido_e_rotulo_estragado(self):
+        palavras = (linha_de_palavras(["ALOR", "TOTAL", "DA"], 1460, 1169, 1)
+                    + linha_de_palavras(["2.913", "47"], 1504, 1191, 2))
+        self.assertEqual(r.valor_pelo_rotulo(palavras), ("2913.47", "rotulo"))
+        palavras = (linha_de_palavras(["VALOR", "DO", "ICMS"], 1200, 777, 1)
+                    + linha_de_palavras(["VALmTOTALDAN01A"], 1418, 777, 2)
+                    + linha_de_palavras(["111.40"], 1342, 795, 3) + linha_de_palavras(["6.08s,25"], 1500, 795, 4))
+        self.assertEqual(r.valor_pelo_rotulo(palavras), ("6085.25", "rotulo"))
+
+    def test_valor_sem_virgula_confere_com_produtos(self):
+        palavras = (linha_de_palavras(["TOTAL", "DOS", "PRODUTOS"], 1450, 897, 1)
+                    + linha_de_palavras(["4.87"], 1475, 920, 2)
+                    + linha_de_palavras(["uLOR", "TOTAL", "NOTA"], 1432, 960, 3)
+                    + linha_de_palavras(["487"], 1515, 984, 4))
+        self.assertEqual(r.valor_pelo_rotulo(palavras), ("4.87", "rotulo"))
+        self.assertEqual(r.valor_pelo_rotulo(palavras[4:]), ("4.87", "rotulo_duvidoso"))
+
+    def test_valor_cortado_e_duvidoso(self):
+        palavras = linha_de_palavras(["W.OR", "TOTAL", "DA", "NOTA"], 1400, 900, 1) + linha_de_palavras(["031.27"], 1480, 922, 2)
+        self.assertEqual(r.valor_pelo_rotulo(palavras), ("31.27", "rotulo_duvidoso"))
+
+    def test_portal_da_nfe_nao_e_total_da_nota(self):
+        palavras = (linha_de_palavras(["no", "putal", "da", "NF-e"], 300, 500, 1)
+                    + linha_de_palavras(["8119"], 330, 520, 2))
+        self.assertEqual(r.valor_pelo_rotulo(palavras), ("", ""))
+
+    def test_valor_total_na_etiqueta(self):
+        texto = r.corrigir_digitos(r.normalizar("VALOR TUTAL: RS 777,58"))
+        self.assertEqual(r.encontrar_valor_total(texto), ("777.58", "rotulo"))
 
 
 class TestPlanilha(unittest.TestCase):

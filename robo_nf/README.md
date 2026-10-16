@@ -73,10 +73,13 @@ Nas duas versões, se a planilha estiver aberta no Excel, o robô salva uma cóp
 
 ## Como o robô encontra cada informação
 
+- **Etiqueta de recebimento**: se a folha tiver a etiqueta impressa pelo recebimento (`NF 12345` e, na
+  linha de baixo, o fornecedor), o número da NF e o fornecedor vêm dela: a letra é grande e o OCR lê bem.
+  Se a etiqueta disser `(continuação)`, a folha é juntada à NF principal, mesmo escaneada em outro arquivo.
 - **Nº da NF**: primeiro pela **chave de acesso** (os 44 números impressos ou, na versão Python,
   o código de barras do DANFE). A chave tem dígito verificador, então quando ela é lida o número está certo.
-  Se não conseguir ler a chave, usa o número impresso (`Nº 000.012.345`, `Nº 93269 SÉRIE 1`...),
-  corrigindo zeros lidos como letra O (`OOO.O93.269`).
+  Se não conseguir ler a chave, usa o número impresso (`Nº 000.012.345`, `Nº 47158 SÉRIE 1`...),
+  corrigindo zeros lidos como letra O (`OOO.O47.158`).
   A inscrição estadual (que em SC tem o mesmo formato `999.999.999`) é ignorada.
   Se a chave veio com algum dígito ilegível, o número dela é usado só para conferir o impresso
   (ou, se não houver outro, entra na planilha marcado para conferência).
@@ -85,11 +88,14 @@ Nas duas versões, se a planilha estiver aberta no Excel, o robô salva uma cóp
   antes do destinatário. Também funciona com NFS-e (bloco *Prestador de Serviços*).
   Nomes ilegíveis (lixo do OCR), endereços e linhas de produto são descartados: é melhor a célula
   vazia e marcada para conferir do que um nome errado. O mesmo fornecedor lido de jeitos diferentes
-  em NFs diferentes (ex.: `JARVIS DO BRASL`) passa a usar a leitura completa (`JARVIS DO BRASIL
+  em NFs diferentes (ex.: `MARVIN DO BRASL`) passa a usar a leitura completa (`MARVIN DO BRASIL
   FERRAMENTAS INDUSTRIAIS LTDA`), e NFs do mesmo CNPJ ficam com o mesmo nome.
 - **Valor total**: o valor que fica logo abaixo de *VALOR TOTAL DA NOTA* (pela posição na folha, para não
-  pegar o valor da coluna vizinha, como o IPI). Se o rótulo não for lido, entra o maior valor da nota,
-  marcado em amarelo como *valor total estimado*.
+  pegar o valor da coluna vizinha, como o IPI). Aceita os erros comuns do OCR no rótulo (`'ALOR TOTPA. DA`,
+  `VALOR NOTA`) e no valor (ponto no lugar da vírgula, `777 58` partido em dois).
+  Fica em amarelo quando a leitura é duvidosa (sem a vírgula, como `487`, ou com o começo perdido, como
+  `031.27`) ou quando só o *VALOR TOTAL DOS PRODUTOS* foi lido. Se nada for lido, a célula fica vazia
+  (o robô não inventa valor).
 - **Pedido**: qualquer número de 10 dígitos começando com **45** (ex.: `4500012345`), em qualquer
   lugar da folha. Corrige trocas comuns do OCR (`45000I2345` → `4500012345`). Se uma NF tiver
   mais de um pedido, eles aparecem separados por ` / `.
@@ -113,7 +119,9 @@ Quando o CNPJ do emitente for encontrado na NF, o robô usa o nome do cadastro.
 
 ## Dicas para uma boa leitura
 
-- Escaneie em **300 dpi**, preto e branco ou tons de cinza.
+- Escaneie em **300 dpi ou mais, em tons de cinza**. Esta é a configuração que mais melhora a leitura:
+  nos DANFEs em paisagem a letra é miúda, e com resolução baixa o OCR do Windows troca letras e perde
+  vírgulas (é o que mais faz o valor total ficar em branco).
 - Folhas tortas ou de cabeça para baixo são corrigidas automaticamente, mas quanto mais reta, melhor.
 - Se alguma NF vier errada, rode com `-SalvarTexto` (PowerShell) ou `--salvar-texto` (Python) e veja
   em `textos_ocr/` o que o OCR leu.

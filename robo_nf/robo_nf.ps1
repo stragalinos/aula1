@@ -68,10 +68,14 @@ $ReRotuloChave = NovaRegex 'CHAVE\s+DE\s+ACESSO'
 # (o OCR as vezes poe espaco junto dos pontos)
 $NfPontuado = '\d{3}\s?[.,]\s?\d{3}\s?[.,]\s?\d{3}'
 $NfEspacado = '\d{3}\s?[.,\s]\s?\d{3}\s?[.,\s]\s?\d{3}'
-$ReNfDanfeRotulo = NovaRegex ('\bN\s*[O0\u00B0Q.:\-]{0,3}\s*[:.]?\s*(' + $NfEspacado + ')(?!\d|[.,/-]\d)')
-# "000093269" logo antes de "SERIE" (sem o "N.")
+$ReNfDanfeRotulo = NovaRegex ('\bN\s*[O0\u00B0Q.:\-\u2022*]{0,3}\s*[:.]?\s*(' + $NfEspacado + ')(?!\d|[.,/-]\d)')
+# "NO 000061234": numero sem pontos, com zeros a esquerda
+$ReNfRotuloZeros = NovaRegex '\bN\s*[O0\u00B0Q.:\-\u2022*]{0,3}\s*[:.]?\s*(0\d{5,8})(?!\d)'
+# Etiqueta de recebimento colada na folha: "NF 12345" e, na linha de baixo, o fornecedor
+$ReEtiquetaNF = NovaRegex '(?:^|\|[ \t])NF[ \t]*[:.]?[ \t]*(\d{3,9})(?=[ \t]*(?:$|\||\())' 'Multiline'
+# "000047158" logo antes de "SERIE" (sem o "N.")
 $ReNfZerosSerie = NovaRegex '(?<![\d.,])(0\d{5,8})\s*[-|]?\s*\n?\s*SERIE\b'
-# "N. 93269  SERIE 1" / "N. 000093269" e na linha de baixo "SERIE 001"
+# "N. 47158  SERIE 1" / "N. 000047158" e na linha de baixo "SERIE 001"
 $ReNfAntesSerie = NovaRegex '\bN\s*[O0\u00B0.:\-]{0,3}\s*[:.]?\s*(\d{1,9}|\d{1,3}(?:\.\d{3}){1,2})\s*[-|]?\s*\n?\s*SERIE\b'
 $ReNfDanfe = NovaRegex ('(?<![\d./,-])(' + $NfPontuado + ')(?!\d|[.,/-]\d)')
 # A inscricao estadual de SC (e de outros estados) tem o mesmo formato 999.999.999
@@ -82,13 +86,19 @@ $ReNfOutros = @(  # outros layouts (NFS-e, notas antigas...)
     (NovaRegex 'NOTA\s+FISCAL[^\d\n]{0,30}?\bN[O0\u00B0.:]+\s*(\d[\d.]{0,10})')
 )
 # Valor total da NF: "VALOR TOTAL DA NOTA" (o valor fica logo abaixo, no DANFE)
-$Dinheiro = '(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}'
-$ReDinheiro = NovaRegex ('(?<![\d.,])(' + $Dinheiro + ')(?![\d,%])')
-$ReDinheiroPalavra = NovaRegex ('^(?:R\$)?(' + $Dinheiro + ')\z')
+# (o OCR troca a virgula por ponto: "1.905.42", "618.30")
+$Dinheiro = '(?:\d{1,3}(?:[.,]\d{3})+|\d+)[.,]\d{2}'
+$ReDinheiro = NovaRegex ('(?<![\d.,])(' + $Dinheiro + ')(?!\d|[.,]\d|%)')
+$ReDinheiroPalavra = NovaRegex ('^(?:R\$|RS)?(' + $Dinheiro + ')\z')
+$ReMilharPalavra = NovaRegex '^(?:R\$|RS)?(\d{1,3}(?:[.,]\d{3})*|\d+)[.,]?\z'  # "777" de "777 58"
+$ReCentavosPalavra = NovaRegex '^\d{2}\z'
+$ReSoDigitos = NovaRegex '^\d{3,8}\z'  # "487": a virgula sumiu
 $RotuloTotal = '(?:\b(?:VALOR|VLR|V)\b\.?\s*)?\bTOTAL\.?\s*(?:DA\s*)?(?:NOTA|NF-?E?)\b'
 $ReRotuloTotal = NovaRegex $RotuloTotal
 $ReTotalMesmaLinha = NovaRegex ($RotuloTotal + '[ \t:=|]*(?:R\s?\$)?[ \t]*(' + $Dinheiro + ')(?![\d,%])')
+$ReValorTotalRS = NovaRegex ('\bVALOR\s+T[A-Z]{3,4}\.?\s*:?\s*R\s?[$S]\s*(' + $Dinheiro + ')(?!\d|[.,]\d|%)')
 $ReLetras = NovaRegex '[A-Z]{2}'
+$PrioridadeValor = @{ 'rotulo' = 3; 'rotulo_duvidoso' = 2; 'produtos' = 1; '' = 0 }
 
 $ReSerie = NovaRegex '\bSERIE\s*[:.]?\s*(\d{1,3})(?!\d)'
 
@@ -137,7 +147,8 @@ function NovoDados {
         Fornecedor = ''; Cnpj = ''; NumeroNF = ''; Serie = ''
         Pedidos = (New-Object 'System.Collections.Generic.List[string]')
         Chave = ''; OrigemNF = ''  # OrigemNF: "chave", "danfe", "texto", "chave_parcial" ou "divergente"
-        ValorTotal = ''; OrigemValor = ''  # "1234.56"; "rotulo" (junto de "VALOR TOTAL DA NOTA") ou "maior"
+        ValorTotal = ''; OrigemValor = ''  # "1234.56"; "rotulo", "rotulo_duvidoso" ou "produtos"
+        Continuacao = $false  # etiqueta diz "(continuacao)": folha seguinte de outra NF
     }
 }
 
@@ -152,7 +163,7 @@ function CompletarCom($d, $outro) {
     foreach ($campo in 'Fornecedor', 'Cnpj', 'NumeroNF', 'Serie', 'Chave', 'OrigemNF', 'ValorTotal', 'OrigemValor') {
         if (-not $d.$campo) { $d.$campo = $outro.$campo }
     }
-    if ($outro.OrigemValor -eq 'rotulo' -and $d.OrigemValor -ne 'rotulo') {
+    if ($PrioridadeValor[$outro.OrigemValor] -gt $PrioridadeValor[$d.OrigemValor]) {
         $d.ValorTotal = $outro.ValorTotal; $d.OrigemValor = $outro.OrigemValor
     }
     foreach ($p in $outro.Pedidos) { if (-not $d.Pedidos.Contains($p)) { $d.Pedidos.Add($p) } }
@@ -175,7 +186,7 @@ function Normalizar([string]$texto) {
 
 $TrocaDigitos = ('O', '0'), ('Q', '0'), ('D', '0'), ('I', '1'), ('L', '1'), ('|', '1'), ('S', '5'), ('B', '8'), ('Z', '2')
 $LetrasConfusas = 'OQDILSBZ|'
-$ReTokenNumerico = NovaRegex '[0-9A-Z|][0-9A-Z|.,/\-]*'
+$ReTokenNumerico = NovaRegex '[0-9OQDILSBZ|][0-9OQDILSBZ|.,/\-]*'
 
 function TrocarDigitos([string]$s) {
     foreach ($par in $TrocaDigitos) { $s = $s.Replace($par[0], $par[1]) }
@@ -183,7 +194,7 @@ function TrocarDigitos([string]$s) {
 }
 
 function CorrigirToken([string]$token) {
-    # Token quase todo numerico com letras parecidas com numeros: OOO.O93.269 -> 000.093.269
+    # Token quase todo numerico com letras parecidas com numeros: OOO.O47.158 -> 000.047.158
     $digitos = 0; $letras = 0; $todasConfusas = $true
     foreach ($c in $token.ToCharArray()) {
         if ([char]::IsDigit($c)) { $digitos++ }
@@ -197,7 +208,7 @@ function CorrigirToken([string]$token) {
 }
 
 function CorrigirDigitos([string]$texto) {
-    # Troca letras confundidas pelo OCR em numeros (OOO.O93.269, 45000I2345)
+    # Troca letras confundidas pelo OCR em numeros (OOO.O47.158, 45000I2345)
     $texto = $ReTokenNumerico.Replace($texto, { param($m) CorrigirToken $m.Value })
     for ($i = 0; $i -lt 3; $i++) {
         $novo = $ReLetraEntreDigitos.Replace($texto, { param($m) TrocarDigitos $m.Value })
@@ -284,7 +295,7 @@ function PertoDeIE([string]$texto, [int]$inicio) {
 
 function EncontrarNumeroNF([string]$texto) {
     # Devolve @(numero, origem). Texto ja normalizado e com digitos corrigidos.
-    foreach ($regex in @($ReNfDanfeRotulo, $ReNfAntesSerie, $ReNfZerosSerie)) {
+    foreach ($regex in @($ReNfDanfeRotulo, $ReNfRotuloZeros, $ReNfAntesSerie, $ReNfZerosSerie)) {
         foreach ($m in $regex.Matches($texto)) {
             $n = SoNumero $m.Groups[1].Value
             if ($n -and -not (PertoDeIE $texto $m.Index)) { return @($n, 'danfe') }
@@ -315,15 +326,22 @@ function EncontrarNumeroNF([string]$texto) {
     @('', '')
 }
 
-function ValorDecimal([string]$valor) { $valor.Replace('.', '').Replace(',', '.') }  # "1.234,56" -> "1234.56"
+function ValorDecimal([string]$valor) {
+    # "1.234,56", "1.234.56" ou "123456" -> "1234.56" (os dois ultimos digitos sao os centavos)
+    $digitos = $valor -creplace '[^0-9]', ''
+    $inteiro = if ($digitos.Length -gt 2) { [string][long]$digitos.Substring(0, $digitos.Length - 2) } else { '0' }
+    "$inteiro.$($digitos.Substring($digitos.Length - 2))"
+}
 
 function DecimalDe([string]$valor) { [decimal]::Parse($valor, [Globalization.CultureInfo]::InvariantCulture) }
 
 function EncontrarValorTotal([string]$texto) {
-    # Valor total da NF pelo texto. Devolve @(valor, origem).
-    foreach ($m in $ReTotalMesmaLinha.Matches($texto)) {
-        $valor = ValorDecimal $m.Groups[1].Value
-        if ((DecimalDe $valor) -gt 0) { return @($valor, 'rotulo') }
+    # Valor total da NF pelo texto. Devolve @(valor, 'rotulo') ou @('', '').
+    foreach ($regex in @($ReTotalMesmaLinha, $ReValorTotalRS)) {
+        foreach ($m in $regex.Matches($texto)) {
+            $valor = ValorDecimal $m.Groups[1].Value
+            if ((DecimalDe $valor) -gt 0) { return @($valor, 'rotulo') }
+        }
     }
     # Rotulo no fim da linha e os valores na linha de baixo: o ultimo valor e o da coluna dele
     $linhas = $texto.Split("`n")
@@ -339,13 +357,6 @@ function EncontrarValorTotal([string]$texto) {
             }
         }
     }
-    # Sem o rotulo: o maior valor da nota (precisa de conferencia)
-    $maior = ''
-    foreach ($m in $ReDinheiro.Matches($texto)) {
-        $valor = ValorDecimal $m.Groups[1].Value
-        if ((DecimalDe $valor) -gt 0 -and ($maior -eq '' -or (DecimalDe $valor) -gt (DecimalDe $maior))) { $maior = $valor }
-    }
-    if ($maior) { return @($maior, 'maior') }
     @('', '')
 }
 
@@ -422,51 +433,139 @@ function TextoVisual($palavras) {
     $saida -join "`n"
 }
 
-function ValorPeloRotulo($palavras) {
-    # Valor logo abaixo (ou a direita) de "VALOR TOTAL DA NOTA", pela posicao na folha
-    if (-not $palavras -or $palavras.Count -eq 0) { return '' }
-    $normalizadas = @($palavras | ForEach-Object { CorrigirDigitos (Normalizar ([string]$_[0])) })
-    $dinheiro = @(for ($i = 0; $i -lt $normalizadas.Count; $i++) { if ($ReDinheiroPalavra.IsMatch($normalizadas[$i])) { $i } })
-    $melhor = -1
-    $melhorPontos = 0.0
-    foreach ($linha in (LinhasVisuais $palavras)) {
-        $texto = ''
-        $inicios = New-Object 'System.Collections.Generic.List[int]'
-        foreach ($i in $linha) {
-            if ($texto) { $texto += ' ' }
-            $inicios.Add($texto.Length)
-            $texto += $normalizadas[$i]
+function Letras([string]$texto) { (Normalizar $texto) -creplace '[^A-Z]', '' }
+
+function RotulosDeValor($palavras, $linha) {
+    # Rotulos "VALOR TOTAL DA NOTA" ('nota') e "VALOR TOTAL DOS PRODUTOS" ('produtos') numa linha
+    # da folha, aceitando erros do OCR: "'ALOR TOTPA. DA NOTA", "VALmTOTALDAN01A", "VALOR NOTA".
+    $t = @(foreach ($i in $linha) { Letras ([string]$palavras[$i][0]) })
+    $achados = New-Object 'System.Collections.Generic.List[object]'
+    for ($a = 0; $a -lt $t.Count; $a++) {
+        $token = $t[$a]
+        $prox = if ($a + 1 -lt $t.Count) { $t[$a + 1] } else { '' }
+        $depois = if ($a + 2 -lt $t.Count) { $t[$a + 2] } else { '' }
+        $tipo = ''; $fim = $a
+        if ($token.StartsWith('P', [StringComparison]::Ordinal) -or
+            ($prox -ceq 'DA' -and $depois.StartsWith('NF', [StringComparison]::Ordinal))) {
+            continue  # "portal da NF-e" (texto da consulta da chave) nao e "TOTAL DA"
         }
-        foreach ($m in $ReRotuloTotal.Matches($texto)) {
-            $x1 = [double]::MaxValue; $y1 = [double]::MaxValue; $x2 = [double]::MinValue; $y2 = [double]::MinValue; $altura = 0.0
-            for ($k = 0; $k -lt $linha.Count; $k++) {
-                $i = $linha[$k]
-                if ($inicios[$k] -lt $m.Index + $m.Length -and $inicios[$k] + $normalizadas[$i].Length -gt $m.Index) {
-                    $p = $palavras[$i]
-                    $x1 = [Math]::Min($x1, [double]$p[1]); $y1 = [Math]::Min($y1, [double]$p[2])
-                    $x2 = [Math]::Max($x2, [double]$p[1] + [double]$p[3]); $y2 = [Math]::Max($y2, [double]$p[2] + [double]$p[4])
-                    $altura = [Math]::Max($altura, [double]$p[4])
+        if ($token.Contains('TOTALDA') -or $token.Contains('TALDANOTA')) {
+            $tipo = 'nota'
+        } elseif ($token.Length -ge 4 -and (Parece $token 'TOTAL')) {
+            if ($prox -ceq 'DA' -or $prox -ceq 'OA' -or $prox.StartsWith('DAN', [StringComparison]::Ordinal) -or (Parece $prox 'NOTA' 1)) {
+                $tipo = 'nota'; $fim = $a + 1
+            } elseif ($prox -ceq 'DOS' -or $prox -ceq 'BOS' -or $prox -ceq 'OOS') {
+                $tipo = 'produtos'; $fim = $a + 1
+            }
+        } elseif ($token.Length -ge 3 -and (Parece $token 'VALOR') -and (Parece $prox 'NOTA' 1)) {
+            $tipo = 'nota'; $fim = $a + 1
+        }
+        if ($tipo) {
+            $ini = $a
+            if ($a -gt 0 -and $t[$a - 1].Length -ge 3 -and (Parece $t[$a - 1] 'VALOR')) {
+                $anterior = $palavras[$linha[$a - 1]]; $atual = $palavras[$linha[$a]]
+                $vao = [double]$atual[1] - ([double]$anterior[1] + [double]$anterior[3])
+                if ($vao -le 2 * [Math]::Max([double]$anterior[4], [double]$atual[4])) { $ini = $a - 1 }  # "VALOR" colado no "TOTAL"
+            }
+            $indices = @(for ($k = $ini; $k -le $fim; $k++) { $linha[$k] })
+            $achados.Add([pscustomobject]@{ Tipo = $tipo; Indices = $indices })
+        }
+    }
+    , $achados
+}
+
+function ValoresNaFolha($palavras) {
+    # Valores em dinheiro lidos pelo OCR: Valor, Caixa (x, y, largura, altura), Duvidoso.
+    # Junta valores partidos em duas palavras ("777 58", "2.913 47", "315, 20"). Duvidoso: sem a
+    # virgula ("487") ou com o comeco perdido ("031.27" de "1.031,27").
+    $norm = @($palavras | ForEach-Object { CorrigirDigitos (Normalizar ([string]$_[0])) })
+    $valores = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($linha in (LinhasVisuais $palavras)) {
+        for ($k = 0; $k -lt $linha.Count; $k++) {
+            $i = $linha[$k]
+            $caixa = @([double]$palavras[$i][1], [double]$palavras[$i][2], [double]$palavras[$i][3], [double]$palavras[$i][4])
+            $m = $ReDinheiroPalavra.Match($norm[$i])
+            if ($m.Success) {
+                $g = $m.Groups[1].Value
+                $cortado = $g.Length -gt 4 -and $g.StartsWith('0') -and [char]::IsDigit($g[1])
+                $valores.Add([pscustomobject]@{ Valor = (ValorDecimal $g); Caixa = $caixa; Duvidoso = $cortado })
+                continue
+            }
+            $m = $ReMilharPalavra.Match($norm[$i])
+            $j = if ($k + 1 -lt $linha.Count) { $linha[$k + 1] } else { -1 }
+            if ($m.Success -and $j -ge 0 -and $ReCentavosPalavra.IsMatch($norm[$j])) {
+                $a = $palavras[$i]; $b = $palavras[$j]
+                $vao = [double]$b[1] - ([double]$a[1] + [double]$a[3])
+                if ($vao -ge 0 -and $vao -le 1.5 * [Math]::Max([double]$a[4], [double]$b[4])) {
+                    $y = [Math]::Min([double]$a[2], [double]$b[2])
+                    $caixa = @([double]$a[1], $y, ([double]$b[1] + [double]$b[3] - [double]$a[1]),
+                               ([Math]::Max([double]$a[2] + [double]$a[4], [double]$b[2] + [double]$b[4]) - $y))
+                    $valores.Add([pscustomobject]@{ Valor = (ValorDecimal ($m.Groups[1].Value + ',' + $norm[$j])); Caixa = $caixa; Duvidoso = $false })
+                    continue
                 }
             }
+            if ($ReSoDigitos.IsMatch($norm[$i])) {
+                $valores.Add([pscustomobject]@{ Valor = (ValorDecimal $norm[$i]); Caixa = $caixa; Duvidoso = $true })
+            }
+        }
+    }
+    , $valores
+}
+
+function ValorPeloRotulo($palavras) {
+    # Valor logo abaixo (ou a direita) de "VALOR TOTAL DA NOTA", pela posicao na folha.
+    # Sem ele, o de "VALOR TOTAL DOS PRODUTOS". Devolve @(valor, origem) - origem em $PrioridadeValor.
+    if (-not $palavras -or $palavras.Count -eq 0) { return @('', '') }
+    $valores = @((ValoresNaFolha $palavras) | Where-Object { (DecimalDe $_.Valor) -gt 0 })
+    $melhor = @{}  # tipo -> Duvidoso, Pontos, Valor
+    foreach ($linha in (LinhasVisuais $palavras)) {
+        foreach ($rotulo in (RotulosDeValor $palavras $linha)) {
+            $x1 = [double]::MaxValue; $y1 = [double]::MaxValue; $x2 = [double]::MinValue; $y2 = [double]::MinValue; $altura = 0.0
+            foreach ($i in $rotulo.Indices) {
+                $p = $palavras[$i]
+                $x1 = [Math]::Min($x1, [double]$p[1]); $y1 = [Math]::Min($y1, [double]$p[2])
+                $x2 = [Math]::Max($x2, [double]$p[1] + [double]$p[3]); $y2 = [Math]::Max($y2, [double]$p[2] + [double]$p[4])
+                $altura = [Math]::Max($altura, [double]$p[4])
+            }
             $cx = ($x1 + $x2) / 2; $cy = ($y1 + $y2) / 2
-            foreach ($j in $dinheiro) {
-                $p = $palavras[$j]
-                $x = [double]$p[1]; $y = [double]$p[2]; $largura = [double]$p[3]; $alt = [double]$p[4]
+            foreach ($v in $valores) {
+                $x = $v.Caixa[0]; $y = $v.Caixa[1]; $largura = $v.Caixa[2]; $alt = $v.Caixa[3]
                 $jx = $x + $largura / 2; $jy = $y + $alt / 2
                 # o valor fica dentro da caixa do rotulo: nunca comeca antes dele
                 $abaixo = ($y -ge $y1 + 0.5 * $altura) -and ($jy - $y2 -le 4 * $altura) -and
                           ($x -ge $x1 - $altura) -and ($x -le $x2 + 6 * $altura)
                 $aoLado = ([Math]::Abs($jy - $cy) -le 0.5 * $altura) -and ($x -ge $x2) -and ($x - $x2 -le 15 * $altura)
                 if ($abaixo -or $aoLado) {
+                    $duvida = if ($v.Duvidoso) { 1 } else { 0 }
                     $pontos = [Math]::Abs($jy - $cy) + 0.3 * [Math]::Abs($jx - $cx)
-                    if ($melhor -lt 0 -or $pontos -lt $melhorPontos) { $melhor = $j; $melhorPontos = $pontos }
+                    $atual = $melhor[$rotulo.Tipo]
+                    if (-not $atual -or $duvida -lt $atual.Duvida -or ($duvida -eq $atual.Duvida -and $pontos -lt $atual.Pontos)) {
+                        $melhor[$rotulo.Tipo] = [pscustomobject]@{ Duvida = $duvida; Pontos = $pontos; Valor = $v.Valor; Duvidoso = $v.Duvidoso }
+                    }
                 }
             }
         }
     }
-    if ($melhor -lt 0) { return '' }
-    $valor = ValorDecimal $ReDinheiroPalavra.Match($normalizadas[$melhor]).Groups[1].Value
-    if ((DecimalDe $valor) -gt 0) { $valor } else { '' }
+    $produtos = if ($melhor['produtos'] -and -not $melhor['produtos'].Duvidoso) { $melhor['produtos'].Valor } else { '' }
+    if ($melhor['nota']) {
+        $valor = $melhor['nota'].Valor
+        if ($produtos -and (DecimalDe $valor) -eq (DecimalDe $produtos)) { return @($valor, 'rotulo') }  # confere com os produtos
+        if ($melhor['nota'].Duvidoso -or ($produtos -and (DecimalDe $valor) -lt (DecimalDe $produtos) / 2)) {
+            return @($valor, 'rotulo_duvidoso')
+        }
+        return @($valor, 'rotulo')
+    }
+    if ($produtos) { return @($produtos, 'produtos') }
+    @('', '')
+}
+
+function MelhorValor($candidatos) {
+    # O de maior prioridade (rotulo > duvidoso > produtos); empate: o primeiro
+    $escolhido = @('', '')
+    foreach ($c in $candidatos) {
+        if ($PrioridadeValor[$c[1]] -gt $PrioridadeValor[$escolhido[1]]) { $escolhido = @($c[0], $c[1]) }
+    }
+    , $escolhido
 }
 
 function EncontrarSerie([string]$texto) {
@@ -685,13 +784,35 @@ function EncontrarFornecedor([string]$texto, [string]$norm) {
     ''
 }
 
-function ExtrairDados([string]$texto, $cadastro = $null, [string]$valorGeometria = '') {
+function Etiqueta([string]$texto, [string]$num) {
+    # Etiqueta de recebimento colada na folha: "NF 12345" e, na linha de baixo, o fornecedor.
+    # Devolve @(numero, fornecedor, continuacao).
+    $m = $ReEtiquetaNF.Match($num)
+    if (-not $m.Success -or -not (SoNumero $m.Groups[1].Value)) { return @('', '', $false) }
+    $depois = $m.Index + $m.Length
+    $fim = $num.IndexOf([char]10, $depois)
+    if ($fim -lt 0) { $fim = $num.Length }
+    $continuacao = $num.Substring($depois, $fim - $depois).Contains('CONTINUA')
+    $nome = ''
+    if ($fim -lt $texto.Length) {
+        $fimProx = $texto.IndexOf([char]10, $fim + 1)
+        if ($fimProx -lt 0) { $fimProx = $texto.Length }
+        $candidato = NomePlausivel (LimparNome $texto.Substring($fim + 1, $fimProx - $fim - 1))
+        $palavras = @($candidato -split '\s+' | Where-Object { $_ }).Count
+        if ((ContarLetras $candidato) -ge 4 -and ((TemSufixo $candidato) -or $palavras -ge 3)) { $nome = $candidato }
+    }
+    @((SoNumero $m.Groups[1].Value), $nome, $continuacao)
+}
+
+function ExtrairDados([string]$texto, $cadastro = $null, $valorGeometria = $null) {
     # Extrai fornecedor, numero da NF, pedidos e valor total do texto de uma pagina
     $texto = $texto.Replace("`r`n", "`n").Replace("`r", "`n")
     $norm = Normalizar $texto
     $num = CorrigirDigitos $norm
     $d = NovoDados
     $parcial = ''
+    $etiqueta = Etiqueta $texto $num
+    $d.Continuacao = $etiqueta[2]
 
     $d.Chave = EncontrarChave $num
     if (-not $d.Chave) { $d.Chave = EncontrarChave $norm }
@@ -701,6 +822,7 @@ function ExtrairDados([string]$texto, $cadastro = $null, [string]$valorGeometria
         $d.Serie = [string][int]$d.Chave.Substring(22, 3)
         $d.NumeroNF = [string][long]$d.Chave.Substring(25, 9)
         $d.OrigemNF = 'chave'
+        if ($etiqueta[0] -and $etiqueta[0] -cne $d.NumeroNF) { $d.OrigemNF = 'divergente' }
     } else {
         $numero = EncontrarNumeroNF $num
         $d.NumeroNF = $numero[0]
@@ -716,19 +838,20 @@ function ExtrairDados([string]$texto, $cadastro = $null, [string]$valorGeometria
             if (-not $d.NumeroNF) { $d.NumeroNF = $numeroChave; $d.OrigemNF = 'chave_parcial' }
             elseif ($d.NumeroNF -cne $numeroChave) { $d.OrigemNF = 'divergente' }
         }
+        if ($etiqueta[0]) { $d.NumeroNF = $etiqueta[0]; $d.OrigemNF = 'etiqueta' }  # letra grande: o OCR le bem
     }
 
     $ignorar = if ($d.Chave) { $d.Chave } else { $parcial }
     $d.Pedidos = EncontrarPedidos $num $ignorar
-    if ($valorGeometria) {
-        $d.ValorTotal = $valorGeometria; $d.OrigemValor = 'rotulo'
-    } else {
-        $valor = EncontrarValorTotal $num
-        $d.ValorTotal = $valor[0]; $d.OrigemValor = $valor[1]
-    }
+    # Pela posicao (rotulo e valor na mesma coluna) > pelo texto > pela posicao, com menos certeza
+    if (-not $valorGeometria) { $valorGeometria = @('', '') }
+    $valor = if ($valorGeometria[1] -eq 'rotulo') { $valorGeometria } else { MelhorValor @((EncontrarValorTotal $num), $valorGeometria) }
+    $d.ValorTotal = $valor[0]; $d.OrigemValor = $valor[1]
 
     if ($cadastro -and $d.Cnpj -and $cadastro.ContainsKey($d.Cnpj)) {
         $d.Fornecedor = $cadastro[$d.Cnpj]
+    } elseif ($etiqueta[1]) {
+        $d.Fornecedor = $etiqueta[1]
     } else {
         $d.Fornecedor = EncontrarFornecedor $texto $norm
     }
@@ -867,8 +990,9 @@ function MontarDados($leituras, $cadastro) {
     $textos = New-Object 'System.Collections.Generic.List[string]'
     foreach ($l in $leituras) { $textos.Add($l.Texto) }
     foreach ($l in $leituras) { if ($l.Palavras.Count -gt 0) { $textos.Add((TextoVisual $l.Palavras)) } }
-    $valor = ''
-    for ($k = $leituras.Count - 1; $k -ge 0 -and -not $valor; $k--) { $valor = ValorPeloRotulo $leituras[$k].Palavras }
+    $candidatos = New-Object 'System.Collections.Generic.List[object]'
+    for ($k = $leituras.Count - 1; $k -ge 0; $k--) { $candidatos.Add((ValorPeloRotulo $leituras[$k].Palavras)) }
+    $valor = MelhorValor $candidatos
     $texto = $textos -join "`n"
     [pscustomobject]@{ Dados = (ExtrairDados $texto $cadastro $valor); Texto = $texto }
 }
@@ -980,6 +1104,28 @@ function CarregarCadastro([string]$caminho) {
     $cadastro
 }
 
+function JuntarContinuacoes($registros) {
+    # Folha com "(continuacao)" na etiqueta, escaneada em outro arquivo: junta com a NF principal
+    $principais = @($registros | Where-Object { -not $_.Dados.Continuacao })
+    $juntados = New-Object 'System.Collections.Generic.HashSet[object]'
+    foreach ($r in $registros) {
+        if (-not ($r.Dados.Continuacao -and $r.Dados.NumeroNF)) { continue }
+        foreach ($alvo in $principais) {
+            $mesmoEmitente = (-not ($alvo.Dados.Cnpj -and $r.Dados.Cnpj)) -or $alvo.Dados.Cnpj -ceq $r.Dados.Cnpj
+            if ($alvo.Dados.NumeroNF -ceq $r.Dados.NumeroNF -and $mesmoEmitente) {
+                if ($r.Arquivo -cne $alvo.Arquivo) { $alvo.Arquivo += ' + ' + $r.Arquivo }
+                foreach ($pagina in $r.Paginas) { $alvo.Paginas.Add($pagina) }
+                CompletarCom $alvo.Dados $r.Dados
+                [void]$juntados.Add($r)
+                break
+            }
+        }
+    }
+    $saida = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($r in $registros) { if (-not $juntados.Contains($r)) { $saida.Add($r) } }
+    , $saida
+}
+
 function TemSufixo([string]$nome) { $ReSufixoFinal.IsMatch((Normalizar $nome)) }
 
 function Semelhanca([string]$a, [string]$b, [switch]$PeloFim) {
@@ -1076,7 +1222,8 @@ function MarcarAvisos($registros) {
         elseif ($d.OrigemNF -eq 'divergente') { $r.Avisos.Add((U 'n\u00ba impresso diferente do n\u00ba da chave de acesso')) }
         elseif ($contagem[(& $chave $d)] -gt 1) { $r.Avisos.Add('NF repetida em outro arquivo') }
         if (-not $d.ValorTotal) { $r.Avisos.Add((U 'valor total n\u00e3o encontrado')) }
-        elseif ($d.OrigemValor -eq 'maior') { $r.Avisos.Add('valor total estimado (maior valor da nota)') }
+        elseif ($d.OrigemValor -eq 'rotulo_duvidoso') { $r.Avisos.Add('valor total com leitura duvidosa') }
+        elseif ($d.OrigemValor -eq 'produtos') { $r.Avisos.Add((U 'valor total da nota n\u00e3o lido: usado o total dos produtos')) }
         if ($d.Pedidos.Count -eq 0) { $r.Avisos.Add((U 'pedido n\u00e3o encontrado')) }
         elseif ($d.Pedidos.Count -gt 1) { $r.Avisos.Add('mais de um pedido') }
     }
@@ -1275,6 +1422,7 @@ function Main {
         }
     }
 
+    $registros = JuntarContinuacoes $registros
     PadronizarFornecedores $registros
     MarcarAvisos $registros
     $caminho = GerarPlanilha $registros $caminhoSaida
