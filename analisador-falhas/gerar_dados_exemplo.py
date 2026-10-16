@@ -213,17 +213,23 @@ def gerar(semente=42):
 
 
 def salvar(ordens, arquivo=ARQUIVO):
-    """Salva em CSV no padrão do Excel brasileiro (separador ';' e data dd/mm/aaaa)."""
+    """Salva em CSV no padrão do Excel brasileiro, com as colunas do modelo de planilha.
+
+    Separador ';', data dd/mm/aaaa e horas apontadas com vírgula decimal (1,5 = 1h30).
+    """
     arquivo.parent.mkdir(exist_ok=True)
-    colunas = ["numero_os", "equipamento", "area", "tipo_manutencao", "componente", "descricao", "inicio", "fim"]
+    titulos = ["Número da OS", "Equipamento", "Área", "Tipo de manutenção", "Componente",
+               "Descrição do serviço", "Data", "Horas apontadas"]
     with open(arquivo, "w", newline="", encoding="utf-8-sig") as saida:
-        escritor = csv.DictWriter(saida, fieldnames=colunas, delimiter=";")
-        escritor.writeheader()
+        escritor = csv.writer(saida, delimiter=";")
+        escritor.writerow(titulos)
         for os_ in ordens:
-            linha = dict(os_)
-            linha["inicio"] = os_["inicio"].strftime("%d/%m/%Y %H:%M")
-            linha["fim"] = os_["fim"].strftime("%d/%m/%Y %H:%M")
-            escritor.writerow({c: linha[c] for c in colunas})
+            horas = (os_["fim"] - os_["inicio"]).total_seconds() / 3600
+            escritor.writerow([
+                os_["numero_os"], os_["equipamento"], os_["area"], os_["tipo_manutencao"],
+                os_["componente"], os_["descricao"], os_["inicio"].strftime("%d/%m/%Y"),
+                f"{horas:.2f}".replace(".", ","),
+            ])
 
 
 if __name__ == "__main__":

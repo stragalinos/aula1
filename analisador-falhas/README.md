@@ -72,13 +72,17 @@ Escolha **"Minha planilha"** na barra lateral e envie um arquivo **CSV** ou **Ex
 com **uma OS por linha**. Se os nomes das colunas forem diferentes dos esperados, o
 app pergunta qual coluna é qual.
 
-| Informação | Obrigatória? | Exemplo |
+O jeito mais fácil é usar o **modelo pronto**: [`modelo/modelo_ordens_de_servico.xlsx`](modelo/modelo_ordens_de_servico.xlsx)
+(também dá para baixar pelo botão "Baixar modelo de planilha" no app). Ele já tem a
+lista de tipos de manutenção, validação de data e horas e uma aba de instruções.
+
+| Coluna | Obrigatória? | Exemplo |
 |---|---|---|
 | Equipamento | ✅ | Túnel de congelamento 02 |
 | Tipo de manutenção | ✅ | Corretiva, Preventiva, Preditiva |
-| Início da intervenção | ✅ | 03/04/2026 08:15 |
-| Fim da intervenção | ✅ | 03/04/2026 10:30 |
-| Número da OS | | OS-2026-0001 |
+| Data | ✅ | 03/04/2026 |
+| Horas apontadas | ✅ | 2,5 (= 2h30; também aceita 2:30) |
+| Número da OS | | 100234567 |
 | Área | | Congelamento |
 | Componente | | Ventilador do evaporador |
 | Descrição do serviço | | Motor do ventilador queimado, substituído |
@@ -88,8 +92,12 @@ app pergunta qual coluna é qual.
 
 ## Como os indicadores são calculados
 
-Só as OS **corretivas** contam como falha. O tempo de cada corretiva (fim − início) é
-considerado tempo de equipamento parado.
+Só as OS **corretivas** contam como falha. As **horas apontadas** em cada corretiva são
+consideradas tempo de equipamento parado.
+
+> Se as horas apontadas forem **homem-hora** (soma de vários técnicos na mesma OS), o
+> MTTR vai parecer maior que a parada real. Se o seu sistema tiver as horas de parada do
+> equipamento, prefira essa informação na coluna "Horas apontadas".
 
 - **Horas planejadas** = dias do período × horas de operação por dia
 - **MTTR** (tempo médio para reparar) = horas paradas ÷ número de falhas
@@ -107,6 +115,7 @@ analisador-falhas/
 ├── ia.py                   # o pedido para o Claude (API da Anthropic)
 ├── gerar_dados_exemplo.py  # cria os dados fictícios
 ├── dados/os_exemplo.csv    # os dados fictícios prontos
+├── modelo/                 # modelo de planilha (Excel) para preencher
 └── tests/                  # testes automáticos das contas
 ```
 

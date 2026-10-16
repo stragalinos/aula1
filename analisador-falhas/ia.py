@@ -59,6 +59,7 @@ def montar_contexto(
     partes = [
         f"Período analisado: {periodo}",
         f"Horas de operação consideradas por dia: {numero_br(horas_por_dia, 0)}",
+        "As horas vêm das horas apontadas nas OS; nas corretivas, são tratadas como tempo de equipamento parado.",
         "",
         "## Resumo geral",
         f"- Ordens de serviço: {resumo['total_os']}",
@@ -82,7 +83,7 @@ def montar_contexto(
                 (corretivas["equipamento"] == linha["equipamento"])
                 & (corretivas["componente"] == linha["componente"])
             ]
-            descricoes = mesmas.sort_values("inicio", ascending=False)["descricao"].head(3)
+            descricoes = mesmas.sort_values("data", ascending=False)["descricao"].head(3)
             partes.append(
                 f"- {linha['equipamento']} / {linha['componente']}: {linha['ocorrencias']} ocorrências, "
                 f"{numero_br(linha['horas_paradas'])} h paradas, uma falha a cada "

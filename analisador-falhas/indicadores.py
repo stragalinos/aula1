@@ -5,17 +5,19 @@ serviço (OS) e devolve números. Assim dá para testar cada conta sozinha
 (veja a pasta tests/).
 """
 
+import numbers
 import unicodedata
+from datetime import time, timedelta
 
 import pandas as pd
 
 # Informações que o analisador usa. A chave é o nome interno da coluna; o valor
-# é o texto mostrado na tela quando a pessoa escolhe as colunas da planilha.
+# é o título da coluna no modelo de planilha (modelo/modelo_ordens_de_servico.xlsx).
 COLUNAS = {
     "equipamento": "Equipamento",
     "tipo_manutencao": "Tipo de manutenção",
-    "inicio": "Início da intervenção",
-    "fim": "Fim da intervenção",
+    "data": "Data",
+    "horas": "Horas apontadas",
     "numero_os": "Número da OS",
     "area": "Área",
     "componente": "Componente",
@@ -23,7 +25,7 @@ COLUNAS = {
 }
 
 # Sem estas não dá para calcular nada. As outras são opcionais.
-COLUNAS_OBRIGATORIAS = ["equipamento", "tipo_manutencao", "inicio", "fim"]
+COLUNAS_OBRIGATORIAS = ["equipamento", "tipo_manutencao", "data", "horas"]
 
 CORRETIVA = "Corretiva"
 NAO_INFORMADO = "Não informado"
@@ -34,9 +36,22 @@ NAO_INFORMADO = "Não informado"
 # ---------------------------------------------------------------------------
 
 def normalizar_nome(texto) -> str:
-    """'Início da OS' -> 'inicio_da_os'. Ajuda a reconhecer colunas da planilha."""
+    """'Número da OS' -> 'numero_da_os'. Ajuda a reconhecer colunas da planilha."""
     sem_acento = unicodedata.normalize("NFKD", str(texto)).encode("ascii", "ignore").decode()
     return sem_acento.strip().lower().replace(" ", "_").replace("-", "_")
+
+
+def sugerir_colunas(colunas_planilha) -> dict:
+    """Para cada informação, procura na planilha uma coluna com o mesmo título.
+
+    Aceita tanto o título do modelo ('Horas apontadas') quanto o nome interno
+    ('horas'). Devolve None para o que não encontrar.
+    """
+    por_nome = {normalizar_nome(c): c for c in colunas_planilha}
+    return {
+        chave: por_nome.get(normalizar_nome(titulo)) or por_nome.get(chave)
+        for chave, titulo in COLUNAS.items()
+    }
 
 
 def padronizar_tipo(valor) -> str:
@@ -54,17 +69,46 @@ def padronizar_tipo(valor) -> str:
 
 
 def _converter_data(serie: pd.Series) -> pd.Series:
-    """Converte textos como '03/04/2026 08:15' em datas. O que não der vira vazio (NaT)."""
+    """Converte textos como '03/04/2026' em datas. O que não der vira vazio (NaT)."""
     if pd.api.types.is_datetime64_any_dtype(serie):
         return serie
     return pd.to_datetime(serie, dayfirst=True, format="mixed", errors="coerce")
 
 
+def converter_horas(valor) -> float:
+    """Entende as formas comuns de escrever horas: 1,5 / 1.5 / 1:30 / 01:30:00.
+
+    Também aceita células de Excel formatadas como hora. O que não der para
+    entender, ou for negativo, vira vazio (NaN).
+    """
+    if valor is None or (not isinstance(valor, str) and pd.isna(valor)):
+        return float("nan")
+    if isinstance(valor, timedelta):                          # Excel: [h]:mm
+        horas = valor.total_seconds() / 3600
+    elif isinstance(valor, time):                             # Excel: h:mm
+        horas = valor.hour + valor.minute / 60 + valor.second / 3600
+    elif isinstance(valor, numbers.Real):
+        horas = float(valor)
+    else:
+        texto = str(valor).strip()
+        try:
+            if ":" in texto:                                  # 1:30 ou 01:30:00
+                partes = [float(p) for p in texto.split(":")] + [0, 0]
+                horas = partes[0] + partes[1] / 60 + partes[2] / 3600
+            else:                                             # 1,5 / 1.5 / 1.234,5
+                if "," in texto:
+                    texto = texto.replace(".", "").replace(",", ".")
+                horas = float(texto)
+        except ValueError:
+            return float("nan")
+    return horas if horas >= 0 else float("nan")
+
+
 def preparar_dados(bruto: pd.DataFrame) -> tuple[pd.DataFrame, int]:
-    """Limpa a tabela de OS e calcula quantas horas durou cada intervenção.
+    """Limpa a tabela de OS: converte datas e horas e padroniza os textos.
 
     Devolve a tabela limpa e quantas linhas foram descartadas por terem data
-    vazia, inválida ou com o fim antes do início.
+    ou horas vazias ou inválidas.
     """
     faltando = [COLUNAS[c] for c in COLUNAS_OBRIGATORIAS if c not in bruto.columns]
     if faltando:
@@ -79,14 +123,13 @@ def preparar_dados(bruto: pd.DataFrame) -> tuple[pd.DataFrame, int]:
     for coluna in ["equipamento", "numero_os", "area", "componente", "descricao"]:
         dados[coluna] = dados[coluna].fillna("").astype(str).str.strip().replace("", NAO_INFORMADO)
     dados["tipo_manutencao"] = dados["tipo_manutencao"].map(padronizar_tipo)
-    dados["inicio"] = _converter_data(dados["inicio"])
-    dados["fim"] = _converter_data(dados["fim"])
+    dados["data"] = _converter_data(dados["data"]).dt.normalize()
+    dados["horas"] = dados["horas"].map(converter_horas).astype(float)
 
-    validas = dados["inicio"].notna() & dados["fim"].notna() & (dados["fim"] >= dados["inicio"])
+    validas = dados["data"].notna() & dados["horas"].notna()
     descartadas = int((~validas).sum())
-    dados = dados[validas].copy()
-    dados["horas"] = (dados["fim"] - dados["inicio"]).dt.total_seconds() / 3600
-    return dados.sort_values("inicio").reset_index(drop=True), descartadas
+    dados = dados[validas]
+    return dados.sort_values("data", kind="stable").reset_index(drop=True), descartadas
 
 
 def so_corretivas(dados: pd.DataFrame) -> pd.DataFrame:
@@ -182,8 +225,8 @@ def falhas_repetitivas(dados: pd.DataFrame, minimo: int = 3) -> pd.DataFrame:
     grupos = corretivas.groupby(["equipamento", "componente"]).agg(
         ocorrencias=("horas", "size"),
         horas_paradas=("horas", "sum"),
-        primeira=("inicio", "min"),
-        ultima=("inicio", "max"),
+        primeira=("data", "min"),
+        ultima=("data", "max"),
     )
     grupos = grupos[grupos["ocorrencias"] >= minimo].copy()
     dias = (grupos["ultima"] - grupos["primeira"]).dt.total_seconds() / 86400
@@ -194,7 +237,7 @@ def falhas_repetitivas(dados: pd.DataFrame, minimo: int = 3) -> pd.DataFrame:
 
 def os_por_mes(dados: pd.DataFrame) -> pd.DataFrame:
     """Quantidade de OS por mês e por tipo de manutenção (formato longo)."""
-    tabela = dados.assign(mes=dados["inicio"].dt.strftime("%Y-%m"))
+    tabela = dados.assign(mes=dados["data"].dt.strftime("%Y-%m"))
     tabela = tabela.groupby(["mes", "tipo_manutencao"]).size().rename("quantidade").reset_index()
     return tabela.sort_values(["mes", "tipo_manutencao"]).reset_index(drop=True)
 

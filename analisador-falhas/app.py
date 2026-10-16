@@ -17,15 +17,16 @@ from indicadores import (
     COLUNAS_OBRIGATORIAS,
     falhas_repetitivas,
     indicadores_por_equipamento,
-    normalizar_nome,
     numero_br,
     os_por_mes,
     pareto,
     preparar_dados,
     resumo_geral,
+    sugerir_colunas,
 )
 
 ARQUIVO_EXEMPLO = Path(__file__).parent / "dados" / "os_exemplo.csv"
+ARQUIVO_MODELO = Path(__file__).parent / "modelo" / "modelo_ordens_de_servico.xlsx"
 NAO_TENHO = "(não tenho)"
 
 st.set_page_config(page_title="Analisador de falhas", page_icon="🔧", layout="wide")
@@ -36,24 +37,26 @@ st.set_page_config(page_title="Analisador de falhas", page_icon="🔧", layout="
 # ---------------------------------------------------------------------------
 
 def ler_planilha(arquivo) -> pd.DataFrame:
-    """Lê CSV (separado por ';' ou ',') ou Excel (.xlsx)."""
+    """Lê CSV (separado por ';' ou ',') ou Excel (.xlsx, primeira aba)."""
     nome = getattr(arquivo, "name", str(arquivo)).lower()
     if nome.endswith(".xlsx"):
-        return pd.read_excel(arquivo)
-    try:
-        return pd.read_csv(arquivo, sep=None, engine="python", encoding="utf-8-sig")
-    except UnicodeDecodeError:
-        # Planilhas salvas pelo Excel em português costumam vir em latin-1
-        if hasattr(arquivo, "seek"):
-            arquivo.seek(0)
-        return pd.read_csv(arquivo, sep=None, engine="python", encoding="latin-1")
+        tabela = pd.read_excel(arquivo)
+    else:
+        try:
+            tabela = pd.read_csv(arquivo, sep=None, engine="python", encoding="utf-8-sig")
+        except UnicodeDecodeError:
+            # Planilhas salvas pelo Excel em português costumam vir em latin-1
+            if hasattr(arquivo, "seek"):
+                arquivo.seek(0)
+            tabela = pd.read_csv(arquivo, sep=None, engine="python", encoding="latin-1")
+    # Linhas totalmente vazias (comuns no fim de planilhas do Excel) são ignoradas
+    return tabela.dropna(how="all")
 
 
 def escolher_colunas(bruto: pd.DataFrame) -> pd.DataFrame:
     """Pergunta qual coluna da planilha corresponde a cada informação."""
     opcoes = [NAO_TENHO] + list(bruto.columns)
-    por_nome = {normalizar_nome(c): c for c in bruto.columns}
-    sugestoes = {chave: por_nome.get(chave, NAO_TENHO) for chave in COLUNAS}
+    sugestoes = {chave: coluna or NAO_TENHO for chave, coluna in sugerir_colunas(bruto.columns).items()}
     achou_todas = all(sugestoes[c] != NAO_TENHO for c in COLUNAS_OBRIGATORIAS)
 
     escolhas = {}
@@ -83,18 +86,24 @@ fonte = st.sidebar.radio("De onde vêm as ordens de serviço?", ["Dados de exemp
 
 if fonte == "Minha planilha":
     arquivo = st.sidebar.file_uploader("Planilha de OS (CSV ou Excel)", type=["csv", "xlsx"])
+    st.sidebar.download_button(
+        "Baixar modelo de planilha", ARQUIVO_MODELO.read_bytes(), file_name=ARQUIVO_MODELO.name,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
     if arquivo is None:
         st.title("🔧 Analisador de histórico de falhas")
         st.info(
             "Envie na barra lateral uma planilha de ordens de serviço (exportada do SAP, de outro sistema "
             "ou do Excel). Cada linha deve ser uma OS. Colunas obrigatórias: **equipamento**, **tipo de "
-            "manutenção** (corretiva, preventiva...), **início** e **fim** da intervenção. Opcionais: número "
-            "da OS, área, componente e descrição."
+            "manutenção** (corretiva, preventiva...), **data** e **horas apontadas**. Opcionais: número "
+            "da OS, área, componente e descrição. Se preferir, baixe o modelo de planilha na barra lateral."
         )
         st.stop()
     bruto = escolher_colunas(ler_planilha(arquivo))
 else:
     bruto = ler_planilha(ARQUIVO_EXEMPLO)
+    colunas = sugerir_colunas(bruto.columns)
+    bruto = bruto.rename(columns={origem: chave for chave, origem in colunas.items() if origem})
 
 st.sidebar.header("Parâmetros")
 horas_por_dia = st.sidebar.slider(
@@ -121,9 +130,9 @@ except ValueError as erro:
     st.stop()
 
 if descartadas:
-    st.sidebar.warning(f"{descartadas} linha(s) ignorada(s) por data vazia, inválida ou com fim antes do início.")
+    st.sidebar.warning(f"{descartadas} linha(s) ignorada(s) por data ou horas vazias ou inválidas.")
 if dados.empty:
-    st.error("Nenhuma ordem de serviço com datas válidas foi encontrada na planilha.")
+    st.error("Nenhuma ordem de serviço com data e horas válidas foi encontrada na planilha.")
     st.stop()
 
 
@@ -134,8 +143,8 @@ if dados.empty:
 st.title("🔧 Analisador de histórico de falhas")
 st.caption("Indicadores de manutenção (MTBF, MTTR, disponibilidade, Pareto) e análise com IA a partir das ordens de serviço.")
 
-primeiro_dia = dados["inicio"].min().date()
-ultimo_dia = dados["inicio"].max().date()
+primeiro_dia = dados["data"].min().date()
+ultimo_dia = dados["data"].max().date()
 coluna_area, coluna_periodo = st.columns([2, 1])
 areas = coluna_area.multiselect("Áreas", sorted(dados["area"].unique()), placeholder="Todas as áreas")
 periodo = coluna_periodo.date_input(
@@ -146,7 +155,7 @@ if len(periodo) != 2:
     st.stop()
 
 data_inicial, data_final = periodo
-filtro = (dados["inicio"].dt.date >= data_inicial) & (dados["inicio"].dt.date <= data_final)
+filtro = (dados["data"].dt.date >= data_inicial) & (dados["data"].dt.date <= data_final)
 if areas:
     filtro &= dados["area"].isin(areas)
 filtrado = dados[filtro]
@@ -209,7 +218,7 @@ with aba_equip:
         f"({dias} dias × {horas_por_dia} h). **MTTR** = horas paradas ÷ falhas. "
         "**MTBF** = (horas planejadas − horas paradas) ÷ falhas. "
         "**Disponibilidade** = (horas planejadas − horas paradas) ÷ horas planejadas. "
-        "Só OS corretivas contam como falha."
+        "Só OS corretivas contam como falha, e as horas apontadas nelas contam como tempo parado."
     )
 
 with aba_pareto:
@@ -323,8 +332,7 @@ with aba_dados:
             "tipo_manutencao": "Tipo",
             "componente": "Componente",
             "descricao": "Descrição",
-            "inicio": st.column_config.DatetimeColumn("Início", format="DD/MM/YYYY HH:mm"),
-            "fim": st.column_config.DatetimeColumn("Fim", format="DD/MM/YYYY HH:mm"),
-            "horas": st.column_config.NumberColumn("Horas", format="localized"),
+            "data": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+            "horas": st.column_config.NumberColumn("Horas apontadas", format="localized"),
         },
     )
