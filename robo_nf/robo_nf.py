@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import json
 import os
 import re
 import shutil
@@ -28,6 +29,7 @@ import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 
 # ----------------------------------------------------------------------------
@@ -68,9 +70,12 @@ RE_SEQ_DIGITOS = re.compile(r"\d(?:[ .]{0,2}\d){43,}")
 RE_ROTULO_CHAVE = re.compile(r"CHAVE\s+DE\s+ACESSO")
 
 # Número da NF no DANFE: "Nº 000.012.345" (o OCR às vezes põe espaço junto dos pontos)
-_NF_PONTUADO = r"\d{3}\s?\.\s?\d{3}\s?\.\s?\d{3}"
+_NF_PONTUADO = r"\d{3}\s?[.,]\s?\d{3}\s?[.,]\s?\d{3}"
+_NF_ESPACADO = r"\d{3}\s?[.,\s]\s?\d{3}\s?[.,\s]\s?\d{3}"
 RE_NF_DANFE_ROTULO = re.compile(
-    rf"\bN\s*[O0°.:\-]{{0,3}}\s*[:.]?\s*({_NF_PONTUADO})(?!\d|[.,/-]\d)")
+    rf"\bN\s*[O0°Q.:\-]{{0,3}}\s*[:.]?\s*({_NF_ESPACADO})(?!\d|[.,/-]\d)")
+# "000093269" logo antes de "SÉRIE" (sem o "Nº")
+RE_NF_ZEROS_SERIE = re.compile(r"(?<![\d.,])(0\d{5,8})\s*[-|]?\s*\n?\s*SERIE\b")
 # "Nº 93269  SÉRIE 1" / "Nº 000093269" e na linha de baixo "SÉRIE 001"
 RE_NF_ANTES_SERIE = re.compile(
     r"\bN\s*[O0°.:\-]{0,3}\s*[:.]?\s*(\d{1,9}|\d{1,3}(?:\.\d{3}){1,2})\s*[-|]?\s*\n?\s*SERIE\b")
@@ -82,19 +87,28 @@ RE_NF_OUTROS = [  # outros layouts (NFS-e, notas antigas...)
     re.compile(r"\bN[O0°.]*\s*(?:DA\s+)?(?:NOTA|NFS?-?E|NF)\b[^\d\n]{0,10}(\d[\d.]{0,10})"),
     re.compile(r"NOTA\s+FISCAL[^\d\n]{0,30}?\bN[O0°.:]+\s*(\d[\d.]{0,10})"),
 ]
+# Valor total da NF: "VALOR TOTAL DA NOTA" (o valor fica logo abaixo, no DANFE)
+_DINHEIRO = r"(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}"
+RE_DINHEIRO = re.compile(rf"(?<![\d.,])({_DINHEIRO})(?![\d,%])")
+RE_DINHEIRO_PALAVRA = re.compile(rf"(?:R\$)?({_DINHEIRO})")
+RE_ROTULO_TOTAL = re.compile(r"(?:\b(?:VALOR|VLR|V)\b\.?\s*)?\bTOTAL\.?\s*(?:DA\s*)?(?:NOTA|NF-?E?)\b")
+RE_TOTAL_MESMA_LINHA = re.compile(
+    RE_ROTULO_TOTAL.pattern + rf"[ \t:=|]*(?:R\s?\$)?[ \t]*({_DINHEIRO})(?![\d,%])")
+RE_LETRAS = re.compile(r"[A-Z]{2}")
+
 RE_SERIE = re.compile(r"\bSERIE\s*[:.]?\s*(\d{1,3})(?!\d)")
 
 RE_CNPJ = re.compile(
     r"(?<![0-9A-Z])([0-9A-Z]{2})\.?([0-9A-Z]{3})\.?([0-9A-Z]{3})\s?/\s?([0-9A-Z]{4})\s?-?\s?(\d{2})(?!\d)")
 
-RE_RECEBEMOS = re.compile(
-    r"RECEBEMOS\s+DE\s+(.{3,150}?)\s+(?:OS\s+PRODUTOS|OS\s+SERVICOS|AS\s+MERCADORIAS|"
-    r"O\s+PRODUTO|OS\s+ITENS|A\s+MERCADORIA)", re.S)
+RE_PALAVRA = re.compile(r"\S+")
+FIM_DO_CANHOTO = ("PRODUTOS", "PRODUTO", "SERVICOS", "MERCADORIAS", "MERCADORIA", "ITENS")
 RE_EMITENTE = re.compile(r"IDENTIFICA\w*\s+DO\s+EMITENTE")
 RE_PRESTADOR = re.compile(r"PRESTADOR")
 RE_RAZAO_SOCIAL = re.compile(r"(?:NOME\s*/\s*)?RAZAO\s+SOCIAL\s*[:.]?\s*")
 RE_FIM_EMITENTE = re.compile(r"DESTINAT|TOMADOR")
 RE_SUFIXO = re.compile(r"\b(?:LTDA|EIRELI|EPP|ME|S[./]?\s?A)\b\.?")
+RE_SUFIXO_FINAL = re.compile(r"\b(?:LTDA|EIRELI|EPP|ME|S[./]?\s?A)\b\.?\s*$")
 RE_TOKEN_LEGIVEL = re.compile(r"[\w&.,'/()\-]+")
 CONECTORES = {"DE", "DO", "DA", "DOS", "DAS", "E", "EM"}
 SUFIXOS_EMPRESA = {"LTDA", "LTD", "LT", "SA", "ME", "EPP", "EIRELI", "CIA"}
@@ -108,7 +122,9 @@ RE_ROTULOS = re.compile(
 
 # Letras que o OCR costuma confundir com números
 _TROCA_DIGITOS = str.maketrans({"O": "0", "Q": "0", "D": "0", "I": "1", "L": "1",
-                                "|": "1", "S": "5", "B": "8"})
+                                "|": "1", "S": "5", "B": "8", "Z": "2"})
+_LETRAS_CONFUSAS = set("OQDILSBZ|")
+RE_TOKEN_NUMERICO = re.compile(r"[0-9A-Z|][0-9A-Z|.,/\-]*")
 RE_LETRA_ENTRE_DIGITOS = re.compile(
     r"(?<=\d)[OQDILS|B]{1,3}(?=[\d.])|(?<=[\d.])[OQDILS|B]{1,3}(?=\d)")
 
@@ -126,10 +142,12 @@ class DadosNF:
     pedidos: list[str] = field(default_factory=list)
     chave: str = ""
     origem_nf: str = ""  # "chave", "danfe", "texto", "chave_parcial" ou "divergente"
+    valor_total: str = ""  # "1234.56"
+    origem_valor: str = ""  # "rotulo" (junto de "VALOR TOTAL DA NOTA") ou "maior" (estimado)
 
     @property
     def completo(self) -> bool:
-        return bool(self.fornecedor and self.numero_nf and self.pedidos)
+        return bool(self.fornecedor and self.numero_nf and self.pedidos and self.origem_valor == "rotulo")
 
     @property
     def vazio(self) -> bool:
@@ -137,9 +155,12 @@ class DadosNF:
 
     def completar_com(self, outro: DadosNF) -> None:
         """Preenche o que estiver faltando com os dados de outra página da mesma NF."""
-        for campo in ("fornecedor", "cnpj", "numero_nf", "serie", "chave", "origem_nf"):
+        for campo in ("fornecedor", "cnpj", "numero_nf", "serie", "chave", "origem_nf",
+                      "valor_total", "origem_valor"):
             if not getattr(self, campo):
                 setattr(self, campo, getattr(outro, campo))
+        if outro.origem_valor == "rotulo" and self.origem_valor != "rotulo":
+            self.valor_total, self.origem_valor = outro.valor_total, outro.origem_valor
         for pedido in outro.pedidos:
             if pedido not in self.pedidos:
                 self.pedidos.append(pedido)
@@ -167,8 +188,19 @@ def normalizar(texto: str) -> str:
     return "".join(saida)
 
 
+def _corrigir_token(m: re.Match) -> str:
+    """Token quase todo numérico com letras parecidas com números: OOO.O93.269 -> 000.093.269."""
+    token = m.group()
+    digitos = sum(c.isdigit() for c in token)
+    letras = [c for c in token if c.isalpha() or c == "|"]
+    if digitos >= 3 and letras and digitos >= len(letras) and all(c in _LETRAS_CONFUSAS for c in letras):
+        return token.translate(_TROCA_DIGITOS)
+    return token
+
+
 def corrigir_digitos(texto: str) -> str:
-    """Troca letras confundidas pelo OCR quando estão no meio de números (45000I2345)."""
+    """Troca letras confundidas pelo OCR em números (OOO.O93.269, 45000I2345)."""
+    texto = RE_TOKEN_NUMERICO.sub(_corrigir_token, texto)
     for _ in range(3):
         novo = RE_LETRA_ENTRE_DIGITOS.sub(lambda m: m.group().translate(_TROCA_DIGITOS), texto)
         if novo == texto:
@@ -246,7 +278,7 @@ def _perto_de_ie(texto: str, inicio: int) -> bool:
 
 def encontrar_numero_nf(texto: str) -> tuple[str, str]:
     """Devolve (número, origem). Texto já normalizado e com dígitos corrigidos."""
-    for regex in (RE_NF_DANFE_ROTULO, RE_NF_ANTES_SERIE):
+    for regex in (RE_NF_DANFE_ROTULO, RE_NF_ANTES_SERIE, RE_NF_ZEROS_SERIE):
         for m in regex.finditer(texto):
             numero = _so_numero(m.group(1))
             if numero and not _perto_de_ie(texto, m.start()):
@@ -263,6 +295,126 @@ def encontrar_numero_nf(texto: str) -> tuple[str, str]:
             if numero:
                 return numero, "texto"
     return "", ""
+
+
+def _valor_decimal(valor: str) -> str:
+    return valor.replace(".", "").replace(",", ".")  # "1.234,56" -> "1234.56"
+
+
+def encontrar_valor_total(texto: str) -> tuple[str, str]:
+    """Valor total da NF pelo texto. Devolve (valor, origem)."""
+    for m in RE_TOTAL_MESMA_LINHA.finditer(texto):
+        valor = _valor_decimal(m.group(1))
+        if Decimal(valor) > 0:
+            return valor, "rotulo"
+    # Rótulo no fim da linha e os valores na linha de baixo: o último valor é o da coluna dele
+    linhas = texto.split("\n")
+    for i, linha in enumerate(linhas):
+        for m in RE_ROTULO_TOTAL.finditer(linha):
+            if RE_LETRAS.search(linha[m.end():]):
+                continue  # há outros rótulos à direita: não dá para saber a coluna
+            for prox in linhas[i + 1:i + 3]:
+                valores = [_valor_decimal(v) for v in RE_DINHEIRO.findall(prox)]
+                if valores:
+                    if Decimal(valores[-1]) > 0:
+                        return valores[-1], "rotulo"
+                    break
+    # Sem o rótulo: o maior valor da nota (precisa de conferência)
+    valores = [v for v in (_valor_decimal(x) for x in RE_DINHEIRO.findall(texto)) if Decimal(v) > 0]
+    if valores:
+        return max(valores, key=Decimal), "maior"
+    return "", ""
+
+
+def _inclinacao(palavras: list) -> float:
+    """Inclinação da folha (scanner torto), medida entre palavras vizinhas da mesma linha do OCR."""
+    inclinacoes = []
+    for a, b in zip(palavras, palavras[1:]):
+        if len(a) > 5 and len(b) > 5 and a[5] == b[5]:
+            dx = (b[1] + b[3] / 2) - (a[1] + a[3] / 2)
+            if dx > 0:
+                inclinacao = ((b[2] + b[4] / 2) - (a[2] + a[4] / 2)) / dx
+                if abs(inclinacao) <= 0.1:
+                    inclinacoes.append(inclinacao)
+    if not inclinacoes:
+        return 0.0
+    inclinacoes.sort()
+    return inclinacoes[(len(inclinacoes) - 1) // 2]
+
+
+def linhas_visuais(palavras: list) -> list[list[int]]:
+    """Agrupa as palavras [texto, x, y, largura, altura, linha do OCR] nas linhas em que aparecem
+    na folha (descontando a inclinação de uma folha escaneada torta)."""
+    inclinacao = _inclinacao(palavras)
+
+    def centro(i: int) -> float:
+        p = palavras[i]
+        return p[2] + p[4] / 2 - inclinacao * (p[1] + p[3] / 2)
+
+    ordem = sorted(range(len(palavras)), key=lambda i: (centro(i), palavras[i][1], i))
+    linhas: list = []  # [soma dos centros, altura, índices]: compara com o centro médio da linha
+    for i in ordem:
+        altura = palavras[i][4]
+        if linhas and abs(centro(i) - linhas[-1][0] / len(linhas[-1][2])) <= 0.5 * max(altura, linhas[-1][1]):
+            linhas[-1][0] += centro(i)
+            linhas[-1][2].append(i)
+        else:
+            linhas.append([centro(i), altura, [i]])
+    return [sorted(linha[2], key=lambda i: (palavras[i][1], i)) for linha in linhas]
+
+
+def texto_visual(palavras: list) -> str:
+    """Texto montado pela posição das palavras: cada rótulo fica junto do seu número/valor."""
+    saida = []
+    for linha in linhas_visuais(palavras):
+        partes, anterior = [], None
+        for i in linha:
+            x, altura = palavras[i][1], palavras[i][4]
+            if anterior is not None:
+                xa, la, aa = palavras[anterior][1], palavras[anterior][3], palavras[anterior][4]
+                partes.append(" | " if x - (xa + la) > 2 * max(altura, aa) else " ")
+            partes.append(palavras[i][0])
+            anterior = i
+        saida.append("".join(partes))
+    return "\n".join(saida)
+
+
+def valor_pelo_rotulo(palavras: list) -> str:
+    """Valor logo abaixo (ou à direita) de "VALOR TOTAL DA NOTA", pela posição na folha."""
+    normalizadas = [corrigir_digitos(normalizar(p[0])) for p in palavras]
+    dinheiro = [i for i, t in enumerate(normalizadas) if RE_DINHEIRO_PALAVRA.fullmatch(t)]
+    melhor = None  # (pontos, índice)
+    for linha in linhas_visuais(palavras):
+        texto, inicios = "", []
+        for i in linha:
+            if texto:
+                texto += " "
+            inicios.append(len(texto))
+            texto += normalizadas[i]
+        for m in RE_ROTULO_TOTAL.finditer(texto):
+            rotulo = [i for i, ini in zip(linha, inicios)
+                      if ini < m.end() and ini + len(normalizadas[i]) > m.start()]
+            x1 = min(palavras[i][1] for i in rotulo)
+            y1 = min(palavras[i][2] for i in rotulo)
+            x2 = max(palavras[i][1] + palavras[i][3] for i in rotulo)
+            y2 = max(palavras[i][2] + palavras[i][4] for i in rotulo)
+            altura = max(palavras[i][4] for i in rotulo)
+            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+            for j in dinheiro:
+                x, y, largura, alt = palavras[j][1:5]
+                jx, jy = x + largura / 2, y + alt / 2
+                # o valor fica dentro da caixa do rótulo: nunca começa antes dele
+                abaixo = (y >= y1 + 0.5 * altura and jy - y2 <= 4 * altura
+                          and x >= x1 - altura and x <= x2 + 6 * altura)
+                ao_lado = abs(jy - cy) <= 0.5 * altura and x >= x2 and x - x2 <= 15 * altura
+                if abaixo or ao_lado:
+                    pontos = abs(jy - cy) + 0.3 * abs(jx - cx)
+                    if melhor is None or pontos < melhor[0]:
+                        melhor = (pontos, j)
+    if melhor is None:
+        return ""
+    valor = _valor_decimal(RE_DINHEIRO_PALAVRA.fullmatch(normalizadas[melhor[1]]).group(1))
+    return valor if Decimal(valor) > 0 else ""
 
 
 def encontrar_serie(texto: str) -> str:
@@ -319,6 +471,25 @@ def _limpar_nome(nome: str) -> str:
     return nome[:100]
 
 
+def distancia(a: str, b: str) -> int:
+    """Quantas letras é preciso trocar, tirar ou pôr para ir de a até b (Levenshtein)."""
+    anterior = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        atual = [i]
+        for j, cb in enumerate(b, 1):
+            atual.append(min(anterior[j] + 1, atual[j - 1] + 1, anterior[j - 1] + (ca != cb)))
+        anterior = atual
+    return anterior[-1]
+
+
+def _parece(palavra: str, alvo: str, maximo: int = 2) -> bool:
+    return abs(len(palavra) - len(alvo)) <= maximo and distancia(palavra, alvo) <= maximo
+
+
+def _parece_recebemos(token: str) -> bool:
+    return _parece(re.sub(r"[^A-Z]", "", normalizar(token)), "RECEBEMOS")
+
+
 def _palavra_boa(token: str) -> bool:
     """Palavra com cara de nome: MAIÚSCULA, Capitalizada ou conector (de, da, e...)."""
     for parte in re.split(r"[.,'/()\-&]+", token):
@@ -335,6 +506,11 @@ def _palavra_boa(token: str) -> bool:
 def _nome_plausivel(nome: str) -> str:
     """Tira pedaços ilegíveis e descarta o nome se ele for "lixo" do OCR."""
     todos = nome.split()
+    while todos and (todos[0].upper() == "DE" or _parece_recebemos(todos[0])):
+        todos = todos[1:]  # sobra do canhoto: "RECEBEMOS DE ..."
+    while todos and (todos[-1].upper() in CONECTORES or not _palavra_boa(todos[-1])):
+        todos = todos[:-1]  # nome não termina em "da" nem em lixo
+    nome = " ".join(todos)
     tokens = [t for t in todos if RE_TOKEN_LEGIVEL.fullmatch(t)]
     boas = [t for t in tokens if _palavra_boa(t)]
     principais = [t for t in boas if sum(c.isalpha() for c in t) >= 3
@@ -363,13 +539,31 @@ def _nome_da_linha(linha: str, linha_norm: str) -> str:
     return nome if sum(c.isalpha() for c in nome) >= 4 else ""
 
 
+def _nome_do_canhoto(texto: str, norm: str) -> str:
+    """ "RECEBEMOS DE <FORNECEDOR> OS PRODUTOS..." (aceita erros do OCR nessas palavras)."""
+    tokens = list(RE_PALAVRA.finditer(norm))
+    for i in range(len(tokens) - 2):
+        if tokens[i + 1].group() != "DE" or not _parece_recebemos(tokens[i].group()):
+            continue
+        for j in range(i + 3, min(i + 30, len(tokens))):
+            palavra = re.sub(r"[^A-Z]", "", tokens[j].group())
+            if len(palavra) >= 5 and any(_parece(palavra, fim) for fim in FIM_DO_CANHOTO):
+                k = j - 1
+                if tokens[k].group() in ("OS", "O", "AS", "A"):
+                    k -= 1
+                if k >= i + 2:
+                    nome = _nome_plausivel(_limpar_nome(texto[tokens[i + 2].start():tokens[k].end()]))
+                    if sum(c.isalpha() for c in nome) >= 4:
+                        return nome
+                break
+    return ""
+
+
 def encontrar_fornecedor(texto: str, norm: str) -> str:
     # 1) Canhoto: "RECEBEMOS DE <FORNECEDOR> OS PRODUTOS..."
-    m = RE_RECEBEMOS.search(norm)
-    if m:
-        nome = _nome_plausivel(_limpar_nome(texto[m.start(1):m.end(1)]))
-        if sum(c.isalpha() for c in nome) >= 4:
-            return nome
+    nome = _nome_do_canhoto(texto, norm)
+    if nome:
+        return nome
 
     linhas, linhas_norm = texto.split("\n"), norm.split("\n")
     inicio_linha = [0]
@@ -417,8 +611,9 @@ def encontrar_fornecedor(texto: str, norm: str) -> str:
     return ""
 
 
-def extrair_dados(texto: str, chave_barras: str = "", cadastro: dict | None = None) -> DadosNF:
-    """Extrai fornecedor, número da NF e pedidos do texto de uma página."""
+def extrair_dados(texto: str, chave_barras: str = "", cadastro: dict | None = None,
+                  valor_geometria: str = "") -> DadosNF:
+    """Extrai fornecedor, número da NF, pedidos e valor total do texto de uma página."""
     norm = normalizar(texto)
     num = corrigir_digitos(norm)
     dados = DadosNF()
@@ -450,6 +645,10 @@ def extrair_dados(texto: str, chave_barras: str = "", cadastro: dict | None = No
                 dados.origem_nf = "divergente"
 
     dados.pedidos = encontrar_pedidos(num, ignorar=dados.chave or parcial)
+    if valor_geometria:
+        dados.valor_total, dados.origem_valor = valor_geometria, "rotulo"
+    else:
+        dados.valor_total, dados.origem_valor = encontrar_valor_total(num)
 
     if cadastro and dados.cnpj in cadastro:
         dados.fornecedor = cadastro[dados.cnpj]
@@ -567,43 +766,69 @@ def ler_codigo_barras(img) -> str:
     return ""
 
 
-def ocr(img, idioma: str, psm: int) -> str:
+def ocr(img, idioma: str, psm: int) -> tuple[str, list]:
+    """Texto (linha a linha) e palavras com a posição: [texto, x, y, largura, altura, linha]."""
     import pytesseract
-    return pytesseract.image_to_string(img, lang=idioma, config=f"--psm {psm}")
+    d = pytesseract.image_to_data(img, lang=idioma, config=f"--psm {psm}",
+                                  output_type=pytesseract.Output.DICT)
+    linhas: dict = {}
+    palavras = []
+    for i, texto in enumerate(d["text"]):
+        if not texto.strip():
+            continue
+        linha = d["block_num"][i] * 1000000 + d["par_num"][i] * 1000 + d["line_num"][i]
+        linhas.setdefault(linha, []).append(texto)
+        palavras.append([texto, d["left"][i], d["top"][i], d["width"][i], d["height"][i], linha])
+    return "\n".join(" ".join(p) for p in linhas.values()), palavras
 
 
-def ler_pagina(img, texto_embutido: str, idioma: str, cadastro: dict) -> tuple[DadosNF, str]:
+def recortar_topo(img, fracao: float = 0.6, zoom: float = 2.0):
+    """Parte de cima da folha (número, chave, fornecedor, valores), ampliada."""
+    from PIL import Image
+    topo = img.crop((0, 0, img.width, int(img.height * fracao)))
+    return topo.resize((int(topo.width * zoom), int(topo.height * zoom)), Image.LANCZOS)
+
+
+def ler_pagina(img, texto_embutido: str, idioma: str, cadastro: dict) -> tuple[DadosNF, str, list]:
     img = preparar_imagem(img)
     chave_barras = ler_codigo_barras(img)
     base = [texto_embutido] if len(texto_embutido.strip()) >= 100 else []  # PDF com texto
-    textos = list(base)
-    dados = extrair_dados("\n".join(textos), chave_barras, cadastro)
+    leituras: list = []  # (texto, palavras)
 
-    def tentar(texto: str, descartar_anteriores: bool = False) -> None:
-        nonlocal dados, textos
-        textos = base + ([] if descartar_anteriores else textos[len(base):]) + [texto]
-        dados = extrair_dados("\n".join(textos), chave_barras, cadastro)
+    def montar() -> tuple[DadosNF, str]:
+        textos = base + [t for t, _ in leituras] + [texto_visual(p) for _, p in leituras if p]
+        valor = next((v for v in (valor_pelo_rotulo(p) for _, p in leituras) if v), "")
+        return extrair_dados("\n".join(textos), chave_barras, cadastro, valor), "\n\n".join(textos)
 
+    dados, texto = montar()
     if not dados.completo:
-        tentar(ocr(img, idioma, psm=3))
+        leituras.append(ocr(img, idioma, psm=3))
+        dados, texto = montar()
     if not dados.completo:
         girada = corrigir_rotacao(img)
         if girada is not None:  # folha virada: o texto lido antes era lixo
             img = girada
-            tentar(ocr(img, idioma, psm=3), descartar_anteriores=True)
+            leituras = [ocr(img, idioma, psm=3)]
+            dados, texto = montar()
     if not dados.completo:
-        tentar(ocr(binarizar(img), idioma, psm=6))
-    return dados, "\n\n".join(textos)
+        leituras.append(ocr(recortar_topo(img), idioma, psm=11))
+        dados, texto = montar()
+    if not dados.completo:
+        leituras.append(ocr(binarizar(img), idioma, psm=6))
+        dados, texto = montar()
+    return dados, texto, leituras
 
 
 def processar_arquivo(caminho: Path, nome: str, idioma: str, cadastro: dict,
                       pasta_textos: Path | None) -> list[RegistroNF]:
     registros: list[RegistroNF] = []
     for n, img, texto_embutido in carregar_paginas(caminho):
-        dados, texto = ler_pagina(img, texto_embutido, idioma, cadastro)
+        dados, texto, leituras = ler_pagina(img, texto_embutido, idioma, cadastro)
         if pasta_textos:
             base = re.sub(r"[\\/:]", "_", nome)
             (pasta_textos / f"{base}_pag{n}.txt").write_text(texto, encoding="utf-8")
+            (pasta_textos / f"{base}_pag{n}.json").write_text(
+                json.dumps([{"palavras": p} for _, p in leituras], ensure_ascii=False), encoding="utf-8")
 
         if dados.vazio:
             if len(re.sub(r"\s", "", texto)) >= 30:  # ignora folhas em branco (verso)
@@ -648,15 +873,60 @@ def carregar_cadastro(caminho: Path) -> dict[str, str]:
     return cadastro
 
 
-def completar_fornecedores(registros: list[RegistroNF]) -> None:
-    """NFs do mesmo CNPJ: o nome lido em uma preenche as outras."""
-    nomes: dict[str, str] = {}
+def _tem_sufixo(nome: str) -> bool:
+    return bool(RE_SUFIXO_FINAL.search(normalizar(nome)))
+
+
+def _semelhanca(a: str, b: str, pelo_fim: bool = False) -> float:
+    """0 a 1. Um nome cortado pelo OCR também é comparado com o começo (ou o fim) do outro."""
+    a, b = normalizar(a), normalizar(b)
+    if not a or not b:
+        return 0.0
+    s = 1 - distancia(a, b) / max(len(a), len(b))
+    if 12 <= len(a) < len(b):
+        s = max(s, 1 - distancia(a, b[:len(a)]) / len(a))
+        if pelo_fim:
+            s = max(s, 1 - distancia(a, b[-len(a):]) / len(a))
+    return s
+
+
+def padronizar_fornecedores(registros: list[RegistroNF]) -> None:
+    """O mesmo fornecedor lido de jeitos diferentes em NFs diferentes passa a ter um nome só."""
+    def contar():
+        contagem: Counter = Counter()
+        primeira: dict[str, int] = {}
+        for i, r in enumerate(registros):
+            if r.dados.fornecedor:
+                contagem[r.dados.fornecedor] += 1
+                primeira.setdefault(r.dados.fornecedor, i)
+        return lambda n: (_tem_sufixo(n), contagem[n], len(n), -primeira[n]), contagem
+
+    # 1) Nome cortado ou mal lido (sem LTDA/S.A.) parecido com um nome completo de outra NF
+    ranking, contagem = contar()
+    completos = sorted((n for n in contagem if _tem_sufixo(n)), key=ranking, reverse=True)
     for r in registros:
-        if r.dados.cnpj and r.dados.fornecedor:
-            nomes.setdefault(r.dados.cnpj, r.dados.fornecedor)
+        nome = r.dados.fornecedor
+        if nome and not _tem_sufixo(nome):
+            for completo in completos:
+                if _semelhanca(nome, completo) >= 0.8:
+                    r.dados.fornecedor = completo
+                    break
+
+    # 2) Mesmo CNPJ = mesmo fornecedor: usa a melhor leitura do grupo
+    ranking, _ = contar()
+    grupos: dict[str, list[RegistroNF]] = {}
     for r in registros:
-        if not r.dados.fornecedor and r.dados.cnpj in nomes:
-            r.dados.fornecedor = nomes[r.dados.cnpj]
+        if r.dados.cnpj:
+            grupos.setdefault(r.dados.cnpj, []).append(r)
+    for grupo in grupos.values():
+        nomes = [r.dados.fornecedor for r in grupo if r.dados.fornecedor]
+        if not nomes:
+            continue
+        melhor = max(nomes, key=ranking)
+        for r in grupo:
+            nome = r.dados.fornecedor
+            if not nome or not _tem_sufixo(nome) or _semelhanca(nome, melhor, pelo_fim=True) >= 0.8:
+                r.dados.fornecedor = melhor
 
 
 def marcar_avisos(registros: list[RegistroNF]) -> None:
@@ -681,6 +951,10 @@ def marcar_avisos(registros: list[RegistroNF]) -> None:
             r.avisos.append("nº impresso diferente do nº da chave de acesso")
         elif chaves[(d.cnpj or d.fornecedor, d.numero_nf)] > 1:
             r.avisos.append("NF repetida em outro arquivo")
+        if not d.valor_total:
+            r.avisos.append("valor total não encontrado")
+        elif d.origem_valor == "maior":
+            r.avisos.append("valor total estimado (maior valor da nota)")
         if not d.pedidos:
             r.avisos.append("pedido não encontrado")
         elif len(d.pedidos) > 1:
@@ -691,7 +965,7 @@ def gerar_planilha(registros: list[RegistroNF], saida: Path) -> Path:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
 
-    colunas = [("Fornecedor", 45), ("Nº NF", 12), ("Pedido", 14), ("Série", 7),
+    colunas = [("Fornecedor", 45), ("Nº NF", 12), ("Pedido", 14), ("Valor Total", 14), ("Série", 7),
                ("CNPJ Fornecedor", 20), ("Chave de Acesso", 48), ("Arquivo", 30),
                ("Página", 8), ("Status", 55)]
     wb = Workbook()
@@ -714,11 +988,13 @@ def gerar_planilha(registros: list[RegistroNF], saida: Path) -> Path:
         else:
             pedido = " / ".join(d.pedidos)
         status = "OK" if not r.avisos else "CONFERIR: " + "; ".join(r.avisos)
-        ws.append([d.fornecedor, numero, pedido, d.serie, formatar_cnpj(d.cnpj), d.chave,
+        valor = float(d.valor_total) if d.valor_total else ""
+        ws.append([d.fornecedor, numero, pedido, valor, d.serie, formatar_cnpj(d.cnpj), d.chave,
                    r.arquivo, ", ".join(map(str, r.paginas)), status])
         linha = ws.max_row
         for col in (2, 3):
             ws.cell(row=linha, column=col).number_format = "0"
+        ws.cell(row=linha, column=4).number_format = "#,##0.00"
         if r.avisos:
             for cel in ws[linha]:
                 cel.fill = amarelo
@@ -807,10 +1083,10 @@ def main(argv: list[str] | None = None) -> int:
         for r in novos:
             d = r.dados
             print(f"    NF {d.numero_nf or '?':>9} | {d.fornecedor or '?'} | "
-                  f"Pedido {' / '.join(d.pedidos) or '?'}")
+                  f"Pedido {' / '.join(d.pedidos) or '?'} | Valor {d.valor_total or '?'}")
         registros.extend(novos)
 
-    completar_fornecedores(registros)
+    padronizar_fornecedores(registros)
     marcar_avisos(registros)
     caminho = gerar_planilha(registros, saida)
     conferir = sum(1 for r in registros if r.avisos)

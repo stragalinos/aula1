@@ -129,6 +129,71 @@ foreach ($linha in 'RUA DAS INDÚSTRIAS, 1500 - DISTRITO INDUSTRIAL', 'AV. BRASI
 }
 Igual 'COMERCIO DE VALVULAS LTDA' (Fornecedor 'RECEBEMOS DE sn«ox COMERCIO DE VALVULAS LTDA OS PRODUTOS CONSTANTES DA NOTA') 'tira pedaco ilegivel'
 
+# --- leitura melhor: zeros lidos como O, numero sem "N.", valor total, canhoto com erro ---
+$num = CorrigirDigitos (Normalizar 'Nº OOO.O93.269  SC-401  LTDA  ISO  S/A')
+Igual $true ($num.Contains('000.093.269') -and $num.Contains('SC-401  LTDA  ISO  S/A')) 'zeros lidos como letra'
+Igual '93269|danfe' ((EncontrarNumeroNF $num) -join '|') 'numero com zeros lidos como letra'
+foreach ($t in 'Nº 000,093,269', 'N° 000 093 269', 'NQ 000.093.269', "000093269`nSÉRIE 1") {
+    Igual '93269|danfe' ((EncontrarNumeroNF (CorrigirDigitos (Normalizar $t))) -join '|') "numero: $t"
+}
+foreach ($t in 'VALOR TOTAL DA NOTA R$ 1.234,56', 'V. TOTAL DA NOTA: 1234,56', 'Valor total da NF-e 1.234,56',
+               'VALOR TOTALDA NOTA 1.234,56', 'VALOR TOTAL. DA NOTA 1.234,56') {
+    Igual '1234.56|rotulo' ((EncontrarValorTotal (CorrigirDigitos (Normalizar $t))) -join '|') "valor na mesma linha: $t"
+}
+$t = "VALOR DO FRETE VALOR DO SEGURO DESCONTO OUTRAS DESP. VALOR DO IPI VALOR TOTAL DA NOTA`n0,00 0,00 0,00 0,00 120,00 2.520,00"
+Igual '2520.00|rotulo' ((EncontrarValorTotal (Normalizar $t)) -join '|') 'valor na linha de baixo'
+$t = "VALOR TOTAL DOS PRODUTOS 2.400,00`nTRIBUTOS R$ 45,32 (19,70%)`nPESO 3.500,000"
+Igual '2400.00|maior' ((EncontrarValorTotal (Normalizar $t)) -join '|') 'valor estimado sem rotulo'
+
+function Palavra($texto, $x, $y) { , @($texto, $x, $y, (11 * $texto.Length), 20) }
+$quadro = @(
+    (Palavra 'VALOR' 600 40), (Palavra 'TOTAL' 670 40), (Palavra 'DOS' 735 40), (Palavra 'PRODUTOS' 775 40),
+    (Palavra '2.400,00' 800 70),
+    (Palavra 'VALOR' 300 100), (Palavra 'DO' 365 100), (Palavra 'IPI' 395 100),
+    (Palavra 'VALOR' 600 100), (Palavra 'TOTAL' 670 100), (Palavra 'DA' 735 100), (Palavra 'NOTA' 765 100),
+    (Palavra '120,00' 380 130), (Palavra '2.520,00' 800 130))
+Igual '2520.00' (ValorPeloRotulo $quadro) 'valor pela posicao na folha'
+$visual = (TextoVisual $quadro).Split("`n")
+Igual 'VALOR DO IPI | VALOR TOTAL DA NOTA' $visual[2] 'texto visual: linha dos rotulos'
+Igual '120,00 | 2.520,00' $visual[3] 'texto visual: linha dos valores'
+$d = ExtrairDados (TextoVisual $quadro)
+Igual '2520.00|rotulo' "$($d.ValorTotal)|$($d.OrigemValor)" 'valor pelo texto visual'
+$ipiPerto = @(
+    , @('VALOR', 1395, 1037, 46, 21); , @('DO', 1450, 1037, 30, 21); , @('IPI.', 1490, 1037, 40, 21)
+    , @('VALOR', 1660, 1042, 90, 19); , @('TOTALDA', 1758, 1042, 98, 18); , @('NOTA', 1868, 1042, 56, 19)
+    , @('120,00', 1554, 1078, 99, 28); , @('4.025,00', 1926, 1079, 130, 33))
+Igual 5 $ipiPerto[0].Count 'montagem da lista de palavras'
+Igual '4025.00' (ValorPeloRotulo $ipiPerto) 'valor do IPI mais perto nao e o total'
+
+# folha torta (0,6 grau): o fim da linha fica mais alto que o comeco
+$frase = 'RECEBEMOS DE DISTRIBUIDORA BOA VISTA EIRELI OS PRODUTOS E/OU SERVIÇOS'.Split(' ')
+$torta = New-Object 'System.Collections.Generic.List[object]'
+$x = 60
+foreach ($t in $frase) { $torta.Add(@($t, $x, (100 - 0.0105 * $x), (11 * $t.Length), 24, 1)); $x += 11 * $t.Length + 12 }
+$torta.Insert(0, @('CONSTANTES', $x, (100 - 0.0105 * $x - 9), 110, 18, 1))  # caixa mais alta (caso real)
+$torta.Add(@('NOTA', 60, 128, 44, 24, 2)); $torta.Add(@('FISCAL', 116, 128, 66, 24, 2))
+$visual = (TextoVisual $torta).Split("`n")
+Igual (($frase -join ' ') + ' CONSTANTES') $visual[0] 'folha torta: frase inteira na mesma linha'
+Igual 'DISTRIBUIDORA BOA VISTA EIRELI' (Fornecedor $visual[0]) 'folha torta: fornecedor'
+foreach ($caso in @(
+        @("RFEBEMOS DE DIMENSIONAL BRASIL SOLUCOES LTDA OS PRODUTOS E/OU SERVIÇOS", 'DIMENSIONAL BRASIL SOLUCOES LTDA'),
+        @("RECEBEM(S DE DAL PINO INDUSTRIA DE SERRAS LTDA`nOS PRODUT0S CONSTANTES", 'DAL PINO INDUSTRIA DE SERRAS LTDA'))) {
+    Igual $caso[1] (Fornecedor $caso[0]) "canhoto com erro de OCR: $($caso[1])"
+}
+Igual 'JARVIS DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA' (NomePlausivel 'DE JARVIS DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA') 'tira o DE que sobrou'
+Igual 'COMERCIAL DE FERRAGENS NOVA ERA' (NomePlausivel 'COMERCIAL DE FERRAGENS NOVA ERA auxiliar da') 'tira sobra do fim do nome'
+
+$certo = 'JARVIS DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA'
+$nomes = @(@($certo, ''), @($certo, ''), @('JARVIS DO BRASL', '46537536000141'), @('JARVIS DO BRASIL FERRAMTXMS', ''),
+           @('JARVLS DO BRASIL FERRAP,mT4S', ''), @('NDUSIRIAIS LTDA', '46537536000141'),
+           @('BETTCHER DO BRASIL COMERCIO DE MAQUINAS LTDA', ''), @('DAL PENO INDUSTRIA DE SERRAS LTDA', ''),
+           @('COMERCIAL ELETRICA PJ LTDA', ''), @('COMERCIAL ELETRICA SC LTDA', ''))
+$regs = @(for ($i = 0; $i -lt $nomes.Count; $i++) {
+    $d = NovoDados; $d.Fornecedor = $nomes[$i][0]; $d.Cnpj = $nomes[$i][1]; NovoRegistro "$i.pdf" @(1) $d })
+PadronizarFornecedores $regs
+$esperado = @($certo) * 6 + @($nomes[6..9] | ForEach-Object { $_[0] })
+Igual ($esperado -join '|') (($regs | ForEach-Object { $_.Dados.Fornecedor }) -join '|') 'padroniza grafias do mesmo fornecedor'
+
 # --- cadastro e planilha ---
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("robo_nf_" + [guid]::NewGuid())
 [void](New-Item -ItemType Directory -Path $tmp)
@@ -144,19 +209,21 @@ try {
         foreach ($p in $pedidos) { $d.Pedidos.Add($p) }
         NovoRegistro $arquivo $paginas $d
     }
+    $okValor = Reg 'a.pdf' @(1) 'FORN A LTDA' $CNPJ '10' @('4500000001')
+    $okValor.Dados.ValorTotal = '2520.00'; $okValor.Dados.OrigemValor = 'rotulo'
     $registros = @(
-        (Reg 'a.pdf' @(1) 'FORN A LTDA' $CNPJ '10' @('4500000001')),
+        $okValor,
         (Reg 'b.pdf' @(1, 2) 'FORN B & CIA LTDA' '' '20' @('4500000002', '4500000003')),
         (Reg 'c.jpg' @(1) 'FORN C LTDA' '' '30' @()),
         (Reg 'd.jpg' @(1) 'FORN A LTDA' $CNPJ '10' @('4500000001')))
     $semNome = Reg '19.pdf' @(1) '' '06913480002616' '2' @('4501229433')
-    CompletarFornecedores @((Reg '20.pdf' @(1) 'DIMENSIONAL BRASIL LTDA' '06913480002616' '1' @()), $semNome)
+    PadronizarFornecedores @((Reg '20.pdf' @(1) 'DIMENSIONAL BRASIL LTDA' '06913480002616' '1' @()), $semNome)
     Igual 'DIMENSIONAL BRASIL LTDA' $semNome.Dados.Fornecedor 'fornecedor pelo CNPJ de outra NF'
 
     MarcarAvisos $registros
-    Igual 'mais de um pedido' ($registros[1].Avisos -join '|') 'aviso mais de um pedido'
-    Igual (U 'pedido não encontrado') ($registros[2].Avisos -join '|') 'aviso sem pedido'
-    Igual 'NF repetida em outro arquivo' ($registros[3].Avisos -join '|') 'aviso NF repetida'
+    Igual $true ($registros[1].Avisos.Contains('mais de um pedido')) 'aviso mais de um pedido'
+    Igual $true ($registros[2].Avisos.Contains((U 'pedido n\u00e3o encontrado'))) 'aviso sem pedido'
+    Igual ('NF repetida em outro arquivo|' + (U 'valor total n\u00e3o encontrado')) ($registros[3].Avisos -join '|') 'aviso NF repetida'
     $xlsx = GerarPlanilha $registros (Join-Path $tmp 'nfs.xlsx')
     Igual $true (Test-Path $xlsx) 'planilha criada'
     if ($env:ROBO_NF_COPIAR_PLANILHA) { Copy-Item $xlsx $env:ROBO_NF_COPIAR_PLANILHA }

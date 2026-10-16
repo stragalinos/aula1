@@ -2,9 +2,9 @@
 
 Lê as NFs escaneadas (PDF, JPG, PNG, TIF) e monta uma planilha Excel com:
 
-| Fornecedor | Nº NF | Pedido | Série | CNPJ Fornecedor | Chave de Acesso | Arquivo | Página | Status |
-|---|---|---|---|---|---|---|---|---|
-| FORNECEDOR EXEMPLO LTDA | 12345 | 4500012345 | 1 | 12.345.678/0001-95 | 3526…0979 | nf_01.pdf | 1 | OK |
+| Fornecedor | Nº NF | Pedido | Valor Total | Série | CNPJ Fornecedor | Chave de Acesso | Arquivo | Página | Status |
+|---|---|---|---|---|---|---|---|---|---|
+| FORNECEDOR EXEMPLO LTDA | 12345 | 4500012345 | 3.062,50 | 1 | 12.345.678/0001-95 | 3526…0979 | nf_01.pdf | 1 | OK |
 
 As linhas que precisam de conferência ficam **amarelas**, e a coluna *Status* diz o motivo
 (pedido não encontrado, mais de um pedido, NF repetida etc.).
@@ -18,8 +18,12 @@ Não precisa de Python, Tesseract nem permissão de administrador.
 2. Crie, nessa mesma pasta, uma pasta chamada **`notas`** e coloque nela as NFs escaneadas
    (pode ser um arquivo por NF ou um PDF com várias folhas; folhas em branco são ignoradas).
 3. Dê dois cliques em **`executar_robo_windows.bat`**.
-4. A planilha **`planilha_nfs.xlsx`** aparece na pasta. Na pasta **`textos_ocr`** fica o texto
-   que o robô leu de cada página (útil para entender uma NF que veio errada).
+4. A planilha **`planilha_nfs.xlsx`** aparece na pasta. Na pasta **`textos_ocr`** fica o que o robô
+   leu de cada página: o texto (`.txt`) e a posição de cada palavra (`.json`). Se alguma NF vier
+   errada, mande essa pasta (compactada) junto com a planilha para ajustar o robô.
+
+Cada folha leva alguns segundos: o robô lê a folha inteira e, se faltar alguma informação, lê de novo
+em 6 pedaços ampliados (o OCR do Windows encolhe a folha inteira e a letra miúda fica ilegível).
 
 Se o Windows perguntar se deseja executar o arquivo baixado, clique em **Executar**
 (ou: botão direito no arquivo → Propriedades → marque **Desbloquear**).
@@ -71,7 +75,8 @@ Nas duas versões, se a planilha estiver aberta no Excel, o robô salva uma cóp
 
 - **Nº da NF**: primeiro pela **chave de acesso** (os 44 números impressos ou, na versão Python,
   o código de barras do DANFE). A chave tem dígito verificador, então quando ela é lida o número está certo.
-  Se não conseguir ler a chave, usa o número impresso (`Nº 000.012.345`, `Nº 93269 SÉRIE 1`...).
+  Se não conseguir ler a chave, usa o número impresso (`Nº 000.012.345`, `Nº 93269 SÉRIE 1`...),
+  corrigindo zeros lidos como letra O (`OOO.O93.269`).
   A inscrição estadual (que em SC tem o mesmo formato `999.999.999`) é ignorada.
   Se a chave veio com algum dígito ilegível, o número dela é usado só para conferir o impresso
   (ou, se não houver outro, entra na planilha marcado para conferência).
@@ -79,8 +84,12 @@ Nas duas versões, se a planilha estiver aberta no Excel, o robô salva uma cóp
   pelo bloco *Identificação do Emitente*, e por último pela primeira linha com LTDA / S.A. / EIRELI / ME
   antes do destinatário. Também funciona com NFS-e (bloco *Prestador de Serviços*).
   Nomes ilegíveis (lixo do OCR), endereços e linhas de produto são descartados: é melhor a célula
-  vazia e marcada para conferir do que um nome errado. Se outra NF do mesmo CNPJ teve o nome lido,
-  ele é usado.
+  vazia e marcada para conferir do que um nome errado. O mesmo fornecedor lido de jeitos diferentes
+  em NFs diferentes (ex.: `JARVIS DO BRASL`) passa a usar a leitura completa (`JARVIS DO BRASIL
+  FERRAMENTAS INDUSTRIAIS LTDA`), e NFs do mesmo CNPJ ficam com o mesmo nome.
+- **Valor total**: o valor que fica logo abaixo de *VALOR TOTAL DA NOTA* (pela posição na folha, para não
+  pegar o valor da coluna vizinha, como o IPI). Se o rótulo não for lido, entra o maior valor da nota,
+  marcado em amarelo como *valor total estimado*.
 - **Pedido**: qualquer número de 10 dígitos começando com **45** (ex.: `4500012345`), em qualquer
   lugar da folha. Corrige trocas comuns do OCR (`45000I2345` → `4500012345`). Se uma NF tiver
   mais de um pedido, eles aparecem separados por ` / `.

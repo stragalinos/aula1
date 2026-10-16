@@ -213,8 +213,103 @@ class TestCasosReais(unittest.TestCase):
     def test_fornecedor_pelo_cnpj_de_outra_nf(self):
         com_nome = r.RegistroNF("20.pdf", [1], r.DadosNF("DIMENSIONAL BRASIL LTDA", "06913480002616", "1"))
         sem_nome = r.RegistroNF("19.pdf", [1], r.DadosNF("", "06913480002616", "2"))
-        r.completar_fornecedores([sem_nome, com_nome])
+        r.padronizar_fornecedores([sem_nome, com_nome])
         self.assertEqual(sem_nome.dados.fornecedor, "DIMENSIONAL BRASIL LTDA")
+
+
+
+def palavra(texto, x, y, largura=None, altura=20):
+    return [texto, x, y, largura if largura is not None else 11 * len(texto), altura]
+
+
+# Quadro "CÁLCULO DO IMPOSTO" de um DANFE, como o OCR devolve (palavras e posições)
+QUADRO_IMPOSTO = [
+    palavra("VALOR", 600, 40), palavra("TOTAL", 670, 40), palavra("DOS", 735, 40), palavra("PRODUTOS", 775, 40),
+    palavra("2.400,00", 800, 70),
+    palavra("VALOR", 300, 100), palavra("DO", 365, 100), palavra("IPI", 395, 100),
+    palavra("VALOR", 600, 100), palavra("TOTAL", 670, 100), palavra("DA", 735, 100), palavra("NOTA", 765, 100),
+    palavra("120,00", 380, 130), palavra("2.520,00", 800, 130),
+]
+
+# Caso real do teste: o valor do IPI (coluna vizinha) mais perto do rótulo do que o total
+QUADRO_IPI_PERTO = [
+    ["VALOR", 1395, 1037, 46, 21], ["DO", 1450, 1037, 30, 21], ["IPI.", 1490, 1037, 40, 21],
+    ["VALOR", 1660, 1042, 90, 19], ["TOTALDA", 1758, 1042, 98, 18], ["NOTA", 1868, 1042, 56, 19],
+    ["120,00", 1554, 1078, 99, 28], ["4.025,00", 1926, 1079, 130, 33],
+]
+
+
+class TestLeituraMelhor(unittest.TestCase):
+    """Zeros lidos como letra O, número sem "Nº", valor total, canhoto com erro de OCR."""
+
+    def test_zeros_lidos_como_letra(self):
+        num = r.corrigir_digitos(r.normalizar("Nº OOO.O93.269  SC-401  LTDA  ISO  S/A"))
+        self.assertIn("000.093.269", num)
+        self.assertIn("SC-401  LTDA  ISO  S/A", num)
+        self.assertEqual(r.encontrar_numero_nf(num), ("93269", "danfe"))
+
+    def test_numero_com_virgula_espacos_e_q(self):
+        for texto in ("Nº 000,093,269", "N° 000 093 269", "NQ 000.093.269", "000093269\nSÉRIE 1"):
+            num = r.corrigir_digitos(r.normalizar(texto))
+            self.assertEqual(r.encontrar_numero_nf(num), ("93269", "danfe"), texto)
+
+    def test_valor_total_na_mesma_linha(self):
+        for texto in ("VALOR TOTAL DA NOTA R$ 1.234,56", "V. TOTAL DA NOTA: 1234,56", "Valor total da NF-e 1.234,56",
+                      "VALOR TOTALDA NOTA 1.234,56", "VALOR TOTAL. DA NOTA 1.234,56"):
+            num = r.corrigir_digitos(r.normalizar(texto))
+            self.assertEqual(r.encontrar_valor_total(num), ("1234.56", "rotulo"), texto)
+
+    def test_valor_total_na_linha_de_baixo(self):
+        texto = ("VALOR DO FRETE VALOR DO SEGURO DESCONTO OUTRAS DESP. VALOR DO IPI VALOR TOTAL DA NOTA\n"
+                 "0,00 0,00 0,00 0,00 120,00 2.520,00")
+        self.assertEqual(r.encontrar_valor_total(r.normalizar(texto)), ("2520.00", "rotulo"))
+
+    def test_valor_total_estimado_sem_rotulo(self):
+        texto = "VALOR TOTAL DOS PRODUTOS 2.400,00\nTRIBUTOS R$ 45,32 (19,70%)\nPESO 3.500,000"
+        self.assertEqual(r.encontrar_valor_total(r.normalizar(texto)), ("2400.00", "maior"))
+
+    def test_valor_total_pela_posicao_na_folha(self):
+        self.assertEqual(r.valor_pelo_rotulo(QUADRO_IMPOSTO), "2520.00")
+        self.assertEqual(r.valor_pelo_rotulo(QUADRO_IPI_PERTO), "4025.00")
+        visual = r.texto_visual(QUADRO_IMPOSTO).split("\n")
+        self.assertEqual(visual[2], "VALOR DO IPI | VALOR TOTAL DA NOTA")
+        self.assertEqual(visual[3], "120,00 | 2.520,00")
+        dados = r.extrair_dados(r.texto_visual(QUADRO_IMPOSTO))
+        self.assertEqual((dados.valor_total, dados.origem_valor), ("2520.00", "rotulo"))
+
+    def test_folha_torta(self):
+        # 0,6 grau de inclinação: o fim da linha fica mais alto que o começo
+        frase = "RECEBEMOS DE DISTRIBUIDORA BOA VISTA EIRELI OS PRODUTOS E/OU SERVIÇOS".split()
+        palavras, x = [], 60
+        for k, t in enumerate(frase):
+            palavras.append([t, x, 100 - 0.0105 * x, 11 * len(t), 24, 1])
+            x += 11 * len(t) + 12
+        palavras.insert(0, ["CONSTANTES", x, 100 - 0.0105 * x - 9, 110, 18, 1])  # caixa mais alta (caso real)
+        palavras += [["NOTA", 60, 128, 44, 24, 2], ["FISCAL", 116, 128, 66, 24, 2]]
+        visual = r.texto_visual(palavras).split("\n")
+        self.assertEqual(visual[0], " ".join(frase) + " CONSTANTES")
+        self.assertEqual(r.encontrar_fornecedor(visual[0], r.normalizar(visual[0])), "DISTRIBUIDORA BOA VISTA EIRELI")
+
+    def test_canhoto_com_erro_de_ocr(self):
+        for texto, nome in (
+                ("RFEBEMOS DE DIMENSIONAL BRASIL SOLUCOES LTDA OS PRODUTOS E/OU SERVIÇOS", "DIMENSIONAL BRASIL SOLUCOES LTDA"),
+                ("RECEBEM(S DE DAL PINO INDUSTRIA DE SERRAS LTDA\nOS PRODUT0S CONSTANTES", "DAL PINO INDUSTRIA DE SERRAS LTDA")):
+            self.assertEqual(r.encontrar_fornecedor(texto, r.normalizar(texto)), nome)
+        self.assertEqual(r._nome_plausivel("DE JARVIS DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA"),
+                         "JARVIS DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA")
+        self.assertEqual(r._nome_plausivel("COMERCIAL DE FERRAGENS NOVA ERA auxiliar da"),
+                         "COMERCIAL DE FERRAGENS NOVA ERA")
+
+    def test_padroniza_grafias_do_mesmo_fornecedor(self):
+        certo = "JARVIS DO BRASIL FERRAMENTAS INDUSTRIAIS LTDA"
+        nomes = [(certo, ""), (certo, ""), ("JARVIS DO BRASL", "46537536000141"), ("JARVIS DO BRASIL FERRAMTXMS", ""),
+                 ("JARVLS DO BRASIL FERRAP,mT4S", ""), ("NDUSIRIAIS LTDA", "46537536000141"),
+                 ("BETTCHER DO BRASIL COMERCIO DE MAQUINAS LTDA", ""), ("DAL PENO INDUSTRIA DE SERRAS LTDA", ""),
+                 ("COMERCIAL ELETRICA PJ LTDA", ""), ("COMERCIAL ELETRICA SC LTDA", "")]
+        registros = [r.RegistroNF(f"{i}.pdf", [1], r.DadosNF(n, c)) for i, (n, c) in enumerate(nomes)]
+        r.padronizar_fornecedores(registros)
+        self.assertEqual([x.dados.fornecedor for x in registros],
+                         [certo] * 6 + [n for n, _ in nomes[6:]])
 
 
 class TestPlanilha(unittest.TestCase):
@@ -228,7 +323,8 @@ class TestPlanilha(unittest.TestCase):
     def test_gera_planilha_com_avisos(self):
         from openpyxl import load_workbook
 
-        ok = r.RegistroNF("a.pdf", [1], r.DadosNF("FORN A LTDA", CNPJ, "10", "1", ["4500000001"], "", "danfe"))
+        ok = r.RegistroNF("a.pdf", [1], r.DadosNF("FORN A LTDA", CNPJ, "10", "1", ["4500000001"], "", "danfe",
+                                                  "2520.00", "rotulo"))
         dois = r.RegistroNF("b.pdf", [1, 2], r.DadosNF("FORN B LTDA", "", "20", "", ["4500000002", "4500000003"]))
         sem_pedido = r.RegistroNF("c.jpg", [1], r.DadosNF("FORN C LTDA", "", "30"))
         repetida = r.RegistroNF("d.jpg", [1], r.DadosNF("FORN A LTDA", CNPJ, "10", "1", ["4500000001"], "", "danfe"))
@@ -237,15 +333,16 @@ class TestPlanilha(unittest.TestCase):
         self.assertIn("mais de um pedido", dois.avisos)
         self.assertIn("pedido não encontrado", sem_pedido.avisos)
         self.assertIn("NF repetida em outro arquivo", repetida.avisos)
+        self.assertIn("valor total não encontrado", repetida.avisos)
 
         with tempfile.TemporaryDirectory() as pasta:
             saida = r.gerar_planilha(registros, Path(pasta) / "nfs.xlsx")
             linhas = list(load_workbook(saida).active.iter_rows(values_only=True))
-        self.assertEqual(linhas[0][:3], ("Fornecedor", "Nº NF", "Pedido"))
-        self.assertEqual(linhas[1][:3], ("FORN A LTDA", 10, 4500000001))
+        self.assertEqual(linhas[0][:4], ("Fornecedor", "Nº NF", "Pedido", "Valor Total"))
+        self.assertEqual(linhas[1][:4], ("FORN A LTDA", 10, 4500000001, 2520.0))
         self.assertEqual(linhas[2][2], "4500000002 / 4500000003")
-        self.assertEqual(linhas[2][7], "1, 2")
-        self.assertTrue(linhas[3][8].startswith("CONFERIR"))
+        self.assertEqual(linhas[2][8], "1, 2")
+        self.assertTrue(linhas[3][9].startswith("CONFERIR"))
 
 
 if __name__ == "__main__":
