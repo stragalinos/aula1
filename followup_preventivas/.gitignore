@@ -1,0 +1,4 @@
+# dados exportados do TracOS e planilhas geradas ficam só na máquina
+bases/*.csv
+saida/
+__pycache__/
