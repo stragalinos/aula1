@@ -1,0 +1,57 @@
+# =============================================================================
+# FORMAS DE INSTALAÇÃO -> MÉTODO DE REFERÊNCIA
+# -----------------------------------------------------------------------------
+# Usado em: formulário (o técnico escolhe a forma de instalação pela descrição)
+#           e nucleo/condutores.py (etapa b5), que usa o método para achar a
+#           coluna certa em capacidade_conducao.yaml.
+# As descrições foram escritas com palavras próprias, não são cópia da norma.
+# Para cada forma, preencha o método de referência (ex.: B1) e o número da
+# linha/exemplo correspondente na tabela de tipos de linhas elétricas da norma.
+# "meio" indica qual fator de temperatura usar: ar ou solo.
+# Pode acrescentar novas formas copiando um bloco inteiro.
+# =============================================================================
+
+metadados:
+  titulo: Formas de instalação e método de referência
+  descricao: >-
+    Relação entre a forma de instalação escolhida no formulário e o método de
+    referência usado nas tabelas de capacidade de condução de corrente.
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - nº da tabela de tipos de linhas elétricas"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+formas_instalacao:
+  eletroduto_embutido_alvenaria:
+    descricao: Condutores isolados dentro de eletroduto de seção circular embutido em parede de alvenaria
+    metodo_referencia: A_VALIDAR
+    numero_na_norma: A_VALIDAR
+    meio: ar
+  eletroduto_aparente_parede:
+    descricao: Condutores isolados dentro de eletroduto de seção circular fixado aparente sobre a parede
+    metodo_referencia: A_VALIDAR
+    numero_na_norma: A_VALIDAR
+    meio: ar
+  eletroduto_embutido_alvenaria_cabo_multipolar:
+    descricao: Cabo multipolar dentro de eletroduto de seção circular embutido em parede de alvenaria
+    metodo_referencia: A_VALIDAR
+    numero_na_norma: A_VALIDAR
+    meio: ar
+  eletroduto_em_forro_ou_espaco_de_construcao:
+    descricao: Condutores isolados dentro de eletroduto passando por forro ou espaço de construção
+    metodo_referencia: A_VALIDAR
+    numero_na_norma: A_VALIDAR
+    meio: ar
+  eletroduto_parede_termicamente_isolante:
+    descricao: Condutores isolados dentro de eletroduto embutido em parede com isolamento térmico (ex. drywall com lã mineral)
+    metodo_referencia: A_VALIDAR
+    numero_na_norma: A_VALIDAR
+    meio: ar
+  eletroduto_enterrado:
+    descricao: Cabos dentro de eletroduto enterrado no solo (ex. trecho do padrão de entrada até a casa)
+    metodo_referencia: A_VALIDAR
+    numero_na_norma: A_VALIDAR
+    meio: solo

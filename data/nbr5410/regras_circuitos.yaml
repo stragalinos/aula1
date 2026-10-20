@@ -1,0 +1,31 @@
+# =============================================================================
+# REGRAS NORMATIVAS DE DIVISÃO DE CIRCUITOS
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/circuitos.py (etapa b3)
+# As escolhas de projeto (limite de corrente por circuito etc.) NÃO ficam aqui:
+# estão em data/criterios_projeto.yaml.
+# =============================================================================
+
+metadados:
+  titulo: Regras normativas de divisão de circuitos
+  descricao: >-
+    Exigências da norma sobre quais cargas precisam de circuito próprio e
+    quais tomadas só podem dividir circuito com tomadas de locais semelhantes.
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - itens da norma sobre divisão da instalação em circuitos"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+# Equipamento com corrente nominal ACIMA deste valor (A) exige circuito independente.
+tue_circuito_independente_acima_de_A: A_VALIDAR
+
+# Tipos de cômodo cujas tomadas só podem ficar em circuitos que atendam apenas
+# tomadas desses mesmos tipos (não se misturam com tomadas de sala, quarto etc.).
+# CONFERIR a lista com a norma.
+tipos_com_tomadas_em_circuito_exclusivo: [cozinha, copa, copa_cozinha, area_servico, lavanderia]
+
+# Observação: iluminação e tomadas ficam SEMPRE em circuitos separados neste sistema
+# (decisão D7, data/criterios_projeto.yaml), mesmo que a norma admita exceções.

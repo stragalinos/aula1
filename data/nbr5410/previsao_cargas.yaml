@@ -1,0 +1,142 @@
+# =============================================================================
+# PREVISÃO MÍNIMA DE CARGAS — iluminação e tomadas de uso geral (TUG)
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/previsao.py (etapa b2)
+# Troque cada A_VALIDAR pelo valor da sua cópia da NBR 5410.
+# As REGRAS ligadas a cada tipo de cômodo (ex.: "por_perimetro") são uma
+# sugestão de estrutura feita pelo sistema: confira também se estão corretas.
+# Ajuda geral de preenchimento: data/LEIA-ME.md
+# =============================================================================
+
+metadados:
+  titulo: Previsão mínima de cargas de iluminação e TUG
+  descricao: >-
+    Quantidade mínima de pontos e potência mínima atribuída a cada ponto de
+    iluminação e de tomada de uso geral, por tipo de cômodo.
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - itens da norma sobre previsão de cargas em locais de habitação"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+# -----------------------------------------------------------------------------
+# ILUMINAÇÃO
+# Como o sistema calcula a potência mínima de iluminação de um cômodo:
+#   área <= area_inicial_m2  ->  potencia_inicial_VA
+#   área >  area_inicial_m2  ->  potencia_inicial_VA + N x potencia_acrescimo_VA
+#   N = quantas parcelas de area_acrescimo_m2 cabem na área que passa de area_inicial_m2
+#   parcelas: inteiras -> despreza a sobra;  fracao -> a sobra conta como mais uma parcela
+# -----------------------------------------------------------------------------
+iluminacao:
+  pontos_minimos_por_comodo: A_VALIDAR
+  area_inicial_m2: A_VALIDAR
+  potencia_inicial_VA: A_VALIDAR
+  area_acrescimo_m2: A_VALIDAR
+  potencia_acrescimo_VA: A_VALIDAR
+  parcelas: A_VALIDAR            # escreva: inteiras  ou  fracao
+
+# -----------------------------------------------------------------------------
+# TUG — QUANTIDADE MÍNIMA DE PONTOS POR TIPO DE CÔMODO
+# Regras que o sistema sabe aplicar:
+#   quantidade_fixa       -> "quantidade" pontos, qualquer que seja o tamanho do cômodo
+#   por_perimetro         -> 1 ponto a cada "perimetro_por_ponto_m" metros de perímetro
+#                            (parcelas: inteiras -> despreza a sobra; fracao -> sobra vira mais um ponto)
+#   por_area_e_perimetro  -> área <= "area_limite_m2": "pontos_ate_area_limite" pontos;
+#                            área maior: mesma conta de por_perimetro
+# "minimo_pontos" (opcional) garante uma quantidade mínima mesmo que a conta dê menos.
+# Escreva 0 em minimo_pontos se não houver mínimo extra para aquele tipo.
+# Se a regra sugerida para um tipo estiver errada, troque o nome da regra e
+# ajuste os campos conforme a lista acima.
+# -----------------------------------------------------------------------------
+tug_quantidade:
+  sala:
+    regra: por_perimetro
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+  dormitorio:
+    regra: por_perimetro
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+  cozinha:
+    regra: por_perimetro
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+    minimo_pontos: A_VALIDAR     # ex.: se a norma pedir um mínimo de tomadas sobre a bancada da pia
+  copa:
+    regra: por_perimetro
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+    minimo_pontos: A_VALIDAR
+  copa_cozinha:
+    regra: por_perimetro
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+    minimo_pontos: A_VALIDAR
+  area_servico:
+    regra: por_perimetro
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+    minimo_pontos: A_VALIDAR
+  lavanderia:
+    regra: por_perimetro
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+    minimo_pontos: A_VALIDAR
+  banheiro:
+    regra: quantidade_fixa
+    quantidade: A_VALIDAR
+  lavabo:
+    regra: quantidade_fixa       # CONFERIR: lavabo segue a regra de banheiro ou a de "demais cômodos"?
+    quantidade: A_VALIDAR
+  varanda:
+    regra: quantidade_fixa
+    quantidade: A_VALIDAR
+  garagem:
+    regra: por_area_e_perimetro
+    area_limite_m2: A_VALIDAR
+    pontos_ate_area_limite: A_VALIDAR
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+  corredor_hall:
+    regra: por_area_e_perimetro
+    area_limite_m2: A_VALIDAR
+    pontos_ate_area_limite: A_VALIDAR
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+  escritorio:
+    regra: por_area_e_perimetro  # CONFERIR: escritório segue a regra de sala ou a de "demais cômodos"?
+    area_limite_m2: A_VALIDAR
+    pontos_ate_area_limite: A_VALIDAR
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+  area_externa:
+    regra: quantidade_fixa       # escreva 0 se a norma não exigir tomada em área externa
+    quantidade: A_VALIDAR
+  outro:
+    regra: por_area_e_perimetro
+    area_limite_m2: A_VALIDAR
+    pontos_ate_area_limite: A_VALIDAR
+    perimetro_por_ponto_m: A_VALIDAR
+    parcelas: A_VALIDAR
+
+# -----------------------------------------------------------------------------
+# TUG — POTÊNCIA MÍNIMA POR PONTO
+# Cômodos da lista "tipos": em CADA cômodo, os primeiros "pontos_com_potencia_maior"
+# pontos recebem "potencia_maior_VA" e os demais recebem "potencia_demais_VA".
+# "regra_alternativa": se a norma permitir outra divisão quando o CONJUNTO desses
+# cômodos tiver muitos pontos, preencha aqui; se não houver, escreva 0 nos dois campos.
+# Cômodos fora da lista recebem "demais_comodos_VA" por ponto.
+# CONFERIR a lista de tipos (o lavabo ficou fora dela).
+# -----------------------------------------------------------------------------
+tug_potencia:
+  comodos_com_potencia_maior:
+    tipos: [banheiro, cozinha, copa, copa_cozinha, area_servico, lavanderia]
+    pontos_com_potencia_maior: A_VALIDAR
+    potencia_maior_VA: A_VALIDAR
+    potencia_demais_VA: A_VALIDAR
+    regra_alternativa:
+      quando_total_de_pontos_no_conjunto_passar_de: A_VALIDAR
+      pontos_com_potencia_maior: A_VALIDAR
+  demais_comodos_VA: A_VALIDAR

@@ -1,0 +1,98 @@
+# =============================================================================
+# EQUIPAMENTOS TÍPICOS — SUGESTÕES PARA O FORMULÁRIO
+# -----------------------------------------------------------------------------
+# Usado em: formulário (etapa f). Quando o técnico escolhe um equipamento, estes
+# valores aparecem já preenchidos, mas ele DEVE conferir e corrigir com os dados
+# de placa do aparelho real.
+# ATENÇÃO: todos os valores são EXEMPLOS de potências comuns no mercado. Ajuste
+# conforme a sua experiência; não são valores normativos.
+# Ar-condicionado: informe a potência ELÉTRICA (W). A capacidade em BTU/h não é
+# convertida automaticamente porque depende da eficiência do aparelho.
+# tem_motor: true -> o sistema usa a curva de disjuntor para motores (decisão D10).
+# Tensão: em sistemas 220/380 V não existe 127 V; o formulário trocará por 220 V.
+# =============================================================================
+
+metadados:
+  titulo: Equipamentos típicos (sugestões do formulário)
+  descricao: >-
+    Potência, fator de potência e tensão sugeridos para equipamentos comuns em
+    residências. Servem apenas como ponto de partida no formulário.
+  fonte: Valores de exemplo do sistema
+  status: EXEMPLO
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+equipamentos:
+  chuveiro:
+    descricao: Chuveiro elétrico
+    potencia_W: 5500
+    fator_potencia: 1.0
+    tensao_V: 220
+    tem_motor: false
+  torneira_eletrica:
+    descricao: Torneira elétrica
+    potencia_W: 3500
+    fator_potencia: 1.0
+    tensao_V: 220
+    tem_motor: false
+  aquecedor_acumulacao:
+    descricao: Aquecedor de água por acumulação (boiler)
+    potencia_W: 2000
+    fator_potencia: 1.0
+    tensao_V: 220
+    tem_motor: false
+  forno_eletrico:
+    descricao: Forno elétrico
+    potencia_W: 2500
+    fator_potencia: 1.0
+    tensao_V: 220
+    tem_motor: false
+  micro_ondas:
+    descricao: Forno de micro-ondas
+    potencia_W: 1400
+    fator_potencia: 0.95
+    tensao_V: 127
+    tem_motor: false
+  lava_loucas:
+    descricao: Lava-louças
+    potencia_W: 1500
+    fator_potencia: 0.95
+    tensao_V: 127
+    tem_motor: true
+  maquina_lavar_roupa:
+    descricao: Máquina de lavar roupa
+    potencia_W: 1000
+    fator_potencia: 0.8
+    tensao_V: 127
+    tem_motor: true
+  secadora_roupa:
+    descricao: Secadora de roupa
+    potencia_W: 3000
+    fator_potencia: 1.0
+    tensao_V: 220
+    tem_motor: true
+  ar_condicionado_9000btu:
+    descricao: Ar-condicionado 9.000 BTU/h
+    potencia_W: 1000
+    fator_potencia: 0.9
+    tensao_V: 220
+    tem_motor: true
+  ar_condicionado_12000btu:
+    descricao: Ar-condicionado 12.000 BTU/h
+    potencia_W: 1300
+    fator_potencia: 0.9
+    tensao_V: 220
+    tem_motor: true
+  ar_condicionado_18000btu:
+    descricao: Ar-condicionado 18.000 BTU/h
+    potencia_W: 2000
+    fator_potencia: 0.9
+    tensao_V: 220
+    tem_motor: true
+  bomba_agua:
+    descricao: Bomba d'água (1/2 cv)
+    potencia_W: 600
+    fator_potencia: 0.8
+    tensao_V: 220
+    tem_motor: true

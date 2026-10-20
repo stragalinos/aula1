@@ -1,0 +1,37 @@
+# =============================================================================
+# SEÇÃO MÍNIMA DO CONDUTOR DE PROTEÇÃO (PE)
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/protecao.py (etapa b6)
+#
+# "faixas": percorridas em ordem. Para uma fase de seção S, vale a primeira
+# faixa em que S <= fase_ate_mm2. Na última faixa use fase_ate_mm2: SEM_LIMITE.
+# Em "pe" escreva uma destas opções:
+#   igual_a_fase      -> PE com a mesma seção da fase
+#   um número         -> seção fixa em mm² (ex.: 16)
+#   metade_da_fase    -> metade da seção da fase
+# CONFERIR quantas faixas existem na norma; pode acrescentar ou remover linhas.
+# =============================================================================
+
+metadados:
+  titulo: Seção mínima do condutor de proteção
+  descricao: >-
+    Seção mínima do condutor de proteção em função da seção dos condutores
+    de fase do circuito, quando ambos são do mesmo material.
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - nº da tabela de seção mínima do condutor de proteção"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+faixas:
+  - {fase_ate_mm2: A_VALIDAR, pe: A_VALIDAR}
+  - {fase_ate_mm2: A_VALIDAR, pe: A_VALIDAR}
+  - {fase_ate_mm2: SEM_LIMITE, pe: A_VALIDAR}
+
+# Seção mínima de um condutor de proteção que NÃO faz parte do mesmo cabo nem
+# do mesmo eletroduto dos condutores de fase.
+secao_minima_pe_separado_mm2:
+  com_protecao_mecanica: A_VALIDAR
+  sem_protecao_mecanica: A_VALIDAR

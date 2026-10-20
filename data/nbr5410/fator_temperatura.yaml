@@ -1,0 +1,52 @@
+# =============================================================================
+# FATORES DE CORREÇÃO DE TEMPERATURA
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/condutores.py (etapa b5)
+#
+# Formato "tabela":
+#   cada LINHA  = temperatura (°C) do ambiente (para linhas ao ar) ou do solo
+#                 (para linhas enterradas)
+#   cada COLUNA = isolação + meio. Ex.: "PVC_70C-ar" = isolação PVC, linha ao ar
+# Onde a norma não traz valor (ex.: temperatura acima do limite da isolação),
+# escreva NAO_SE_APLICA.
+# Temperatura do projeto que não estiver na tabela: o sistema usa a linha
+# imediatamente ACIMA (decisão D15 em docs/decisoes.md), sem interpolar.
+# =============================================================================
+
+metadados:
+  titulo: Fatores de correção de temperatura
+  descricao: >-
+    Fatores que multiplicam a capacidade de condução quando a temperatura do
+    ambiente ou do solo é diferente da temperatura de referência da norma.
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - nº da tabela de fatores de correção de temperatura"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+# Temperaturas de referência das tabelas de capacidade de condução (°C).
+# O formulário usa estes valores como temperatura padrão do projeto.
+temperatura_referencia_C:
+  ar: A_VALIDAR
+  solo: A_VALIDAR
+
+fatores:
+  colunas: [PVC_70C-ar, EPR_XLPE_90C-ar, PVC_70C-solo, EPR_XLPE_90C-solo]
+  linhas:
+    "10": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "15": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "20": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "25": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "30": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "35": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "40": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "45": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "50": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "55": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "60": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "65": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "70": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "75": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    "80": [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]

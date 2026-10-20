@@ -1,0 +1,25 @@
+# =============================================================================
+# SEÇÕES MÍNIMAS DOS CONDUTORES DE FASE (cobre)
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/condutores.py (etapa b5), no critério de seção mínima.
+# O neutro é sempre dimensionado com a mesma seção da fase (decisão D14);
+# a redução do neutro não faz parte do MVP.
+# =============================================================================
+
+metadados:
+  titulo: Seções mínimas dos condutores de fase
+  descricao: >-
+    Menor seção de condutor de cobre admitida para cada tipo de circuito,
+    independentemente da corrente.
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - nº da tabela de seções mínimas dos condutores"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+condutor_fase_cobre_mm2:
+  iluminacao: A_VALIDAR
+  forca: A_VALIDAR                 # circuitos de tomadas (TUG) e de uso específico (TUE)
+  sinalizacao_controle: A_VALIDAR

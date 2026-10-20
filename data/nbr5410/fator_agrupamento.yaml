@@ -1,0 +1,46 @@
+# =============================================================================
+# FATORES DE CORREÇÃO DE AGRUPAMENTO
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/condutores.py (etapa b5)
+#
+# Formato "tabela":
+#   cada LINHA  = uma forma de agrupamento (descrita no bloco "arranjos" abaixo)
+#   cada COLUNA = número de circuitos agrupados. Pode ser um número ("3"),
+#                 uma faixa ("9-11") ou "20+" (20 ou mais).
+# CONFERIR se as faixas das colunas são as mesmas da sua tabela; se forem
+# diferentes, ajuste a lista "colunas" e o número de valores de cada linha.
+# Valores que não existem na norma: escreva NAO_SE_APLICA.
+# =============================================================================
+
+metadados:
+  titulo: Fatores de correção de agrupamento de circuitos
+  descricao: >-
+    Fatores que reduzem a capacidade de condução quando vários circuitos
+    passam juntos (mesmo eletroduto, feixe ou camada).
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - nº da tabela de fatores de agrupamento"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+# Descrição de cada forma de agrupamento (palavras próprias) e a quais métodos
+# de referência ela se aplica (ex.: [B1, B2]).
+arranjos:
+  feixe_ou_mesmo_eletroduto:
+    descricao: Circuitos juntos em feixe, embutidos ou dentro do mesmo eletroduto ou conduto fechado
+    metodos_aplicaveis: A_VALIDAR
+  camada_unica_parede_ou_piso:
+    descricao: Cabos lado a lado em uma única camada sobre parede, piso ou bandeja não perfurada
+    metodos_aplicaveis: A_VALIDAR
+  camada_unica_teto:
+    descricao: Cabos lado a lado em uma única camada fixados no teto
+    metodos_aplicaveis: A_VALIDAR
+
+fatores:
+  colunas: ["1", "2", "3", "4", "5", "6", "7", "8", "9-11", "12-15", "16-19", "20+"]
+  linhas:
+    feixe_ou_mesmo_eletroduto:   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    camada_unica_parede_ou_piso: [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+    camada_unica_teto:           [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]

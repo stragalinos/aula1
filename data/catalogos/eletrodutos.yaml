@@ -1,0 +1,59 @@
+# =============================================================================
+# CATÁLOGO DE ELETRODUTOS
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/eletrodutos.py (etapa b7) e lista de materiais.
+# Chave = tamanho nominal (DN); valor = diâmetro interno em mm, conforme a
+# norma do produto ou o catálogo do fabricante.
+# "designacao_comercial" é como o eletroduto aparece na lista de materiais.
+# =============================================================================
+
+metadados:
+  titulo: Dados de catálogo de eletrodutos
+  descricao: >-
+    Diâmetro interno de cada tamanho nominal de eletroduto, usado no cálculo
+    da taxa de ocupação.
+  fonte: "A_VALIDAR - norma do produto ou catálogo do fabricante"
+  referencia: "A_VALIDAR - nome e revisão do documento"
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+tipos:
+  pvc_flexivel_corrugado:
+    descricao: Eletroduto de PVC flexível corrugado ("conduíte"), para embutir em parede ou laje
+    diametro_interno_mm:
+      "16": A_VALIDAR
+      "20": A_VALIDAR
+      "25": A_VALIDAR
+      "32": A_VALIDAR
+      "40": A_VALIDAR
+      "50": A_VALIDAR
+    designacao_comercial:
+      "16": "16 mm"
+      "20": "20 mm"
+      "25": "25 mm"
+      "32": "32 mm"
+      "40": "40 mm"
+      "50": "50 mm"
+  pvc_rigido_roscavel:
+    descricao: Eletroduto de PVC rígido roscável
+    diametro_interno_mm:
+      "20": A_VALIDAR
+      "25": A_VALIDAR
+      "32": A_VALIDAR
+      "40": A_VALIDAR
+      "50": A_VALIDAR
+      "60": A_VALIDAR
+      "75": A_VALIDAR
+      "85": A_VALIDAR
+    # CONFERIR a correspondência entre DN e polegadas no catálogo.
+    designacao_comercial:
+      "20": '1/2"'
+      "25": '3/4"'
+      "32": '1"'
+      "40": '1 1/4"'
+      "50": '1 1/2"'
+      "60": '2"'
+      "75": '2 1/2"'
+      "85": '3"'

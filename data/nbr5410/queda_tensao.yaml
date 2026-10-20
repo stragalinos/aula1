@@ -1,0 +1,29 @@
+# =============================================================================
+# LIMITES DE QUEDA DE TENSÃO
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/condutores.py (etapa b5)
+# Como o sistema verifica (decisão D2):
+#   1) queda do alimentador (medidor -> quadro) + queda do circuito terminal
+#      <= limite total desde a origem;
+#   2) queda do circuito terminal sozinho <= limite do circuito terminal.
+# Valores em porcentagem da tensão nominal (ex.: escreva 3 para 3 %).
+# =============================================================================
+
+metadados:
+  titulo: Limites de queda de tensão
+  descricao: >-
+    Queda de tensão máxima admitida, em porcentagem da tensão nominal, desde a
+    origem da instalação e nos circuitos terminais.
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - item da norma sobre quedas de tensão"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+limites_pct:
+  total_desde_origem:
+    fornecimento_bt_rede_publica: A_VALIDAR       # residência atendida pela rede da concessionária
+    transformador_ou_gerador_proprio: A_VALIDAR   # fora do MVP, só para registro
+  circuito_terminal: A_VALIDAR

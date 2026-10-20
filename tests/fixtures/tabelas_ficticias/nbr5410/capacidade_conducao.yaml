@@ -1,0 +1,22 @@
+# =============================================================================
+# ARQUIVO FICTÍCIO PARA TESTES
+# Os números abaixo foram INVENTADOS (redondos, para facilitar a conta à mão).
+# NÃO são valores da NBR 5410 e não devem ser usados em projeto.
+# =============================================================================
+
+metadados:
+  titulo: Capacidade de condução FICTÍCIA (apenas para testes)
+  fonte: Valores inventados para testar a lógica do sistema
+  status: EXEMPLO
+
+condutor: cobre
+unidade: A
+
+capacidade_A:
+  PVC_70C:
+    colunas: [B1-2, B1-3]
+    linhas:
+      "1.5": [10, 9]
+      "2.5": [20, 18]
+      "4":   [30, 27]
+      "6":   [40, 36]

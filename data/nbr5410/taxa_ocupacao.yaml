@@ -1,0 +1,25 @@
+# =============================================================================
+# TAXA MÁXIMA DE OCUPAÇÃO DOS ELETRODUTOS
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/eletrodutos.py (etapa b7)
+# Porcentagem máxima da área interna do eletroduto que pode ser ocupada pela
+# soma das áreas externas dos condutores (escreva 30 para 30 %).
+# =============================================================================
+
+metadados:
+  titulo: Taxa máxima de ocupação de eletrodutos
+  descricao: >-
+    Ocupação máxima da seção interna do eletroduto em função do número de
+    condutores ou cabos instalados.
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - item da norma sobre taxa de ocupação de eletrodutos"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+taxa_maxima_pct:
+  "1": A_VALIDAR       # um condutor ou cabo
+  "2": A_VALIDAR       # dois condutores ou cabos
+  "3+": A_VALIDAR      # três ou mais

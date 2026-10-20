@@ -1,0 +1,109 @@
+# =============================================================================
+# ENERGISA MATO GROSSO DO SUL — regras de fornecimento em baixa tensão
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/demanda.py (etapa b4)
+# Preencha com os valores da norma de fornecimento da Energisa vigente.
+# Esta estrutura é uma proposta (decisão D5): se a norma da Energisa organizar
+# as tabelas de outro jeito, avise para o sistema ser adaptado.
+# Para cadastrar outra concessionária, copie o arquivo _modelo.yaml.
+# =============================================================================
+
+metadados:
+  titulo: Energisa Mato Grosso do Sul - fornecimento em baixa tensão
+  descricao: >-
+    Tensões disponíveis, esquema de aterramento, cálculo de demanda e
+    categorias de atendimento para unidades consumidoras residenciais.
+  fonte: "A_VALIDAR - norma de fornecimento em BT da Energisa (confirme nome e revisão; possivelmente NDU-001)"
+  referencia: "A_VALIDAR - tabelas usadas (demanda e categorias)"
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+identificacao:
+  id: energisa_ms
+  nome: Energisa Mato Grosso do Sul
+  estado: MS
+
+fornecimento:
+  sistemas_tensao: A_VALIDAR          # lista, ex.: ["127/220"] ou ["127/220", "220/380"]
+  esquema_aterramento: A_VALIDAR      # TN-S, TN-C-S ou TT
+  # Como a concessionária escolhe a categoria de atendimento:
+  #   carga_instalada -> pela soma das potências instaladas
+  #   demanda         -> pela demanda calculada (bloco "demanda" abaixo)
+  criterio_categoria: A_VALIDAR
+  unidade_criterio: A_VALIDAR         # kW ou kVA
+
+# -----------------------------------------------------------------------------
+# DEMANDA
+# demanda = soma, para cada grupo de cargas, de (carga do grupo x fator de demanda)
+# Tipos de grupo que o sistema entende:
+#   faixas_de_potencia -> a carga do grupo é dividida em faixas acumuladas, cada
+#                         uma com seu fator (ex.: os primeiros X kW com um fator,
+#                         o que passar disso com outro). Última faixa: ate: SEM_LIMITE
+#   por_quantidade     -> o fator depende de QUANTOS aparelhos do grupo existem.
+#                         Chaves: "1", "2", faixas como "5-8" ou "10+" (10 ou mais)
+#   fator_unico        -> um só fator para todo o grupo (campo "fator")
+# "equipamentos" usa os nomes de catalogos/equipamentos_tipicos.yaml.
+# O grupo com "recebe_equipamentos_nao_listados: true" recebe os demais aparelhos.
+# Se a tabela da concessionária tiver outro formato, descreva-o ao Claude para
+# o sistema ser adaptado.
+# -----------------------------------------------------------------------------
+demanda:
+  grupos:
+    iluminacao_e_tug:
+      descricao: Iluminação e tomadas de uso geral
+      tipo: faixas_de_potencia
+      unidade: A_VALIDAR              # kW ou kVA
+      faixas:
+        - {ate: A_VALIDAR, fator: A_VALIDAR}
+        - {ate: A_VALIDAR, fator: A_VALIDAR}
+        - {ate: SEM_LIMITE, fator: A_VALIDAR}
+    aquecimento_de_agua:
+      descricao: Chuveiros, torneiras e aquecedores elétricos de água
+      tipo: por_quantidade
+      equipamentos: [chuveiro, torneira_eletrica, aquecedor_acumulacao]
+      fatores: {"1": A_VALIDAR, "2": A_VALIDAR, "3": A_VALIDAR, "4": A_VALIDAR, "5+": A_VALIDAR}
+    ar_condicionado:
+      descricao: Aparelhos de ar-condicionado
+      tipo: por_quantidade
+      equipamentos: [ar_condicionado_9000btu, ar_condicionado_12000btu, ar_condicionado_18000btu]
+      fatores: {"1": A_VALIDAR, "2": A_VALIDAR, "3": A_VALIDAR, "4": A_VALIDAR, "5+": A_VALIDAR}
+    demais_aparelhos:
+      descricao: Demais aparelhos de uso específico
+      tipo: por_quantidade
+      recebe_equipamentos_nao_listados: true
+      fatores: {"1": A_VALIDAR, "2": A_VALIDAR, "3": A_VALIDAR, "4": A_VALIDAR, "5+": A_VALIDAR}
+
+# -----------------------------------------------------------------------------
+# CATEGORIAS DE ATENDIMENTO
+# Uma entrada por categoria da tabela da concessionária, em ordem crescente de
+# carga. O sistema escolhe a primeira categoria cujo "limite_maximo" atende o
+# projeto (na unidade de "unidade_criterio"). Repita o bloco quantas vezes for
+# preciso; os três abaixo são apenas um ponto de partida (1, 2 e 3 fases).
+# -----------------------------------------------------------------------------
+categorias:
+  - codigo: A_VALIDAR
+    descricao: A_VALIDAR
+    fases: 1
+    limite_maximo: A_VALIDAR
+    disjuntor_geral_A: A_VALIDAR
+    condutor_ramal_mm2: A_VALIDAR
+    condutor_aterramento_mm2: A_VALIDAR
+    eletroduto_entrada: A_VALIDAR
+  - codigo: A_VALIDAR
+    descricao: A_VALIDAR
+    fases: 2
+    limite_maximo: A_VALIDAR
+    disjuntor_geral_A: A_VALIDAR
+    condutor_ramal_mm2: A_VALIDAR
+    condutor_aterramento_mm2: A_VALIDAR
+    eletroduto_entrada: A_VALIDAR
+  - codigo: A_VALIDAR
+    descricao: A_VALIDAR
+    fases: 3
+    limite_maximo: A_VALIDAR
+    disjuntor_geral_A: A_VALIDAR
+    condutor_ramal_mm2: A_VALIDAR
+    condutor_aterramento_mm2: A_VALIDAR
+    eletroduto_entrada: A_VALIDAR

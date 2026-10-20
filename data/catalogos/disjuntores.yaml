@@ -1,0 +1,34 @@
+# =============================================================================
+# DISPOSITIVOS DE PROTEÇÃO — VALORES COMERCIAIS
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/protecao.py (etapa b6) e lista de materiais.
+# ATENÇÃO: os números marcados como EXEMPLO foram preenchidos pelo sistema com
+# valores comerciais comuns, só para os testes andarem. Confira no catálogo do
+# fabricante que você usa e corrija o que for diferente.
+# =============================================================================
+
+metadados:
+  titulo: Dispositivos de proteção - valores comerciais
+  descricao: >-
+    Correntes nominais, curvas e polos disponíveis no mercado para disjuntores
+    termomagnéticos e dispositivos DR.
+  fonte: "A_VALIDAR - fabricante e linha de produto do catálogo usado"
+  referencia: "A_VALIDAR - nome e revisão do catálogo"
+  status: EXEMPLO
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+termomagneticos:
+  correntes_nominais_A: [6, 10, 16, 20, 25, 32, 40, 50, 63]   # EXEMPLO, em ordem crescente
+  curvas: [B, C]                                             # EXEMPLO
+  polos: [1, 2, 3]
+  capacidade_interrupcao_kA: 3                               # EXEMPLO
+  # Relação entre a corrente convencional de atuação (I2) e a corrente nominal
+  # (In), conforme a norma do produto. Usada na coordenação disjuntor x cabo.
+  relacao_I2_In: A_VALIDAR
+
+dr:
+  correntes_nominais_A: [25, 40, 63, 80]                     # EXEMPLO
+  sensibilidades_mA: [30]                                    # EXEMPLO
+  polos: [2, 4]

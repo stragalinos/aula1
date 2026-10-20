@@ -1,0 +1,85 @@
+# =============================================================================
+# CATÁLOGO DE CONDUTORES
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/condutores.py (queda de tensão, etapa b5) e
+#           nucleo/eletrodutos.py (taxa de ocupação, etapa b7)
+# Fonte: catálogo do fabricante que você usa (anote qual em "fonte").
+# Pode acrescentar outros tipos de cabo copiando um bloco inteiro.
+# =============================================================================
+
+metadados:
+  titulo: Dados de catálogo de condutores
+  descricao: >-
+    Resistividade do cobre, diâmetro externo dos cabos e, opcionalmente, a
+    queda de tensão unitária informada pelo fabricante.
+  fonte: "A_VALIDAR - fabricante e linha de produto do catálogo usado"
+  referencia: "A_VALIDAR - nome e revisão do catálogo"
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+material:
+  cobre:
+    # Usada no método "resistividade" de queda de tensão (decisão D2).
+    # ATENÇÃO: use o valor na temperatura de OPERAÇÃO do condutor (ex.: 70 °C
+    # para PVC). O valor a 20 °C deixa a conta a favor da insegurança.
+    resistividade_ohm_mm2_por_m: A_VALIDAR
+    temperatura_da_resistividade_C: A_VALIDAR
+
+tipos:
+  cabo_flexivel_pvc_750v:
+    descricao: Cabo de cobre flexível, isolação PVC 70 °C, 450/750 V (uso dentro de eletroduto)
+    isolacao: PVC_70C
+    # Diâmetro externo (mm) por seção (mm²), usado na taxa de ocupação do eletroduto.
+    diametro_externo_mm:
+      "1.5":  A_VALIDAR
+      "2.5":  A_VALIDAR
+      "4":    A_VALIDAR
+      "6":    A_VALIDAR
+      "10":   A_VALIDAR
+      "16":   A_VALIDAR
+      "25":   A_VALIDAR
+      "35":   A_VALIDAR
+      "50":   A_VALIDAR
+      "70":   A_VALIDAR
+      "95":   A_VALIDAR
+      "120":  A_VALIDAR
+  cabo_flexivel_epr_1kv:
+    descricao: Cabo unipolar de cobre flexível, isolação EPR ou XLPE 90 °C, 0,6/1 kV
+    isolacao: EPR_XLPE_90C
+    diametro_externo_mm:
+      "1.5":  A_VALIDAR
+      "2.5":  A_VALIDAR
+      "4":    A_VALIDAR
+      "6":    A_VALIDAR
+      "10":   A_VALIDAR
+      "16":   A_VALIDAR
+      "25":   A_VALIDAR
+      "35":   A_VALIDAR
+      "50":   A_VALIDAR
+      "70":   A_VALIDAR
+      "95":   A_VALIDAR
+      "120":  A_VALIDAR
+
+# OPCIONAL: só é usado se o método de queda de tensão for "queda_unitaria_catalogo"
+# (data/criterios_projeto.yaml). Valores em V/(A.km) do catálogo do fabricante.
+# Colunas: "mono" = circuito com 2 condutores carregados (F-N ou F-F);
+#          "tri"  = circuito trifásico; "fp0.80" = fator de potência 0,80.
+# CONFERIR se as colunas batem com as do seu catálogo e ajuste se preciso.
+queda_unitaria_V_por_A_km:
+  cabo_flexivel_pvc_750v:
+    colunas: [mono-fp0.80, mono-fp0.95, tri-fp0.80, tri-fp0.95]
+    linhas:
+      "1.5":  [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "2.5":  [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "4":    [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "6":    [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "10":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "16":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "25":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "35":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "50":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "70":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "95":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "120":  [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]

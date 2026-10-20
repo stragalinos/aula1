@@ -1,0 +1,45 @@
+# =============================================================================
+# EXIGÊNCIA DE DISPOSITIVO DR (diferencial-residual de alta sensibilidade)
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/protecao.py (etapa b6)
+# Para cada tipo de cômodo, indique se a norma EXIGE DR nos circuitos de
+# iluminação, TUG e TUE que atendem pontos daquele local.
+# Escreva true (exige) ou false (não exige).
+# O arranjo dos DRs (por circuito, por grupo, geral) é escolha de projeto e
+# fica em data/criterios_projeto.yaml (decisão D9).
+# =============================================================================
+
+metadados:
+  titulo: Exigência de proteção por dispositivo DR
+  descricao: >-
+    Locais e tipos de circuito em que a norma exige proteção adicional por
+    dispositivo diferencial-residual de alta sensibilidade.
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - item da norma sobre proteção adicional por DR"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: "A_VALIDAR - descreva aqui, com suas palavras, as exceções que a norma admite"
+
+sensibilidade_maxima_mA: A_VALIDAR
+
+por_tipo_comodo:
+  sala:          {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  dormitorio:    {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  cozinha:       {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  copa:          {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  copa_cozinha:  {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  area_servico:  {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  lavanderia:    {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  banheiro:      {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  lavabo:        {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  varanda:       {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  garagem:       {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  corredor_hall: {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  escritorio:    {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  area_externa:  {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+  outro:         {iluminacao: A_VALIDAR, tug: A_VALIDAR, tue: A_VALIDAR}
+
+# Tomadas em área interna que possam alimentar equipamentos usados do lado de fora.
+tomadas_internas_para_uso_externo_exigem_dr: A_VALIDAR

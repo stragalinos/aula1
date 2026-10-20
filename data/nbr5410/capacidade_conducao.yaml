@@ -1,0 +1,69 @@
+# =============================================================================
+# CAPACIDADE DE CONDUÇÃO DE CORRENTE (A) — condutores de cobre
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/condutores.py (etapa b5)
+#
+# Formato "tabela" (igual ao da norma impressa):
+#   cada LINHA  = uma seção nominal em mm² (entre aspas, com ponto decimal)
+#   cada COLUNA = método de referência + nº de condutores carregados
+#                 ex.: "B1-2" = método B1 com 2 condutores carregados
+#                      "B1-3" = método B1 com 3 condutores carregados
+#   cada linha precisa ter exatamente um valor para cada coluna (12 valores).
+#
+# Você só precisa preencher as colunas dos métodos que vai usar (veja
+# metodos_instalacao.yaml); o cálculo avisa se precisar de algum valor vazio.
+# Se a norma não tiver valor para uma célula, escreva NAO_SE_APLICA.
+# Pode acrescentar seções maiores copiando uma linha.
+# =============================================================================
+
+metadados:
+  titulo: Capacidade de condução de corrente - condutores de cobre
+  descricao: >-
+    Corrente máxima (A) que o condutor conduz continuamente, por isolação,
+    método de referência e número de condutores carregados, nas condições de
+    referência da norma (antes dos fatores de correção).
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - nº das tabelas de capacidade de condução (uma por isolação)"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+condutor: cobre
+unidade: A
+
+capacidade_A:
+  # Isolação de PVC (temperatura máxima no condutor: 70 °C)
+  PVC_70C:
+    colunas: [A1-2, A1-3, A2-2, A2-3, B1-2, B1-3, B2-2, B2-3, C-2, C-3, D-2, D-3]
+    linhas:
+      "1.5":  [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "2.5":  [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "4":    [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "6":    [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "10":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "16":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "25":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "35":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "50":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "70":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "95":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "120":  [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+
+  # Isolação de EPR ou XLPE (temperatura máxima no condutor: 90 °C)
+  EPR_XLPE_90C:
+    colunas: [A1-2, A1-3, A2-2, A2-3, B1-2, B1-3, B2-2, B2-3, C-2, C-3, D-2, D-3]
+    linhas:
+      "1.5":  [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "2.5":  [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "4":    [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "6":    [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "10":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "16":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "25":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "35":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "50":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "70":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "95":   [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]
+      "120":  [A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR, A_VALIDAR]

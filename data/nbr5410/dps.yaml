@@ -1,0 +1,49 @@
+# =============================================================================
+# DPS — DISPOSITIVO DE PROTEÇÃO CONTRA SURTOS (no quadro de distribuição)
+# -----------------------------------------------------------------------------
+# Usado em: nucleo/protecao.py (etapa b6)
+# Para cada esquema de aterramento e sistema de tensão, preencha o modo de
+# ligação do DPS e a tensão máxima de operação contínua (Uc) mínima exigida em
+# cada modo. Se um modo não se aplicar àquele esquema, escreva NAO_SE_APLICA.
+# =============================================================================
+
+metadados:
+  titulo: Dispositivo de proteção contra surtos (DPS)
+  descricao: >-
+    Características mínimas do DPS instalado no quadro de distribuição, por
+    esquema de aterramento e sistema de tensão.
+  fonte: ABNT NBR 5410
+  referencia: "A_VALIDAR - itens e tabelas da norma sobre DPS"
+  edicao_norma: A_VALIDAR
+  status: A_VALIDAR
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+classe_ensaio: A_VALIDAR                        # escreva como na norma/catálogo
+corrente_nominal_descarga_minima_kA: A_VALIDAR
+nivel_protecao_maximo_kV: A_VALIDAR
+secao_minima_condutor_ligacao_mm2: A_VALIDAR
+
+por_esquema:
+  TN-S:
+    "127/220":
+      ligacao: A_VALIDAR                        # descreva os modos de ligação (ex. fase-PE, neutro-PE)
+      uc_minima_V: {fase_pe: A_VALIDAR, neutro_pe: A_VALIDAR}
+    "220/380":
+      ligacao: A_VALIDAR
+      uc_minima_V: {fase_pe: A_VALIDAR, neutro_pe: A_VALIDAR}
+  TN-C-S:
+    "127/220":
+      ligacao: A_VALIDAR
+      uc_minima_V: {fase_pe: A_VALIDAR, neutro_pe: A_VALIDAR}
+    "220/380":
+      ligacao: A_VALIDAR
+      uc_minima_V: {fase_pe: A_VALIDAR, neutro_pe: A_VALIDAR}
+  TT:
+    "127/220":
+      ligacao: A_VALIDAR
+      uc_minima_V: {fase_pe: A_VALIDAR, neutro_pe: A_VALIDAR}
+    "220/380":
+      ligacao: A_VALIDAR
+      uc_minima_V: {fase_pe: A_VALIDAR, neutro_pe: A_VALIDAR}

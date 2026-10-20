@@ -1,0 +1,73 @@
+# =============================================================================
+# CRITÉRIOS DE PROJETO (escolhas do projetista; NÃO são valores da norma)
+# -----------------------------------------------------------------------------
+# Aqui ficam as decisões que a norma deixa a critério de quem projeta.
+# Foram escolhidas provisoriamente pelo Claude, a seu pedido. Cada item traz o
+# número da decisão (D1, D2...) explicada em docs/decisoes.md.
+# Confira; mude o que quiser; quando concordar com tudo, troque o status para
+# VALIDADO e preencha validado_por e data_validacao.
+# Os memoriais vão listar estes critérios como "critérios adotados no projeto".
+# =============================================================================
+
+metadados:
+  titulo: Critérios de projeto adotados
+  descricao: >-
+    Escolhas de projeto que não são fixadas pela norma, como limites de
+    corrente por circuito, curvas de disjuntor e arranjo dos DRs.
+  fonte: Critério do projetista
+  status: PROVISORIO
+  validado_por: ""
+  data_validacao: ""
+  observacoes: ""
+
+circuitos:
+  separar_iluminacao_e_tomadas: true            # D7 - sempre em circuitos separados
+  corrente_maxima_iluminacao_A: 10              # D7 - corrente de projeto máxima por circuito
+  corrente_maxima_tug_A: 10                     # D7
+  permitir_tug_de_comodos_diferentes: true      # D7 - respeitando os cômodos de circuito exclusivo
+  tue_sempre_em_circuito_proprio: true          # D7
+
+fator_potencia_padrao:
+  # D8 - usados para converter VA em W. Para TUE, o fator é informado por
+  # equipamento no formulário (não há valor padrão).
+  iluminacao: 1.0
+  tug: 0.8
+
+dimensionamento:
+  # D6 - disjuntor_primeiro: escolhe o disjuntor >= Ib e depois o menor cabo com
+  #                          capacidade corrigida >= corrente do disjuntor
+  #      cabo_primeiro:      escolhe o cabo pela corrente Ib e depois um disjuntor
+  #                          entre Ib e a capacidade do cabo
+  ordem: disjuntor_primeiro
+  # D2 - resistividade | queda_unitaria_catalogo
+  metodo_queda_tensao: resistividade
+  # D14 - neutro sempre com a mesma seção da fase
+  neutro_igual_a_fase: true
+  # D15 - temperatura fora da tabela: usar a linha de temperatura logo acima
+  temperatura_intermediaria: usar_linha_superior
+
+agrupamento:
+  # D3 - sem trechos de eletroduto cadastrados, considera TODOS os circuitos do
+  #      quadro agrupados (situação mais desfavorável) e avisa no memorial.
+  sem_trechos_informados: todos_os_circuitos_do_quadro
+
+comprimentos:
+  # D4 - multiplica a distância informada de cada cômodo até o quadro.
+  #      1.0 = a distância informada já é o percurso real (com subidas e descidas).
+  fator_percurso: 1.0
+
+protecao:
+  curva_iluminacao: B                           # D10
+  curva_tug: B                                  # D10
+  curva_tue_resistiva: B                        # D10 - chuveiro, forno, torneira...
+  curva_tue_com_motor: C                        # D10 - ar-condicionado, bomba, máquinas...
+  dr_aplicar_em: circuitos_exigidos             # D9 - circuitos_exigidos | todos
+  dr_arranjo: por_grupo                         # D9 - por_circuito | por_grupo | geral
+  dr_max_circuitos_por_grupo: 4                 # D9
+  verificar_curto_circuito: false               # D11 - fora do MVP; o memorial traz um aviso
+
+materiais:
+  interruptores_simples_por_comodo: 1           # D12 - editável por cômodo no formulário
+  caixa_tomada_interruptor: "4x2"               # D12
+  caixa_ponto_teto: octogonal_4x4               # D12
+  folga_cabo_pct: 10                            # D12 - sobra de cabo para emendas e ligações
