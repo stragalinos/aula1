@@ -1,0 +1,634 @@
+"""ETAPAS 1 e 2 - cruzamento das 3 bases, etapa do funil e status de risco.
+
+Grão da tabela: uma linha por material x requisição x OS (com sequencial quando o mesmo trio se
+repete). Toda linha de entrada termina em exatamente um lugar: numa linha do Follow-up
+(coluna "Linhas de origem") ou na aba Divergências como NÃO CASADO.
+"""
+import numpy as np
+import pandas as pd
+
+ETAPAS = {
+    1: "1 - Aguardando aprovação gestor (nível 01)",
+    2: "2 - Aguardando almox corporativo (nível 02)",
+    3: "3 - Compra autorizada (sem pedido)",
+    4: "4 - Pedido emitido (aguardando entrega)",
+    5: "5 - Entregue / Concluído",
+}
+
+# prioridade -> texto (a ordem é a prioridade do status de risco)
+STATUS = {
+    1: "🔴 NECESSIDADE VENCIDA",
+    2: "🔴 PARADA NA APROVAÇÃO",
+    3: "🟠 SEM PEDIDO",
+    4: "🟠 ENTREGA EM RISCO",
+    5: "🟢 NO PRAZO",
+    6: "✅ ENTREGUE",
+    7: "⚪ SEM DATA DE NECESSIDADE",
+}
+
+PARAMETROS_PADRAO = {"x_nivel01": 3, "x_nivel02": 5, "y_sem_pedido": 2, "z_entrega": 5}
+
+# o TracOS preenche o preço estimado com R$ 1,00 quando ninguém informou o preço
+PRECO_PLACEHOLDER = 1.0
+
+CONFIANCA = {
+    "R1": "Alta – material + requisição + pedido",
+    "R2": "Média – material + requisição",
+    "R3": "Média – material + pedido",
+    "R4": "Baixa – material + OS",
+    "R5": "Baixa – OS inferida pela requisição",
+    "SO_REQ": "Só requisição – pendente (sem vínculo esperado)",
+    "SO_FLX": "Só fluxo – compra autorizada, sem pedido",
+    "FLX_SEM_PED": "Só fluxo – pedido não encontrado na base de pedidos",
+}
+
+
+def _na(v):
+    try:
+        return v is None or bool(pd.isna(v))
+    except (TypeError, ValueError):
+        return False
+
+
+def _int(v):
+    return None if _na(v) else int(v)
+
+
+def _casar(a, b, chaves, usados_a, usados_b):
+    """Casa 1:1 as linhas ainda livres de A e B pelas chaves. Retorna {idx_a: (idx_b, n_candidatos)}."""
+    indice = {}
+    for j, row in b[chaves].iterrows():
+        if j in usados_b:
+            continue
+        k = tuple(row)
+        if any(_na(x) for x in k):
+            continue
+        indice.setdefault(tuple(str(x) for x in k), []).append(j)
+    res = {}
+    for i, row in a[chaves].iterrows():
+        if i in usados_a:
+            continue
+        k = tuple(row)
+        if any(_na(x) for x in k):
+            continue
+        cands = [j for j in indice.get(tuple(str(x) for x in k), []) if j not in usados_b]
+        if cands:
+            res[i] = (cands[0], len(cands))
+            usados_a.add(i)
+            usados_b.add(cands[0])
+    return res
+
+
+def _etapa_pedido(status):
+    s = str(status or "").lower()
+    return 5 if ("conclu" in s or "entreg" in s or "recebid" in s) else 4
+
+
+def _etapa_fluxo(fx):
+    st = str(fx["status_fluxo"] or "").lower()
+    if not _na(fx["entrada"]) or (not _na(fx["qtd_pendente"]) and fx["qtd_pendente"] == 0) \
+            or "conclu" in st or "entreg" in st or "recebid" in st:
+        return 5
+    if "pedido" in st or not _na(fx["pedido"]):
+        return 4
+    return 3
+
+
+def _ativo_txt(tag, nome):
+    if _na(tag) and _na(nome):
+        return None
+    return f"{tag} - {nome}" if not _na(tag) else str(nome)
+
+
+def _preco_linha(fx):
+    """Preço unitário e origem a partir da linha do fluxo."""
+    if fx is None:
+        return None, None
+    if not _na(fx["preco_entrada"]):
+        return float(fx["preco_entrada"]), "entrada"
+    if not _na(fx["preco_negociado"]):
+        return float(fx["preco_negociado"]), "negociado"
+    if not _na(fx["preco_estimado"]) and fx["preco_estimado"] != PRECO_PLACEHOLDER:
+        return float(fx["preco_estimado"]), "estimado"
+    return None, None
+
+
+def dias(d1, d0):
+    """Dias inteiros entre duas datas (ignora hora), como INT(d1)-INT(d0) no Excel."""
+    if _na(d1) or _na(d0):
+        return None
+    return (pd.Timestamp(d1).normalize() - pd.Timestamp(d0).normalize()).days
+
+
+def prioridade(etapa, data_nec, inicio, hoje, prm):
+    """Espelho em Python da fórmula de risco da planilha (usado para ordenar e validar)."""
+    d_etapa = dias(hoje, inicio)
+    d_nec = dias(data_nec, hoje)
+    if etapa == 5:
+        return 6
+    if d_nec is not None and d_nec < 0:
+        return 1
+    if etapa <= 2 and (d_etapa or 0) > (prm["x_nivel01"] if etapa == 1 else prm["x_nivel02"]):
+        return 2
+    if etapa == 3 and (d_etapa or 0) > prm["y_sem_pedido"]:
+        return 3
+    if etapa == 4 and d_nec is not None and d_nec <= prm["z_entrega"]:
+        return 4
+    if d_nec is None:
+        return 7
+    return 5
+
+
+def cruzar(B, hoje, historico=None, prm=None):
+    """Cruza as bases. Retorna dict com linhas (Follow-up), divergencias, por_os, por_fornecedor,
+    requisicoes, historico novo, alertas e conciliacao."""
+    hoje = pd.Timestamp(hoje).normalize()
+    historico = historico or {}
+    prm = {**PARAMETROS_PADRAO, **(prm or {})}
+    r = B["requisicao"]["norm"]
+    f = B["fluxo"]["norm"]
+    p = B["pedido"]["norm"]
+
+    regras = {"R1": ["codigo", "requisicao", "pedido"], "R2": ["codigo", "requisicao"],
+              "R3": ["codigo", "pedido"], "R4": ["codigo", "os_tracos"]}
+
+    # 1) fluxo <-> pedido : R1 -> R2 -> R3
+    uf, up = set(), set()
+    f2p = {}
+    for regra in ("R1", "R2", "R3"):
+        for i, (j, n) in _casar(f, p, regras[regra], uf, up).items():
+            f2p[i] = (j, regra, n)
+
+    # 2) requisição <-> fluxo : R2 -> R4  (hoje dá 0: a requisição sai da base quando vira pedido)
+    ur, uf_r = set(), set()
+    r2f = {}
+    for regra in ("R2", "R4"):
+        for i, (j, n) in _casar(r, f, regras[regra], ur, uf_r).items():
+            r2f[i] = (j, regra, n)
+    f2r = {j: (i, regra, n) for i, (j, regra, n) in r2f.items()}
+
+    # 3) requisição restante <-> pedido restante : R2
+    r2p = {}
+    for i, (j, n) in _casar(r, p, regras["R2"], ur, up).items():
+        r2p[i] = (j, "R2", n)
+
+    # 4) OS por requisição (para inferir a OS de item de pedido que não está no fluxo)
+    req_os = {}
+    for df in (f, r):
+        for req, os_ in df[["requisicao", "os_tracos"]].dropna().itertuples(index=False):
+            req_os.setdefault(int(req), set()).add(int(os_))
+    os_info = {}
+    for df in (f, r):
+        for _, row in df.dropna(subset=["os_tracos"]).iterrows():
+            os_info.setdefault(int(row["os_tracos"]), row)
+    nec_os = f.dropna(subset=["os_tracos"]).groupby("os_tracos")["data_necessidade"].min()
+
+    # preço de referência por material (para linhas sem preço próprio)
+    preco_ref = {}
+    for _, fx in f.iterrows():
+        pr, _o = _preco_linha(fx)
+        if pr is not None and fx["codigo"] not in preco_ref:
+            preco_ref[fx["codigo"]] = pr
+
+    linhas, divs = [], []
+
+    def nova(rq=None, fx=None, pd_=None, conf=None, os_row=None, nec_herdada=None):
+        L = {}
+        base_os = fx if fx is not None else (rq if rq is not None else os_row)
+        ref = fx if fx is not None else (rq if rq is not None else pd_)
+        L["codigo"] = ref["codigo"]
+        L["descricao"] = ref["descricao"]
+        for c in ("os_tracos", "os_sap", "plano", "descricao_os", "eh_preventiva"):
+            L[c] = None if base_os is None else base_os[c]
+        L["ativo"] = None
+        if rq is not None:
+            L["ativo"] = _ativo_txt(rq["ativo_tag"], rq["ativo_nome"])
+        if L["ativo"] is None and pd_ is not None:
+            L["ativo"] = _ativo_txt(pd_["ativo_tag"], pd_["ativo_nome"])
+        if fx is not None:
+            L["qtd"], L["unidade"], L["qtd_pendente"] = fx["qtd"], fx["unidade"], fx["qtd_pendente"]
+        elif rq is not None:
+            L["qtd"], L["unidade"], L["qtd_pendente"] = rq["qtd"], rq["unidade"], rq["qtd"]
+        else:
+            L["qtd"] = L["unidade"] = L["qtd_pendente"] = None
+        L["data_necessidade"] = fx["data_necessidade"] if fx is not None else nec_herdada
+        if fx is not None:
+            L["requisicao"], L["req_item"] = fx["requisicao"], fx["req_item"]
+        else:
+            L["requisicao"] = (rq if rq is not None else pd_)["requisicao"]
+            L["req_item"] = None
+        L["req_sap"] = rq["req_sap"] if rq is not None else None
+        L["nivel_liberacao"] = rq["nivel_liberacao"] if rq is not None else None
+        L["grupo_compradores"] = rq["grupo_compradores"] if rq is not None else None
+        L["criado_req"] = rq["criado_em"] if rq is not None else None
+        L["pedido"] = pd_["pedido"] if pd_ is not None else (fx["pedido"] if fx is not None else None)
+        L["pedido_sap"] = pd_["pedido_sap"] if pd_ is not None else None
+        L["status_pedido"] = pd_["status_pedido"] if pd_ is not None else None
+        L["criado_ped"] = pd_["criado_em"] if pd_ is not None else None
+        L["atualizado_ped"] = pd_["atualizado_em"] if pd_ is not None else None
+        L["fornecedor"] = pd_["fornecedor"] if pd_ is not None else (fx["fornecedor"] if fx is not None else None)
+        L["entrada"] = pd_["entrada"] if pd_ is not None and not _na(pd_["entrada"]) else (
+            fx["entrada"] if fx is not None else None)
+        L["entrada_em"] = pd_["entrada_em"] if pd_ is not None else None
+        L["nota_fiscal"] = pd_["nota_fiscal"] if pd_ is not None else None
+        L["local_estoque"] = fx["local_estoque"] if fx is not None else None
+        L["centro_custo"] = (fx if fx is not None else rq)["centro_custo"] if (fx is not None or rq is not None) else None
+        L["status_fluxo"] = fx["status_fluxo"] if fx is not None else None
+        L["status_req"] = rq["status_req"] if rq is not None else None
+        preco, origem = _preco_linha(fx)
+        if preco is None and L["codigo"] in preco_ref:
+            preco, origem = preco_ref[L["codigo"]], "ref. (mesmo material no fluxo)"
+        L["preco"], L["origem_preco"] = preco, origem
+        if pd_ is not None:
+            etapa = _etapa_pedido(pd_["status_pedido"])
+            if not _na(pd_["entrada"]):
+                etapa = 5
+        elif fx is not None:
+            etapa = _etapa_fluxo(fx)
+        else:
+            etapa = 2 if str(rq["nivel_liberacao"] or "").startswith("02") else 1
+        L["etapa"] = etapa
+        L["confianca"] = conf
+        L["orig_req"] = _int(rq["linha_origem"]) if rq is not None else None
+        L["orig_flx"] = _int(fx["linha_origem"]) if fx is not None else None
+        L["orig_ped"] = _int(pd_["linha_origem"]) if pd_ is not None else None
+        L["_tem_ped"] = pd_ is not None
+        return L
+
+    # linhas a partir do fluxo
+    for i, fx in f.iterrows():
+        partes = []
+        rq = None
+        if i in f2r:
+            ir, regra, n = f2r[i]
+            rq = r.loc[ir]
+            partes.append(f"{CONFIANCA[regra]} (req↔fluxo)")
+        pd_ = None
+        if i in f2p:
+            j, regra, n = f2p[i]
+            pd_ = p.loc[j]
+            partes.append(CONFIANCA[regra] + (" (req↔fluxo↔pedido)" if rq is not None else ""))
+            if n > 1:
+                divs.append(dict(tipo="VÍNCULO AMBÍGUO", gravidade="Média", base="fluxo",
+                                 linha=_int(fx["linha_origem"]), codigo=fx["codigo"],
+                                 descricao=fx["descricao"], requisicao=_int(fx["requisicao"]),
+                                 pedido=_int(fx["pedido"]), os=_int(fx["os_tracos"]),
+                                 fornecedor=fx["fornecedor"],
+                                 detalhe=f"Regra {regra}: {n} itens de pedido candidatos; usado o 1º "
+                                         f"(linha {_int(pd_['linha_origem'])}).", _ref="linha"))
+            if regra != "R1" and not _na(fx["pedido"]) and _int(fx["pedido"]) != _int(pd_["pedido"]):
+                divs.append(dict(tipo="PEDIDO DIFERENTE ENTRE FLUXO E PEDIDO", gravidade="Média",
+                                 base="fluxo", linha=_int(fx["linha_origem"]), codigo=fx["codigo"],
+                                 descricao=fx["descricao"], requisicao=_int(fx["requisicao"]),
+                                 pedido=_int(fx["pedido"]), os=_int(fx["os_tracos"]),
+                                 fornecedor=fx["fornecedor"],
+                                 detalhe=f"Fluxo aponta pedido #{_int(fx['pedido'])}, casado com o "
+                                         f"pedido #{_int(pd_['pedido'])} pela regra {regra}.", _ref="linha"))
+        elif not _na(fx["pedido"]) or "pedido" in str(fx["status_fluxo"]).lower():
+            partes.append(CONFIANCA["FLX_SEM_PED"])
+            divs.append(dict(tipo="PEDIDO NÃO ENCONTRADO NA BASE DE PEDIDOS", gravidade="Média",
+                             base="fluxo", linha=_int(fx["linha_origem"]), codigo=fx["codigo"],
+                             descricao=fx["descricao"], requisicao=_int(fx["requisicao"]),
+                             pedido=_int(fx["pedido"]), os=_int(fx["os_tracos"]),
+                             fornecedor=fx["fornecedor"],
+                             detalhe="Item com pedido no fluxo, mas o pedido não está na exportação de "
+                                     "pedidos (sem nº SAP, entrada e NF).", _ref="linha"))
+        else:
+            partes.append(CONFIANCA["SO_FLX"])
+        L = nova(rq=rq, fx=fx, pd_=pd_, conf="; ".join(partes))
+        if rq is not None:
+            if not _na(rq["qtd"]) and not _na(fx["qtd"]) and rq["qtd"] != fx["qtd"]:
+                divs.append(dict(tipo="DIVERGÊNCIA DE QUANTIDADE (req × fluxo)", gravidade="Média",
+                                 base="requisição", linha=_int(rq["linha_origem"]), codigo=fx["codigo"],
+                                 descricao=fx["descricao"], requisicao=_int(fx["requisicao"]),
+                                 pedido=_int(fx["pedido"]), os=_int(fx["os_tracos"]),
+                                 fornecedor=fx["fornecedor"],
+                                 detalhe=f"Requisição: {rq['qtd']:g} {rq['unidade']} | fluxo: "
+                                         f"{fx['qtd']:g} {fx['unidade']}", _ref="linha"))
+            if f2r[i][1] == "R4":
+                divs.append(dict(tipo="BAIXA CONFIANÇA – material + OS", gravidade="Média",
+                                 base="requisição", linha=_int(rq["linha_origem"]), codigo=fx["codigo"],
+                                 descricao=fx["descricao"], requisicao=_int(rq["requisicao"]),
+                                 pedido=_int(fx["pedido"]), os=_int(fx["os_tracos"]),
+                                 fornecedor=fx["fornecedor"],
+                                 detalhe=f"Requisição #{_int(rq['requisicao'])} casada com o item "
+                                         f"#{_int(fx['requisicao'])}/{_int(fx['req_item'])} do fluxo só "
+                                         f"pelo material e OS.", _ref="linha"))
+        if pd_ is not None and not _na(fx["fornecedor"]) and fx["fornecedor"] != pd_["fornecedor"]:
+            divs.append(dict(tipo="DIVERGÊNCIA DE FORNECEDOR (fluxo × pedido)", gravidade="Alta",
+                             base="fluxo", linha=_int(fx["linha_origem"]), codigo=fx["codigo"],
+                             descricao=fx["descricao"], requisicao=_int(fx["requisicao"]),
+                             pedido=_int(pd_["pedido"]), os=_int(fx["os_tracos"]),
+                             fornecedor=pd_["fornecedor"],
+                             detalhe=f"Fluxo: {fx['fornecedor']} | pedido: {pd_['fornecedor']}", _ref="linha"))
+        linhas.append(L)
+
+    # linhas a partir da requisição (não absorvidas pelo fluxo)
+    for i, rq in r.iterrows():
+        if i in r2f:
+            continue
+        if i in r2p:
+            j, regra, n = r2p[i]
+            linhas.append(nova(rq=rq, pd_=p.loc[j], conf=f"{CONFIANCA[regra]} (req↔pedido)"))
+        else:
+            linhas.append(nova(rq=rq, conf=CONFIANCA["SO_REQ"]))
+
+    # itens de pedido que sobraram
+    orfaos_ped = []
+    for j, pd_ in p.iterrows():
+        if j in up:
+            continue
+        oss = req_os.get(_int(pd_["requisicao"]), set())
+        if len(oss) == 1:
+            os_ = next(iter(oss))
+            nec = nec_os.get(os_, None)
+            L = nova(pd_=pd_, conf=f"{CONFIANCA['R5']} #{_int(pd_['requisicao'])}",
+                     os_row=os_info[os_], nec_herdada=None if _na(nec) else nec)
+            linhas.append(L)
+            divs.append(dict(tipo="BAIXA CONFIANÇA – OS inferida pela requisição", gravidade="Média",
+                             base="pedido", linha=_int(pd_["linha_origem"]), codigo=pd_["codigo"],
+                             descricao=pd_["descricao"], requisicao=_int(pd_["requisicao"]),
+                             pedido=_int(pd_["pedido"]), os=os_, fornecedor=pd_["fornecedor"],
+                             detalhe=f"Item do pedido #{_int(pd_['pedido'])} fora do fluxo. Requisição "
+                                     f"#{_int(pd_['requisicao'])} só tem a OS #{os_}; data de necessidade "
+                                     f"herdada dos outros itens da OS.", _ref="linha"))
+        else:
+            orfaos_ped.append(j)
+            motivo = ("requisição aponta para várias OS: " + ", ".join(f"#{o}" for o in sorted(oss))
+                      if oss else "requisição não aparece no fluxo nem na base de requisição")
+            divs.append(dict(tipo="NÃO CASADO – pedido sem OS identificável", gravidade="Alta"
+                             if _etapa_pedido(pd_["status_pedido"]) == 4 else "Info",
+                             base="pedido", linha=_int(pd_["linha_origem"]), codigo=pd_["codigo"],
+                             descricao=pd_["descricao"], requisicao=_int(pd_["requisicao"]),
+                             pedido=_int(pd_["pedido"]), os=None, fornecedor=pd_["fornecedor"],
+                             detalhe=f"{pd_['status_pedido']} – pedido SAP {pd_['pedido_sap']}"
+                                     f"{' – ativo ' + pd_['ativo_nome'] if not _na(pd_['ativo_nome']) else ''}"
+                                     f". Sem vínculo com OS ({motivo}).",
+                             chave=f"{pd_['codigo']}|R{_int(pd_['requisicao'])}|PED{_int(pd_['pedido'])}",
+                             conta=True))
+
+    L = pd.DataFrame(linhas)
+
+    # ativo faltante: ativo mais comum da mesma OS
+    ativo_os = (L.dropna(subset=["ativo", "os_tracos"]).groupby("os_tracos")["ativo"]
+                .agg(lambda s: s.value_counts().index[0]))
+    falta = L["ativo"].isna() & L["os_tracos"].notna()
+    L.loc[falta, "ativo"] = L.loc[falta, "os_tracos"].map(ativo_os)
+
+    # chave = material | requisição | OS (+ sequencial quando o trio se repete)
+    L["_ord"] = L["req_item"].fillna(0).astype(float) * 1e6 + L["orig_req"].fillna(0) + \
+        L["orig_flx"].fillna(0) * 1e3 + L["orig_ped"].fillna(0) * 1e4
+    L = L.sort_values(["codigo", "requisicao", "os_tracos", "_ord"], na_position="last")
+    base_chave = (L["codigo"].astype(str) + "|R" + L["requisicao"].map(lambda v: "-" if _na(v) else str(int(v)))
+                  + "|OS" + L["os_tracos"].map(lambda v: "-" if _na(v) else str(int(v))))
+    L["seq"] = base_chave.groupby(base_chave).cumcount() + 1
+    L["chave"] = base_chave + L["seq"].map(lambda s: "" if s == 1 else f"|{s}")
+    L = L.drop(columns="_ord")
+
+    # início da etapa (usa o histórico da execução anterior quando a base não tem a data)
+    inicios, bases_ini = [], []
+    for _, l in L.iterrows():
+        h = historico.get(l["chave"])
+        e = l["etapa"]
+        if e == 1:
+            ini, b = l["criado_req"], "Criado em (requisição)"
+        elif e == 2:
+            if h and h[0] == 2:
+                ini, b = h[1], "1ª vez vista no nível 02"
+            elif h and h[0] == 1:
+                ini, b = hoje, "1ª vez vista no nível 02"
+            else:
+                ini, b = l["criado_req"], "Criado em (requisição) – inclui nível 01"
+        elif e == 4 and not _na(l["criado_ped"]):
+            ini, b = l["criado_ped"], "Criado em (pedido)"
+        elif e == 5 and not _na(l["entrada_em"]):
+            ini, b = l["entrada_em"], "Entrada registrada em"
+        elif e == 5 and not _na(l["atualizado_ped"]):
+            ini, b = l["atualizado_ped"], "Atualizado em (pedido)"
+        elif h and h[0] == e and not _na(h[1]):
+            ini, b = h[1], "1ª vez vista nesta etapa"
+        else:
+            ini, b = hoje, "1ª vez vista nesta etapa"
+        if _na(ini):
+            ini, b = hoje, "1ª vez vista nesta etapa"
+        inicios.append(pd.Timestamp(ini))
+        bases_ini.append(b)
+    L["inicio_etapa"] = inicios
+    L["base_inicio"] = bases_ini
+    L["etapa_txt"] = L["etapa"].map(ETAPAS)
+    L["prioridade"] = [prioridade(e, n, i, hoje, prm) for e, n, i in
+                       zip(L["etapa"], L["data_necessidade"], L["inicio_etapa"])]
+    L["status"] = L["prioridade"].map(STATUS)
+    L["valor"] = L["qtd"] * L["preco"]
+    L["requisicao_txt"] = [
+        None if _na(rq) else (f"#{int(rq)}/{int(it)}" if not _na(it) else f"#{int(rq)}")
+        for rq, it in zip(L["requisicao"], L["req_item"])]
+    L["origens"] = [" | ".join(x for x in (
+        f"REQ L{int(a)}" if not _na(a) else "", f"FLX L{int(b)}" if not _na(b) else "",
+        f"PED L{int(c)}" if not _na(c) else "") if x)
+        for a, b, c in zip(L["orig_req"], L["orig_flx"], L["orig_ped"])]
+    L["eh_preventiva"] = L["eh_preventiva"].fillna(False).astype(bool)
+    L = L.sort_values(["prioridade", "data_necessidade", "os_tracos", "codigo", "seq"],
+                      na_position="last").reset_index(drop=True)
+
+    novo_hist = {c: (int(e), pd.Timestamp(i)) for c, e, i in zip(L["chave"], L["etapa"], L["inicio_etapa"])}
+
+    # ------------------------------------------------ divergências adicionais
+    chave_por_origem = {}
+    for _, l in L.iterrows():
+        for base, col in (("requisição", "orig_req"), ("fluxo", "orig_flx"), ("pedido", "orig_ped")):
+            if not _na(l[col]):
+                chave_por_origem[(base, int(l[col]))] = l["chave"]
+
+    # itens repetidos na mesma requisição/OS
+    rep = r[r.duplicated(["requisicao", "codigo", "os_tracos"], keep=False)]
+    for (req, cod, os_), g in rep.groupby(["requisicao", "codigo", "os_tracos"]):
+        qt = " + ".join(f"{q:g} {u}" for q, u in zip(g["qtd"], g["unidade"]))
+        for _, rq in g.iterrows():
+            divs.append(dict(tipo="ITEM REPETIDO NA MESMA REQUISIÇÃO/OS", gravidade="Média",
+                             base="requisição", linha=_int(rq["linha_origem"]), codigo=cod,
+                             descricao=rq["descricao"], requisicao=int(req), pedido=None, os=int(os_),
+                             fornecedor=None,
+                             detalhe=f"{len(g)} linhas iguais ({qt}). Mantidas separadas com sequencial; "
+                                     f"confira se não é digitação em dobro.", _ref="linha"))
+
+    # possível compra em duplicidade: requisição pendente com material+ativo já em pedido/fluxo
+    abertos = L[L["etapa"].isin([3, 4, 5])].dropna(subset=["ativo"])
+    idx_ab = {}
+    for _, l in abertos.iterrows():
+        idx_ab.setdefault((l["codigo"], l["ativo"]), []).append(l)
+    for _, l in L[L["etapa"].isin([1, 2])].iterrows():
+        for o in idx_ab.get((l["codigo"], l["ativo"]), []):
+            if o["requisicao"] == l["requisicao"]:
+                continue
+            divs.append(dict(tipo="POSSÍVEL COMPRA EM DUPLICIDADE", gravidade="Alta", base="requisição",
+                             linha=_int(l["orig_req"]), codigo=l["codigo"], descricao=l["descricao"],
+                             requisicao=_int(l["requisicao"]), pedido=_int(o["pedido"]),
+                             os=_int(l["os_tracos"]), fornecedor=o["fornecedor"],
+                             detalhe=f"Requisição pendente #{_int(l['requisicao'])} (OS #{_int(l['os_tracos'])}) "
+                                     f"pede o mesmo material para o mesmo ativo ({l['ativo']}) que já está "
+                                     f"em {o['requisicao_txt']} / pedido #{_int(o['pedido'])} "
+                                     f"({o['etapa_txt'][4:]}, OS #{_int(o['os_tracos'])}).",
+                             chave=l["chave"]))
+
+    # valor do pedido x soma dos itens do fluxo
+    fv = f.assign(valor=f["qtd"] * f["preco_negociado"]).dropna(subset=["pedido"])
+    soma = fv.groupby("pedido").agg(itens_f=("codigo", "size"), soma=("valor", "sum"))
+    tot = p.groupby("pedido").agg(itens_p=("codigo", "size"), total=("custo_total_pedido", "first"),
+                                  forn=("fornecedor", "first"), sap=("pedido_sap", "first"))
+    comp = tot.join(soma, how="inner")
+    for ped, c in comp.iterrows():
+        dif = round(float(c["total"]) - float(c["soma"]), 2)
+        if abs(dif) >= 0.01:
+            divs.append(dict(tipo="DIVERGÊNCIA DE VALOR (pedido × fluxo)",
+                             gravidade="Média" if c["itens_p"] > c["itens_f"] else "Alta",
+                             base="pedido", linha=None, codigo=None, descricao=None, requisicao=None,
+                             pedido=int(ped), os=None, fornecedor=c["forn"],
+                             detalhe=f"Pedido SAP {c['sap']}: total R$ {c['total']:,.2f} × soma dos itens no "
+                                     f"fluxo R$ {c['soma']:,.2f} (dif. R$ {dif:,.2f}). Itens no pedido: "
+                                     f"{c['itens_p']}, no fluxo: {c['itens_f']}.".replace(",", "X")
+                                     .replace(".", ",").replace("X", "."),
+                             chave=f"PED{int(ped)}"))
+
+    # local de estoque obsoleto
+    for _, fx in f[f["local_estoque"].str.contains("obsolet", case=False, na=False)].iterrows():
+        divs.append(dict(tipo="ATENÇÃO – local de estoque obsoleto", gravidade="Info", base="fluxo",
+                         linha=_int(fx["linha_origem"]), codigo=fx["codigo"], descricao=fx["descricao"],
+                         requisicao=_int(fx["requisicao"]), pedido=_int(fx["pedido"]),
+                         os=_int(fx["os_tracos"]), fornecedor=fx["fornecedor"],
+                         detalhe=f"Item comprado para o local '{fx['local_estoque']}'.", _ref="linha"))
+
+    # requisição com status diferente de Pendente
+    for _, rq in r[r["status_req"].fillna("").str.lower() != "pendente"].iterrows():
+        divs.append(dict(tipo="ATENÇÃO – status de requisição inesperado", gravidade="Média",
+                         base="requisição", linha=_int(rq["linha_origem"]), codigo=rq["codigo"],
+                         descricao=rq["descricao"], requisicao=_int(rq["requisicao"]), pedido=None,
+                         os=_int(rq["os_tracos"]), fornecedor=None,
+                         detalhe=f"Status '{rq['status_req']}' (esperado: Pendente).", _ref="linha"))
+
+    # alertas de carga
+    alertas = []
+    n_fora = int((~p.index.isin(list(up))).sum())
+    if len(f) and len(f) % 20 == 0:
+        alertas.append(f"O fluxo de compras tem exatamente {len(f)} linhas (múltiplo de 20): a exportação "
+                       f"pode ter saído só com a 1ª página. Confira e reexporte se preciso.")
+    n_inf = int((L["confianca"].str.startswith(CONFIANCA["R5"])).sum())
+    if n_fora:
+        alertas.append(f"{n_fora} de {len(p)} itens da base de pedidos não estão no fluxo "
+                       f"({n_inf} com OS inferida pela requisição, {len(orfaos_ped)} sem OS → Divergências).")
+    for nome in ("requisicao", "fluxo", "pedido"):
+        if len(B[nome]["candidatos"]) > 1:
+            alertas.append(f"Vários arquivos de {nome} na pasta bases; usado o mais recente: "
+                           f"{B[nome]['arquivo']}")
+    for a in alertas:
+        divs.append(dict(tipo="ALERTA DE CARGA", gravidade="Alta", base="-", linha=None, codigo=None,
+                         descricao=None, requisicao=None, pedido=None, os=None, fornecedor=None,
+                         detalhe=a, chave="CARGA|" + a[:40]))
+
+    D = pd.DataFrame(divs)
+    if len(D):
+        if "conta" not in D:
+            D["conta"] = False
+        D["conta"] = D["conta"].fillna(False).astype(bool)
+        if "chave" not in D:
+            D["chave"] = None
+        if "_ref" in D:
+            m = D["_ref"].eq("linha") & D["chave"].isna()
+            D.loc[m, "chave"] = [chave_por_origem.get((b, int(li))) if not _na(li) else None
+                                 for b, li in zip(D.loc[m, "base"], D.loc[m, "linha"])]
+            D = D.drop(columns="_ref")
+        D["no_followup"] = D["chave"].isin(set(L["chave"])).map({True: "SIM", False: "NÃO"})
+        ordem_g = {"Alta": 0, "Média": 1, "Info": 2}
+        D["_g"] = D["gravidade"].map(ordem_g)
+        D = D.sort_values(["_g", "tipo", "pedido", "requisicao", "linha"], na_position="last") \
+            .drop(columns="_g").reset_index(drop=True)
+
+    # ------------------------------------------------ agregações
+    por_os = _por_os(L)
+    por_forn = _por_fornecedor(L, p, up, hoje)
+    reqs = _requisicoes(L, hoje, prm)
+
+    # ------------------------------------------------ conciliação de linhas
+    conc = []
+    for nome, col, df in (("requisição", "orig_req", r), ("fluxo", "orig_flx", f), ("pedido", "orig_ped", p)):
+        em_fu = [int(x) for x in L[col].dropna()]
+        em_dv = [int(x) for x in D.loc[D["conta"] & D["base"].eq(nome), "linha"].dropna()] if len(D) else []
+        todas = set(int(x) for x in df["linha_origem"])
+        conc.append(dict(base=nome, entrada=len(df), follow_up=len(em_fu), divergencias=len(em_dv),
+                         total_saida=len(em_fu) + len(em_dv),
+                         ok=(sorted(em_fu + em_dv) == sorted(todas))))
+    return dict(linhas=L, divergencias=D, por_os=por_os, por_fornecedor=por_forn, requisicoes=reqs,
+                historico=novo_hist, alertas=alertas, conciliacao=pd.DataFrame(conc), prm=prm, hoje=hoje)
+
+
+def _por_os(L):
+    g = L.dropna(subset=["os_tracos"]).copy()
+    if not len(g):
+        return pd.DataFrame()
+
+    def resumo(s):
+        c = s.value_counts().sort_index()
+        nomes = {1: "aprov. gestor", 2: "almox corp.", 3: "sem pedido", 4: "em pedido", 5: "entregue"}
+        return ", ".join(f"{n} {nomes[e]}" for e, n in c.items())
+
+    out = g.groupby("os_tracos").agg(
+        os_sap=("os_sap", "first"), plano=("plano", "first"), descricao_os=("descricao_os", "first"),
+        preventiva=("eh_preventiva", "max"),
+        ativo=("ativo", lambda s: s.dropna().value_counts().index[0] if s.notna().any() else None),
+        centro_custo=("centro_custo", "first"), data_necessidade=("data_necessidade", "min"),
+        itens=("codigo", "size"), situacao=("etapa", resumo),
+        pior_etapa=("etapa", lambda s: int(s[s < 5].min()) if (s < 5).any() else 5),
+        pior_prio=("prioridade", "min"),
+    ).reset_index()
+    out = out.sort_values(["preventiva", "pior_prio", "data_necessidade", "os_tracos"],
+                          ascending=[False, True, True, True], na_position="last").reset_index(drop=True)
+    return out
+
+
+def _por_fornecedor(L, p, usados_p, hoje):
+    abertos_p = p[p["status_pedido"].map(_etapa_pedido) == 4]
+    l4 = L[(L["etapa"] == 4) & L["fornecedor"].notna()]
+    forns = sorted(set(abertos_p["fornecedor"].dropna()) | set(l4["fornecedor"]))
+    linhas = []
+    for fo in forns:
+        ap = abertos_p[abertos_p["fornecedor"] == fo]
+        lf = l4[l4["fornecedor"] == fo]
+        peds = {}
+        for _, x in ap.iterrows():
+            peds[int(x["pedido"])] = dict(sap=x["pedido_sap"], total=x["custo_total_pedido"], criado=x["criado_em"])
+        for _, x in lf.iterrows():
+            if not _na(x["pedido"]) and int(x["pedido"]) not in peds:
+                peds[int(x["pedido"])] = dict(sap=x["pedido_sap"], total=None, criado=x["inicio_etapa"])
+        valor = sum(v["total"] for v in peds.values() if not _na(v["total"]))
+        sem_total = lf["pedido"].map(lambda v: not _na(v) and _na(peds[int(v)]["total"])).astype(bool)
+        valor += float(lf.loc[sem_total, "valor"].fillna(0).sum())
+        criados = [v["criado"] for v in peds.values() if not _na(v["criado"])]
+        sem_os = ap[[j not in usados_p for j in ap.index]]
+        sem_os = sem_os[~sem_os["linha_origem"].isin(L["orig_ped"].dropna().astype(int))]
+        atrasos = [(hoje - d).days for d in lf["data_necessidade"].dropna() if d < hoje]
+        linhas.append(dict(
+            fornecedor=fo, n_pedidos=len(peds),
+            pedidos="; ".join(f"#{k}" + (f" (SAP {v['sap']})" if not _na(v["sap"]) else "")
+                              for k, v in sorted(peds.items())),
+            itens_abertos=len(ap) + int(lf["orig_ped"].isna().sum()),
+            valor_aberto=valor, pedido_mais_antigo=min(criados) if criados else None,
+            os_afetadas=", ".join(f"#{int(o)}" for o in sorted(lf["os_tracos"].dropna().unique())),
+            itens_sem_os=len(sem_os), _atraso=max(atrasos) if atrasos else 0,
+        ))
+    out = pd.DataFrame(linhas)
+    if len(out):
+        out = out.sort_values(["_atraso", "valor_aberto"], ascending=[False, False]).reset_index(drop=True)
+    return out
+
+
+def _requisicoes(L, hoje, prm):
+    g = L[L["etapa"].isin([1, 2])]
+    if not len(g):
+        return pd.DataFrame()
+    out = g.groupby(["etapa", "requisicao"]).agg(
+        req_sap=("req_sap", "first"), os_tracos=("os_tracos", "first"), descricao_os=("descricao_os", "first"),
+        ativo=("ativo", "first"), preventiva=("eh_preventiva", "max"), itens=("codigo", "size"),
+        inicio=("inicio_etapa", "min"), criado=("criado_req", "min"),
+    ).reset_index()
+    out["_dias"] = [(hoje - pd.Timestamp(d).normalize()).days for d in out["inicio"]]
+    return out.sort_values(["etapa", "_dias", "requisicao"], ascending=[True, False, True]).reset_index(drop=True)

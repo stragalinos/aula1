@@ -42,7 +42,8 @@ def perfil(nome, info):
     if "os_tracos" in norm:
         print(f"    OS sem padrão reconhecido: {norm['os_tracos'].isna().sum()}  |  "
               f"OS distintas: {norm['os_tracos'].nunique()}  |  "
-              f"OS preventivas (PREV): {norm.loc[norm.eh_preventiva, 'os_tracos'].nunique()}")
+              f"OS com PREV na descrição: {norm.loc[norm.prev_na_descricao, 'os_tracos'].nunique()}  |  "
+              f"preventivas (PREV ou plano): {norm.loc[norm.eh_preventiva, 'os_tracos'].nunique()}")
 
 
 def taxa(a, b, chaves, nome_a, nome_b):
@@ -171,9 +172,9 @@ def main():
     print(f"    - fluxo: {len(ven)} de {len(f)} itens com data de necessidade já vencida "
           f"({sorted(f.data_necessidade.dt.strftime('%d/%m/%Y').unique())}).")
     print(f"    - OS com nº de plano mas SEM 'PREV' na descrição (requisição): "
-          f"{r.loc[r.plano.notna() & ~r.eh_preventiva, 'os_tracos'].nunique()} OS / "
-          f"{(r.plano.notna() & ~r.eh_preventiva).sum()} linhas "
-          f"{sorted(r.loc[r.plano.notna() & ~r.eh_preventiva, 'descricao_os'].unique())}")
+          f"{r.loc[r.plano.notna() & ~r.prev_na_descricao, 'os_tracos'].nunique()} OS / "
+          f"{(r.plano.notna() & ~r.prev_na_descricao).sum()} linhas "
+          f"{sorted(r.loc[r.plano.notna() & ~r.prev_na_descricao, 'descricao_os'].unique())}")
     print(f"    - local de estoque '0038 - Obsoleto' no fluxo: "
           f"{f.loc[f.local_estoque.str.contains('Obsoleto', na=False), 'descricao'].tolist()}")
     print(f"    - fornecedor 'MINERVA S.A' (a própria empresa?) no pedido: "
@@ -185,6 +186,8 @@ def main():
 
 
 if __name__ == "__main__":
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     buf = io.StringIO()
     with redirect_stdout(buf):
         main()

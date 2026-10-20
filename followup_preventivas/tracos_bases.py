@@ -94,8 +94,10 @@ def quantidade(s):
 
 def data(s):
     """'dd/mm/aaaa' ou 'dd/mm/aaaa, hh:mm' -> datetime"""
-    return pd.to_datetime(s.str.replace(",", "", regex=False), dayfirst=True,
-                          format="mixed", errors="coerce")
+    t = s.str.replace(",", "", regex=False).str.strip()
+    com_hora = pd.to_datetime(t, format="%d/%m/%Y %H:%M", errors="coerce")
+    sem_hora = pd.to_datetime(t, format="%d/%m/%Y", errors="coerce")
+    return com_hora.fillna(sem_hora)
 
 
 def item(s):
@@ -136,7 +138,8 @@ def ident(s):
 
 
 def ordem_servico(s):
-    """'#589 4004640057 - 65079 - MSI_ME_SUG PREV ...' -> os_tracos, os_sap, plano, descricao, eh_preventiva"""
+    """'#589 4004640057 - 65079 - MSI_ME_SUG PREV ...' -> os_tracos, os_sap, plano, descricao_os,
+    prev_na_descricao, eh_preventiva"""
     def um(v):
         if pd.isna(v):
             return (np.nan, np.nan, np.nan, np.nan)
@@ -151,7 +154,9 @@ def ordem_servico(s):
         "plano": q.map(lambda p: p[2]),
         "descricao_os": q.map(lambda p: p[3]),
     }, index=s.index)
-    out["eh_preventiva"] = out["descricao_os"].fillna("").str.upper().str.contains("PREV")
+    out["prev_na_descricao"] = out["descricao_os"].fillna("").str.upper().str.contains("PREV")
+    # preventiva = "PREV" na descrição OU OS gerada por plano de manutenção
+    out["eh_preventiva"] = out["prev_na_descricao"] | out["plano"].notna()
     return out
 
 
