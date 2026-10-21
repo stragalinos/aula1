@@ -1,0 +1,13 @@
+{
+  "name": "biblioteca-de-manuais",
+  "version": "1.0.0",
+  "description": "Biblioteca de manuais da manutenção mecânica e elétrica, para rodar na rede da empresa.",
+  "private": true,
+  "main": "servidor.js",
+  "scripts": {
+    "start": "node servidor.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Biblioteca de Manuais</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2324303B'/%3E%3Cpath d='M9 8h11a3 3 0 0 1 3 3v13H12a3 3 0 0 1-3-3z' fill='%23F5F2D4'/%3E%3Cpath d='M9 21a3 3 0 0 1 3-3h11' fill='none' stroke='%23E84752' stroke-width='2'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/estilo.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<header class="topo">
+  <div class="topo-in wrap">
+    <div class="marca">
+      <p class="sobre">Manutenção mecânica e elétrica</p>
+      <h1>Biblioteca de Manuais</h1>
+      <p class="lead">Manuais, diagramas e procedimentos dos equipamentos em um só lugar, para consultar na frente da máquina.</p>
+    </div>
+    <div class="topo-lado">
+      <div class="acesso">
+        <span class="papel" id="papel">Consulta</span>
+        <button type="button" id="btn-entrar" class="btn-topo">Área do administrador</button>
+        <button type="button" id="btn-sair" class="btn-topo" hidden>Sair</button>
+      </div>
+      <dl class="contagem">
+        <div><dt>Manuais</dt><dd id="c-total">–</dd></div>
+        <div><dt>Mecânica</dt><dd id="c-mec">–</dd></div>
+        <div><dt>Elétrica</dt><dd id="c-ele">–</dd></div>
+      </dl>
+    </div>
+  </div>
+  <div class="fita" aria-hidden="true"></div>
+</header>
+
+<main class="wrap layout" id="layout">
+  <section class="catalogo" aria-labelledby="t-catalogo">
+    <h2 id="t-catalogo" class="sr-only">Catálogo de manuais</h2>
+    <div class="ferramentas">
+      <div class="busca">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>
+        <input id="busca" type="search" placeholder="Buscar equipamento, modelo, fabricante ou tag" autocomplete="off" aria-label="Buscar manuais">
+      </div>
+      <div class="filtros">
+        <div class="seg" role="radiogroup" aria-label="Área">
+          <input type="radio" name="filtro-area" id="fa-todas" value="todas" checked><label for="fa-todas">Todas</label>
+          <input type="radio" name="filtro-area" id="fa-mecanica" value="mecanica"><label for="fa-mecanica">Mecânica</label>
+          <input type="radio" name="filtro-area" id="fa-eletrica" value="eletrica"><label for="fa-eletrica">Elétrica</label>
+        </div>
+        <select id="filtro-tipo" aria-label="Tipo de documento"></select>
+        <select id="filtro-setor" aria-label="Setor" hidden></select>
+        <select id="ordem" aria-label="Ordenar">
+          <option value="recentes">Mais recentes</option>
+          <option value="titulo">Título A–Z</option>
+          <option value="equipamento">Equipamento A–Z</option>
+        </select>
+      </div>
+    </div>
+    <div class="resultado-linha">
+      <p id="resultado" aria-live="polite"></p>
+      <button type="button" id="limpar" class="btn-link" hidden>Limpar filtros</button>
+    </div>
+    <div id="lista" class="lista"></div>
+  </section>
+
+  <aside id="lado" class="lado" hidden>
+    <details id="painel" class="painel" open>
+      <summary>
+        <span class="painel-cab">
+          <h2 id="painel-titulo">Enviar manual</h2>
+          <small id="limite-txt">PDF, imagem, vídeo, Word, Excel ou DWG · até 200 MB</small>
+        </span>
+      </summary>
+      <form id="form-manual" class="form" novalidate>
+        <label class="drop" id="drop" for="f-arquivo">
+          <input type="file" id="f-arquivo" class="sr-only" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,.txt,.doc,.docx,.xls,.xlsx,.dwg,.dxf,.zip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5M12 18v-6M9 15l3-3 3 3"></path></svg>
+          <span class="drop-txt" id="drop-txt"><b>Arraste o arquivo aqui</b> ou clique para escolher</span>
+          <span class="drop-arquivo" id="drop-arquivo" hidden></span>
+        </label>
+
+        <div class="campo">
+          <label for="f-titulo">Título *</label>
+          <input id="f-titulo" type="text" maxlength="200" placeholder="Ex.: Manual de manutenção do compressor" required>
+        </div>
+
+        <fieldset class="campo">
+          <legend>Área *</legend>
+          <div class="seg-form">
+            <input type="radio" name="f-area" id="f-area-mec" value="mecanica" checked><label for="f-area-mec">Mecânica</label>
+            <input type="radio" name="f-area" id="f-area-ele" value="eletrica"><label for="f-area-ele">Elétrica</label>
+            <input type="radio" name="f-area" id="f-area-amb" value="ambas"><label for="f-area-amb">As duas</label>
+          </div>
+        </fieldset>
+
+        <div class="campo">
+          <label for="f-tipo">Tipo de documento</label>
+          <select id="f-tipo"></select>
+        </div>
+
+        <div class="duas">
+          <div class="campo">
+            <label for="f-equipamento">Equipamento</label>
+            <input id="f-equipamento" type="text" maxlength="120" placeholder="Compressor de ar">
+          </div>
+          <div class="campo">
+            <label for="f-setor">Setor / linha</label>
+            <input id="f-setor" type="text" maxlength="80" list="setores-lista" placeholder="Utilidades">
+            <datalist id="setores-lista"></datalist>
+          </div>
+        </div>
+
+        <div class="duas">
+          <div class="campo">
+            <label for="f-fabricante">Fabricante</label>
+            <input id="f-fabricante" type="text" maxlength="80" placeholder="Atlas Copco">
+          </div>
+          <div class="campo">
+            <label for="f-modelo">Modelo / código</label>
+            <input id="f-modelo" type="text" maxlength="80" placeholder="GA 37 VSD">
+          </div>
+        </div>
+
+        <div class="duas">
+          <div class="campo">
+            <label for="f-revisao">Revisão</label>
+            <input id="f-revisao" type="text" maxlength="30" placeholder="Rev. 03">
+          </div>
+          <div class="campo">
+            <label for="f-tags">Tags</label>
+            <input id="f-tags" type="text" maxlength="200" placeholder="lubrificação, rolamento">
+          </div>
+        </div>
+        <p class="dica-tags">Separe as tags por vírgula. Elas também entram na busca.</p>
+
+        <div class="campo">
+          <label for="f-obs">Observações</label>
+          <textarea id="f-obs" maxlength="1000" placeholder="Ex.: Ver capítulo 7 para troca do elemento separador."></textarea>
+        </div>
+
+        <p id="form-erro" class="form-erro" role="alert" hidden></p>
+
+        <div class="form-acoes">
+          <button type="submit" id="btn-salvar" class="btn btn-prim">Publicar manual</button>
+          <button type="button" id="btn-cancelar" class="btn" hidden>Cancelar edição</button>
+        </div>
+        <div id="progresso" class="progresso" hidden>
+          <progress id="barra" max="100" value="0"></progress>
+          <p id="progresso-txt" aria-live="polite"></p>
+        </div>
+      </form>
+    </details>
+  </aside>
+</main>
+
+<dialog id="dlg-login" class="dialogo" aria-labelledby="dlg-titulo">
+  <form id="form-login" class="form" novalidate>
+    <h2 id="dlg-titulo">Área do administrador</h2>
+    <p class="dialogo-txt">Digite a senha para enviar, editar e excluir manuais. A equipe não precisa de senha para consultar.</p>
+    <div class="campo">
+      <label for="f-senha">Senha</label>
+      <input id="f-senha" type="password" autocomplete="current-password" required>
+    </div>
+    <p id="login-erro" class="form-erro" role="alert" hidden></p>
+    <div class="form-acoes">
+      <button type="submit" id="btn-login" class="btn btn-prim">Entrar</button>
+      <button type="button" id="btn-login-cancelar" class="btn">Cancelar</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
