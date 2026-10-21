@@ -28,6 +28,20 @@ Tipos de documento e os códigos que aparecem na plaqueta de cada ficha:
 | POP | Procedimento (POP) |
 | DOC | Outro documento |
 
+## Paleta de cores
+
+| Cor | Pantone | Hex | Onde aparece |
+| --- | --- | --- | --- |
+| Vermelho | 4058C | `#E84752` | Faixa do cabeçalho, contorno do selo de editor |
+| Vermelho escuro | 703C | `#BF404D` | Filtro selecionado, área elétrica, botões ao passar o mouse, excluir |
+| Rosa | 2029C | `#EB7580` | Sobretítulo do cabeçalho, foco no tema escuro |
+| Azul petróleo | 432C | `#2B3D4A` | Cartões no tema escuro |
+| Azul noite | 4280C | `#24303B` | Cabeçalho, texto, botões Abrir e Publicar |
+| Azul aço | 7545C | `#385463` | Área mecânica, textos secundários |
+| Creme médio | 7406C | `#E3E0B0` | Tags e área de envio de arquivo |
+| Cáqui | 5855C | `#BDB58C` | Bordas e linhas, textos secundários no tema escuro |
+| Creme claro | P 2-1 C | `#F5F2D4` | Fundo da página, texto no tema escuro |
+
 ## Como dar acesso à equipe
 
 1. Abra a página publicada e use o botão **Compartilhar** do Claude.
