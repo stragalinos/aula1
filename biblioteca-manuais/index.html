@@ -1,0 +1,878 @@
+<title>Biblioteca de Manuais</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+/* Layout: catálogo de oficina. Busca e fichas dos manuais à esquerda, painel de envio à direita (só para quem edita); uma coluna no celular. */
+:root {
+  --bg: #EDF0F3;
+  --surface: #FFFFFF;
+  --surface-2: #F5F7F9;
+  --ink: #161B21;
+  --muted: #56626E;
+  --line: #D2D8DE;
+  --head-bg: #1B2128;
+  --head-fg: #F2F4F6;
+  --head-muted: #A9B3BD;
+  --accent: #F2C200;
+  --accent-edge: #C9A100;
+  --accent-ink: #161B21;
+  --focus: #8A6A00;
+  --mec: #1D5BA6;
+  --ele: #C4480F;
+  --on-area: #FFFFFF;
+  --danger: #B42318;
+  --danger-soft: #FDECEA;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101418; --surface: #181D23; --surface-2: #1F252C; --ink: #E5E9ED; --muted: #98A4AF; --line: #2C343C;
+    --head-bg: #0B0E11; --head-fg: #E5E9ED; --head-muted: #8D98A3;
+    --accent: #F2C200; --accent-edge: #F2C200; --accent-ink: #161B21; --focus: #F2C200;
+    --mec: #6EA2E4; --ele: #F0894A; --on-area: #0E1216; --danger: #F07167; --danger-soft: #3A1E1E;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101418; --surface: #181D23; --surface-2: #1F252C; --ink: #E5E9ED; --muted: #98A4AF; --line: #2C343C;
+  --head-bg: #0B0E11; --head-fg: #E5E9ED; --head-muted: #8D98A3;
+  --accent: #F2C200; --accent-edge: #F2C200; --accent-ink: #161B21; --focus: #F2C200;
+  --mec: #6EA2E4; --ele: #F0894A; --on-area: #0E1216; --danger: #F07167; --danger-soft: #3A1E1E;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.5; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.mono { font-family: var(--f-mono); font-size: 0.875em; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Cabeçalho */
+.topo { background: var(--head-bg); color: var(--head-fg); }
+.topo-in { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 32px; padding-block: 28px 22px; }
+.marca { display: grid; gap: 6px; min-width: 0; max-width: 40rem; }
+.sobre { font-family: var(--f-display); font-weight: 600; font-size: 0.95rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 0.95; letter-spacing: 0.01em; text-transform: uppercase; }
+.lead { color: var(--head-muted); font-size: 1.02rem; }
+.topo-lado { display: grid; gap: 12px; justify-items: start; }
+@media (min-width: 720px) { .topo-lado { justify-items: end; } }
+.papel { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: 0.04em; padding: 4px 10px; border: 1px solid var(--head-muted); border-radius: 3px; color: var(--head-fg); }
+.papel[data-nivel="editor"] { border-color: var(--accent); color: var(--accent); }
+.contagem { display: flex; gap: 24px; margin: 0; }
+.contagem div { display: grid; gap: 0; }
+.contagem dt { font-family: var(--f-display); font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--head-muted); }
+.contagem dd { margin: 0; font-family: var(--f-display); font-weight: 600; font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.fita { height: 8px; background: repeating-linear-gradient(-45deg, var(--accent) 0 14px, var(--head-bg) 14px 28px); }
+
+/* Estrutura */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; padding-block: 28px 64px; }
+@media (min-width: 1000px) {
+  .layout.com-lado { grid-template-columns: minmax(0, 1fr) 380px; align-items: start; }
+}
+@media (max-width: 999px) { .lado { order: -1; } }
+.catalogo { display: grid; gap: 14px; min-width: 0; }
+
+/* Ferramentas de busca */
+.ferramentas { display: grid; gap: 12px; }
+.busca { position: relative; }
+.busca svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: var(--muted); pointer-events: none; }
+.busca input { width: 100%; height: 52px; padding: 0 16px 0 44px; font-size: 1.05rem; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.busca input::placeholder { color: var(--muted); }
+.filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.seg { position: relative; display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.seg input, .seg-form input { position: absolute; left: 0; top: 0; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.seg label { padding: 0 14px; height: 40px; display: inline-flex; align-items: center; cursor: pointer; font-weight: 600; font-size: 0.95rem; border-left: 1px solid var(--line); color: var(--muted); }
+.seg label:first-of-type { border-left: 0; }
+.seg input:checked + label { background: var(--ink); color: var(--bg); }
+.seg input:focus-visible + label { outline: 3px solid var(--focus); outline-offset: -3px; }
+.filtros select { height: 40px; padding: 0 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; max-width: 100%; }
+.resultado-linha { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 24px; }
+#resultado { font-family: var(--f-mono); font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Botões */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 16px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; font-size: 0.95rem; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn-prim { background: var(--accent); border-color: var(--accent-edge); color: var(--accent-ink); }
+.btn-prim:hover { border-color: var(--accent-ink); }
+.btn-perigo { background: var(--danger); border-color: var(--danger); color: var(--surface); }
+.btn[disabled] { opacity: 0.6; cursor: progress; }
+.btn-link { background: none; border: 0; padding: 4px 2px; font-weight: 600; font-size: 0.92rem; color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.btn-link:hover { color: var(--ink); }
+.btn-link.perigo { color: var(--danger); }
+
+/* Lista de manuais */
+.lista { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.ficha { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 8px 16px; padding: 16px; border-top: 1px solid var(--line); align-items: start; }
+.ficha:first-child { border-top: 0; }
+.ficha-cod { width: 56px; height: 56px; border-radius: 4px; display: grid; place-content: center; justify-items: center; gap: 1px; background: var(--mec); color: var(--on-area); font-family: var(--f-mono); line-height: 1.1; }
+.ficha[data-area="eletrica"] .ficha-cod { background: var(--ele); }
+.ficha[data-area="ambas"] .ficha-cod { background: linear-gradient(135deg, var(--mec) 50%, var(--ele) 50%); }
+.ficha-cod .cod { font-weight: 500; font-size: 0.95rem; letter-spacing: 0.04em; }
+.ficha-cod .cod-area { font-size: 0.64rem; letter-spacing: 0.08em; opacity: 0.9; }
+.ficha-corpo { display: grid; gap: 4px; min-width: 0; }
+.ficha-tipo { font-family: var(--f-display); font-weight: 600; font-size: 0.85rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+.ficha-titulo { font-family: var(--f-body); font-weight: 700; font-size: 1.12rem; line-height: 1.3; overflow-wrap: anywhere; }
+.ficha-equip { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--ink); overflow-wrap: anywhere; }
+.ficha-equip .mono { color: var(--muted); }
+.ficha-meta { list-style: none; padding: 0; margin: 2px 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 0.88rem; color: var(--muted); }
+.ficha-meta b { font-weight: 600; color: var(--ink); }
+.ficha-meta .mono { font-size: 0.82rem; }
+.ficha-obs { font-size: 0.93rem; color: var(--muted); max-width: 65ch; overflow-wrap: anywhere; }
+.tags { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.tags li { font-family: var(--f-mono); font-size: 0.76rem; padding: 2px 8px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--line); color: var(--muted); }
+.ficha-autor { font-size: 0.85rem; color: var(--muted); }
+.ficha-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; max-width: 240px; }
+.ficha-acoes .editar-excluir { display: flex; gap: 12px; width: 100%; justify-content: flex-end; }
+.sem-arq { font-size: 0.88rem; color: var(--danger); }
+.confirma { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 12px 14px; border-radius: 4px; background: var(--danger-soft); border: 1px solid var(--danger); }
+.confirma p { font-weight: 600; }
+.confirma-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  .ficha { grid-template-columns: 48px minmax(0, 1fr); }
+  .ficha-cod { width: 48px; height: 48px; }
+  .ficha-acoes { grid-column: 1 / -1; justify-content: flex-start; max-width: none; }
+  .ficha-acoes .btn { flex: 1 1 120px; }
+  .ficha-acoes .editar-excluir { justify-content: flex-start; }
+}
+
+/* Estado vazio */
+.vazio { padding: 40px 24px; display: grid; gap: 10px; justify-items: start; max-width: 44rem; }
+.vazio h3 { font-family: var(--f-display); font-weight: 600; font-size: 1.5rem; letter-spacing: 0.02em; text-transform: uppercase; }
+.vazio p { color: var(--muted); }
+.vazio ol { margin: 6px 0 0; padding-left: 1.3em; display: grid; gap: 6px; color: var(--ink); }
+
+/* Painel de envio */
+.lado { min-width: 0; }
+.painel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.painel summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; }
+.painel summary::-webkit-details-marker { display: none; }
+.painel summary::after { content: "+"; font-family: var(--f-mono); font-size: 1.3rem; color: var(--muted); }
+.painel[open] summary::after { content: "−"; }
+.painel[open] summary { border-bottom: 1px solid var(--line); }
+.painel-cab { display: grid; gap: 2px; }
+.painel-cab h2 { font-family: var(--f-display); font-weight: 700; font-size: 1.45rem; letter-spacing: 0.02em; text-transform: uppercase; }
+.painel-cab small { font-family: var(--f-mono); font-size: 0.75rem; color: var(--muted); }
+.form { display: grid; gap: 14px; padding: 18px; }
+.drop { display: grid; gap: 6px; justify-items: center; text-align: center; padding: 22px 16px; border: 2px dashed var(--line); border-radius: 6px; background: var(--surface-2); cursor: pointer; }
+.drop:hover, .drop.arrastando { border-color: var(--accent-edge); }
+.drop:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.drop svg { width: 30px; height: 30px; color: var(--muted); }
+.drop-txt { font-size: 0.95rem; color: var(--muted); }
+.drop-txt b { color: var(--ink); }
+.drop-arquivo { font-family: var(--f-mono); font-size: 0.82rem; color: var(--ink); overflow-wrap: anywhere; }
+.campo { display: grid; gap: 4px; min-width: 0; }
+.campo > label, .campo legend { font-family: var(--f-display); font-weight: 600; font-size: 0.86rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.campo legend { padding: 0; margin-bottom: 4px; }
+fieldset.campo { border: 0; padding: 0; margin: 0; }
+.campo input, .campo select, .campo textarea { width: 100%; min-height: 42px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+.campo textarea { min-height: 72px; resize: vertical; }
+.dica-tags { margin-top: -8px; font-size: 0.82rem; color: var(--muted); }
+.duas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 420px) { .duas { grid-template-columns: minmax(0, 1fr); } }
+.seg-form { position: relative; display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg-form label { flex: 1 1 auto; text-align: center; padding: 9px 10px; cursor: pointer; font-weight: 600; font-size: 0.92rem; border-left: 1px solid var(--line); color: var(--muted); background: var(--surface); }
+.seg-form label:first-of-type { border-left: 0; }
+.seg-form input:checked + label { background: var(--ink); color: var(--bg); }
+.seg-form input:focus-visible + label { outline: 3px solid var(--focus); outline-offset: -3px; }
+.form-erro { padding: 10px 12px; border-radius: 4px; background: var(--danger-soft); border: 1px solid var(--danger); color: var(--ink); font-size: 0.93rem; }
+.form-acoes { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.form-acoes .btn-prim { flex: 1 1 auto; height: 46px; font-size: 1rem; }
+.progresso { font-family: var(--f-mono); font-size: 0.82rem; color: var(--muted); }
+
+/* Aviso flutuante */
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 20px); max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 6px; background: var(--head-bg); color: var(--head-fg); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25); font-weight: 600; z-index: 20; }
+@media (prefers-reduced-motion: no-preference) {
+  .toast:not([hidden]) { animation: sobe 0.18s ease-out; }
+  @keyframes sobe { from { transform: translate(-50%, 8px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+}
+</style>
+
+<header class="topo">
+  <div class="topo-in wrap">
+    <div class="marca">
+      <p class="sobre">Manutenção mecânica e elétrica</p>
+      <h1>Biblioteca de Manuais</h1>
+      <p class="lead">Manuais, diagramas e procedimentos dos equipamentos em um só lugar, para consultar na frente da máquina.</p>
+    </div>
+    <div class="topo-lado">
+      <span class="papel" id="papel">Conectando…</span>
+      <dl class="contagem">
+        <div><dt>Manuais</dt><dd id="c-total">–</dd></div>
+        <div><dt>Mecânica</dt><dd id="c-mec">–</dd></div>
+        <div><dt>Elétrica</dt><dd id="c-ele">–</dd></div>
+      </dl>
+    </div>
+  </div>
+  <div class="fita" aria-hidden="true"></div>
+</header>
+
+<main class="wrap layout" id="layout">
+  <section class="catalogo" aria-labelledby="t-catalogo">
+    <h2 id="t-catalogo" class="sr-only">Catálogo de manuais</h2>
+    <div class="ferramentas">
+      <div class="busca">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none"></circle><path d="M20 20l-4-4" fill="none"></path></svg>
+        <input id="busca" type="search" placeholder="Buscar equipamento, modelo, fabricante ou tag" autocomplete="off" aria-label="Buscar manuais">
+      </div>
+      <div class="filtros">
+        <div class="seg" role="radiogroup" aria-label="Área">
+          <input type="radio" name="filtro-area" id="fa-todas" value="todas" checked><label for="fa-todas">Todas</label>
+          <input type="radio" name="filtro-area" id="fa-mecanica" value="mecanica"><label for="fa-mecanica">Mecânica</label>
+          <input type="radio" name="filtro-area" id="fa-eletrica" value="eletrica"><label for="fa-eletrica">Elétrica</label>
+        </div>
+        <select id="filtro-tipo" aria-label="Tipo de documento"></select>
+        <select id="filtro-setor" aria-label="Setor" hidden></select>
+        <select id="ordem" aria-label="Ordenar">
+          <option value="recentes">Mais recentes</option>
+          <option value="titulo">Título A–Z</option>
+          <option value="equipamento">Equipamento A–Z</option>
+        </select>
+      </div>
+    </div>
+    <div class="resultado-linha">
+      <p id="resultado" aria-live="polite"></p>
+      <button type="button" id="limpar" class="btn-link" hidden>Limpar filtros</button>
+    </div>
+    <div id="lista" class="lista"></div>
+  </section>
+
+  <aside id="lado" class="lado" hidden>
+    <details id="painel" class="painel" open>
+      <summary>
+        <span class="painel-cab">
+          <h2 id="painel-titulo">Enviar manual</h2>
+          <small>PDF, JPG, PNG, WEBP ou MP4 · até 20 MB</small>
+        </span>
+      </summary>
+      <form id="form-manual" class="form" novalidate>
+        <label class="drop" id="drop" for="f-arquivo">
+          <input type="file" id="f-arquivo" class="sr-only" accept=".pdf,.png,.jpg,.jpeg,.webp,.mp4,application/pdf,image/png,image/jpeg,image/webp,video/mp4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" fill="none"></path><path d="M14 3v5h5M12 18v-6M9 15l3-3 3 3" fill="none"></path></svg>
+          <span class="drop-txt" id="drop-txt"><b>Arraste o arquivo aqui</b> ou toque para escolher</span>
+          <span class="drop-arquivo" id="drop-arquivo" hidden></span>
+        </label>
+
+        <div class="campo">
+          <label for="f-titulo">Título *</label>
+          <input id="f-titulo" type="text" maxlength="200" placeholder="Ex.: Manual de manutenção do compressor" required>
+        </div>
+
+        <fieldset class="campo">
+          <legend>Área *</legend>
+          <div class="seg-form">
+            <input type="radio" name="f-area" id="f-area-mec" value="mecanica" checked><label for="f-area-mec">Mecânica</label>
+            <input type="radio" name="f-area" id="f-area-ele" value="eletrica"><label for="f-area-ele">Elétrica</label>
+            <input type="radio" name="f-area" id="f-area-amb" value="ambas"><label for="f-area-amb">As duas</label>
+          </div>
+        </fieldset>
+
+        <div class="campo">
+          <label for="f-tipo">Tipo de documento</label>
+          <select id="f-tipo"></select>
+        </div>
+
+        <div class="duas">
+          <div class="campo">
+            <label for="f-equipamento">Equipamento</label>
+            <input id="f-equipamento" type="text" maxlength="120" placeholder="Compressor de ar">
+          </div>
+          <div class="campo">
+            <label for="f-setor">Setor / linha</label>
+            <input id="f-setor" type="text" maxlength="80" list="setores-lista" placeholder="Utilidades">
+            <datalist id="setores-lista"></datalist>
+          </div>
+        </div>
+
+        <div class="duas">
+          <div class="campo">
+            <label for="f-fabricante">Fabricante</label>
+            <input id="f-fabricante" type="text" maxlength="80" placeholder="Atlas Copco">
+          </div>
+          <div class="campo">
+            <label for="f-modelo">Modelo / código</label>
+            <input id="f-modelo" type="text" maxlength="80" placeholder="GA 37 VSD">
+          </div>
+        </div>
+
+        <div class="duas">
+          <div class="campo">
+            <label for="f-revisao">Revisão</label>
+            <input id="f-revisao" type="text" maxlength="30" placeholder="Rev. 03">
+          </div>
+          <div class="campo">
+            <label for="f-tags">Tags</label>
+            <input id="f-tags" type="text" maxlength="200" placeholder="lubrificação, rolamento">
+          </div>
+        </div>
+        <p class="dica-tags">Separe as tags por vírgula. Elas também entram na busca.</p>
+
+        <div class="campo">
+          <label for="f-obs">Observações</label>
+          <textarea id="f-obs" maxlength="1000" placeholder="Ex.: Ver capítulo 7 para troca do elemento separador."></textarea>
+        </div>
+
+        <p id="form-erro" class="form-erro" role="alert" hidden></p>
+
+        <div class="form-acoes">
+          <button type="submit" id="btn-salvar" class="btn btn-prim">Publicar manual</button>
+          <button type="button" id="btn-cancelar" class="btn" hidden>Cancelar edição</button>
+        </div>
+        <p id="progresso" class="progresso" aria-live="polite" hidden></p>
+      </form>
+    </details>
+  </aside>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+
+  const TIPOS = {
+    manutencao: { nome: "Manual de manutenção", cod: "MNT" },
+    operacao: { nome: "Manual de operação", cod: "OPR" },
+    diagrama: { nome: "Diagrama elétrico", cod: "DIA" },
+    pecas: { nome: "Catálogo de peças", cod: "PEC" },
+    procedimento: { nome: "Procedimento (POP)", cod: "POP" },
+    outro: { nome: "Outro documento", cod: "DOC" },
+  };
+  const AREAS = { mecanica: "Mecânica", eletrica: "Elétrica", ambas: "Mecânica e elétrica" };
+  const AREA_COD = { mecanica: "MEC", eletrica: "ELE", ambas: "M+E" };
+  const TIPOS_ARQ = { pdf: "application/pdf", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", mp4: "video/mp4" };
+  const ROTULO_ARQ = { "application/pdf": "PDF", "image/png": "Imagem", "image/jpeg": "Imagem", "image/webp": "Imagem", "video/mp4": "Vídeo" };
+  const MAX_BYTES = 20 * 1024 * 1024;
+
+  const MSG = {
+    too_large: "O arquivo passa de 20 MB. Comprima o PDF ou divida em partes e envie de novo.",
+    unsupported_type: "Esse tipo de arquivo não é aceito. Envie PDF, imagem (JPG, PNG, WEBP) ou vídeo MP4.",
+    quota_or_state: "O espaço da biblioteca acabou. Exclua manuais que não são mais usados e tente de novo.",
+    quota_exceeded: "A biblioteca atingiu o limite de registros. Exclua manuais antigos e tente de novo.",
+    rate_limited: "Muitos envios seguidos. Aguarde um minuto e tente de novo.",
+    resource_exhausted: "Muitas operações seguidas. Aguarde um minuto e tente de novo.",
+    upstream_auth: "Sua sessão expirou. Recarregue a página e entre de novo.",
+    invalid_argument: "Seu acesso não permite alterar a biblioteca. Peça acesso de edição a quem compartilhou.",
+    not_granted: "Seu acesso não permite enviar arquivos. Peça acesso de edição a quem compartilhou.",
+  };
+
+  const st = {
+    manuais: [], pronto: false, erro: "",
+    busca: "", area: "todas", tipo: "", setor: "", ordem: "recentes",
+    podeEditar: false, editandoId: null, confirmarId: null, arquivo: null, enviando: false,
+  };
+  const cap = { db: null, user: null, assets: null, downloads: null };
+  const reduzMovimento = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- utilidades ----------
+  function el(tag, props = {}, ...kids) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === "class") n.className = v;
+      else if (k === "text") n.textContent = v;
+      else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of kids.flat()) if (c != null && c !== false) n.append(c);
+    return n;
+  }
+  const norm = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const extensao = (nome) => { const m = /\.([a-z0-9]+)$/i.exec(nome || ""); return m ? m[1].toLowerCase() : ""; };
+  const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+  function formatarTamanho(b) {
+    if (!b && b !== 0) return "";
+    if (b < 1024 * 1024) return Math.max(1, Math.round(b / 1024)) + " KB";
+    return (b / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " MB";
+  }
+  function formatarData(iso) {
+    const d = new Date(iso);
+    return isNaN(d) ? "" : d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+  const mensagemErro = (e) => MSG[e?.code] || "Não foi possível concluir. Verifique a conexão e tente de novo.";
+
+  let toastTimer;
+  function toast(txt) {
+    const t = $("#toast");
+    t.textContent = txt;
+    t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 4200);
+  }
+
+  function lerPreferencia() {
+    try {
+      const a = localStorage.getItem("biblioteca-area");
+      if (a && ["todas", "mecanica", "eletrica"].includes(a)) st.area = a;
+    } catch {}
+  }
+  function salvarPreferencia() {
+    try { localStorage.setItem("biblioteca-area", st.area); } catch {}
+  }
+
+  // ---------- filtros e busca ----------
+  function filtrados() {
+    const termos = norm(st.busca).split(/\s+/).filter(Boolean);
+    const l = st.manuais.filter((m) => {
+      if (st.area !== "todas" && m.area !== st.area && m.area !== "ambas") return false;
+      if (st.tipo && m.tipo !== st.tipo) return false;
+      if (st.setor && (m.setor || "").trim() !== st.setor) return false;
+      if (!termos.length) return true;
+      const alvo = norm([
+        m.titulo, m.equipamento, m.fabricante, m.modelo, m.setor, m.revisao,
+        (m.tags || []).join(" "), m.observacoes, m.arquivo?.nome, TIPOS[m.tipo]?.nome,
+      ].join(" "));
+      return termos.every((t) => alvo.includes(t));
+    });
+    const cmp = (a, b) => norm(a).localeCompare(norm(b), "pt-BR");
+    if (st.ordem === "titulo") l.sort((a, b) => cmp(a.titulo, b.titulo));
+    else if (st.ordem === "equipamento") l.sort((a, b) => cmp(a.equipamento || "￿", b.equipamento || "￿") || cmp(a.titulo, b.titulo));
+    else l.sort((a, b) => String(b.criadoEm || "").localeCompare(String(a.criadoEm || "")));
+    return l;
+  }
+  const filtrando = () => !!(st.busca.trim() || st.area !== "todas" || st.tipo || st.setor);
+
+  // ---------- renderização ----------
+  function renderPapel() {
+    const p = $("#papel");
+    if (st.podeEditar) { p.textContent = "Você envia e edita"; p.dataset.nivel = "editor"; }
+    else if (cap.db) { p.textContent = "Acesso de consulta"; p.dataset.nivel = "leitor"; }
+    else { p.textContent = "Sem conexão"; p.dataset.nivel = ""; }
+  }
+
+  function renderContagem() {
+    const ms = st.manuais;
+    $("#c-total").textContent = st.pronto ? ms.length : "–";
+    $("#c-mec").textContent = st.pronto ? ms.filter((m) => m.area !== "eletrica").length : "–";
+    $("#c-ele").textContent = st.pronto ? ms.filter((m) => m.area !== "mecanica").length : "–";
+  }
+
+  function renderSetores() {
+    const setores = [...new Set(st.manuais.map((m) => (m.setor || "").trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "pt-BR"));
+    if (st.setor && !setores.includes(st.setor)) st.setor = "";
+    const sel = $("#filtro-setor");
+    sel.replaceChildren(el("option", { value: "", text: "Todos os setores" }), ...setores.map((s) => el("option", { value: s, text: s })));
+    sel.value = st.setor;
+    sel.hidden = setores.length === 0;
+    $("#setores-lista").replaceChildren(...setores.map((s) => el("option", { value: s })));
+  }
+
+  function vazio(titulo, texto, extra) {
+    return el("div", { class: "vazio" }, el("h3", { text: titulo }), texto ? el("p", { text: texto }) : null, extra || null);
+  }
+
+  function metaItem(rotulo, valor, mono) {
+    return el("li", {}, rotulo + " ", el("b", { class: mono ? "mono" : null, text: valor }));
+  }
+
+  function ficha(m) {
+    const tipo = TIPOS[m.tipo] || TIPOS.outro;
+    const area = AREAS[m.area] ? m.area : "ambas";
+    const arq = m.arquivo || {};
+    const url = arq.assetId ? "/_blob/" + arq.assetId : null;
+    const titulo = m.titulo || arq.nome || "Sem título";
+
+    const meta = [];
+    if (m.setor) meta.push(metaItem("Setor", m.setor));
+    if (m.revisao) meta.push(metaItem("Revisão", m.revisao, true));
+    if (arq.tamanho) meta.push(metaItem(ROTULO_ARQ[arq.tipo] || "Arquivo", formatarTamanho(arq.tamanho), true));
+    if (m.criadoEm) meta.push(metaItem("Adicionado em", formatarData(m.criadoEm)));
+    if (m.atualizadoEm && m.criadoEm && m.atualizadoEm.slice(0, 10) !== m.criadoEm.slice(0, 10)) meta.push(metaItem("Atualizado em", formatarData(m.atualizadoEm)));
+
+    const fabModelo = [m.fabricante, m.modelo].filter(Boolean).join(" · ");
+    const tags = Array.isArray(m.tags) ? m.tags.filter(Boolean) : [];
+
+    const acoes = el("div", { class: "ficha-acoes" },
+      url
+        ? el("a", { class: "btn btn-prim", href: url, target: "_blank", rel: "noopener" }, "Abrir", el("span", { class: "sr-only", text: " " + titulo }))
+        : el("span", { class: "sem-arq", text: "Arquivo indisponível" }),
+      url && cap.downloads
+        ? el("button", { type: "button", class: "btn", onclick: (e) => baixar(m, e.currentTarget) }, "Baixar", el("span", { class: "sr-only", text: " " + titulo }))
+        : null,
+      st.podeEditar
+        ? el("div", { class: "editar-excluir" },
+            el("button", { type: "button", class: "btn-link", onclick: () => editar(m) }, "Editar"),
+            el("button", { type: "button", class: "btn-link perigo", onclick: () => { st.confirmarId = m.id; renderLista(); } }, "Excluir"))
+        : null,
+    );
+
+    return el("article", { class: "ficha", "data-area": area, id: "m-" + m.id },
+      el("div", { class: "ficha-cod", "aria-hidden": "true" },
+        el("span", { class: "cod", text: tipo.cod }),
+        el("span", { class: "cod-area", text: AREA_COD[area] })),
+      el("div", { class: "ficha-corpo" },
+        el("p", { class: "ficha-tipo", text: tipo.nome + " · " + AREAS[area] }),
+        el("h3", { class: "ficha-titulo", text: titulo }),
+        m.equipamento || fabModelo
+          ? el("p", { class: "ficha-equip" },
+              m.equipamento ? el("span", { text: m.equipamento }) : null,
+              fabModelo ? el("span", { class: "mono", text: fabModelo }) : null)
+          : null,
+        meta.length ? el("ul", { class: "ficha-meta" }, meta) : null,
+        m.observacoes ? el("p", { class: "ficha-obs", text: m.observacoes }) : null,
+        tags.length ? el("ul", { class: "tags", "aria-label": "Tags" }, tags.map((t) => el("li", { text: t }))) : null,
+        m.criadoPor ? el("p", { class: "ficha-autor", hidden: true }, "Enviado por ", el("span", { class: "autor", "data-uid": m.criadoPor })) : null),
+      acoes,
+      st.confirmarId === m.id
+        ? el("div", { class: "confirma" },
+            el("p", { text: "Excluir este manual? O arquivo será apagado para toda a equipe." }),
+            el("div", { class: "confirma-acoes" },
+              el("button", { type: "button", class: "btn btn-perigo", onclick: (e) => excluir(m, e.currentTarget) }, "Excluir manual"),
+              el("button", { type: "button", class: "btn", onclick: () => { st.confirmarId = null; renderLista(); } }, "Cancelar")))
+        : null,
+    );
+  }
+
+  async function preencherAutores(lista) {
+    if (!cap.user) return;
+    const ids = [...new Set(lista.map((m) => m.criadoPor).filter(Boolean))];
+    if (!ids.length) return;
+    const perfis = await cap.user.profiles(ids);
+    document.querySelectorAll(".autor[data-uid]").forEach((n) => {
+      const p = perfis[n.dataset.uid];
+      if (p && p.name) { n.textContent = p.name; n.parentElement.hidden = false; }
+    });
+  }
+
+  function renderLista() {
+    const lista = $("#lista");
+    const res = $("#resultado");
+    const limpar = $("#limpar");
+    if (st.erro) {
+      res.textContent = ""; limpar.hidden = true;
+      lista.replaceChildren(vazio("Não foi possível abrir a biblioteca", st.erro));
+      return;
+    }
+    if (!st.pronto) {
+      res.textContent = ""; limpar.hidden = true;
+      lista.replaceChildren(vazio("Carregando a biblioteca…", "Os manuais aparecem aqui em instantes."));
+      return;
+    }
+    if (!st.manuais.length) {
+      res.textContent = ""; limpar.hidden = true;
+      lista.replaceChildren(st.podeEditar
+        ? vazio("A biblioteca ainda está vazia", "Comece pelos equipamentos que mais param. Cada manual enviado aparece aqui na hora para toda a equipe.",
+            el("ol", {},
+              el("li", { text: "Envie o PDF no painel Enviar manual." }),
+              el("li", { text: "Preencha equipamento, fabricante e modelo, que é o que a equipe vai digitar na busca." }),
+              el("li", { text: "Compartilhe o link desta página com os mecânicos e eletricistas pelo botão Compartilhar do Claude." })))
+        : vazio("Nenhum manual publicado ainda", "Quando a coordenação da manutenção enviar os manuais, eles aparecem aqui."));
+      return;
+    }
+    const l = filtrados();
+    const total = st.manuais.length;
+    res.textContent = filtrando() ? `${l.length} de ${total} ${total === 1 ? "manual" : "manuais"}` : `${total} ${total === 1 ? "manual" : "manuais"}`;
+    limpar.hidden = !filtrando();
+    if (!l.length) {
+      const b = st.busca.trim();
+      lista.replaceChildren(vazio("Nenhum manual encontrado",
+        b ? `Nada corresponde a “${b}” com os filtros atuais. Tente o modelo, o fabricante ou só parte do nome do equipamento.`
+          : "Nenhum manual com esses filtros. Use Limpar filtros para ver todos."));
+      return;
+    }
+    lista.replaceChildren(...l.map(ficha));
+    preencherAutores(l);
+  }
+
+  function renderTudo() {
+    renderPapel();
+    renderContagem();
+    renderSetores();
+    renderLista();
+  }
+
+  // ---------- ações da lista ----------
+  function nomeParaSalvar(arq) {
+    const n = arq.nome || "manual";
+    if (TIPOS_ARQ[extensao(n)]) return n;
+    const ext = Object.keys(TIPOS_ARQ).find((k) => TIPOS_ARQ[k] === arq.tipo) || "pdf";
+    return n + "." + ext;
+  }
+
+  async function baixar(m, btn) {
+    const arq = m.arquivo;
+    if (!arq?.assetId || !cap.downloads) return;
+    const rotulo = btn.firstChild.textContent;
+    btn.disabled = true;
+    btn.firstChild.textContent = "Preparando…";
+    try {
+      const r = await fetch("/_blob/" + arq.assetId);
+      if (!r.ok) throw { code: "fetch" };
+      const blob = await r.blob();
+      await cap.downloads.save({ filename: nomeParaSalvar(arq), data: blob });
+    } catch (e) {
+      const c = e?.code;
+      if (c === "declined") { /* a pessoa desistiu */ }
+      else if (["unavailable", "not_granted", "capability_disabled", "capability_removed", "extension_not_enabled"].includes(c)) {
+        cap.downloads = null;
+        renderLista();
+        toast("Download indisponível aqui. Use Abrir e salve pelo próprio leitor.");
+      } else if (c === "rate_limited") toast("Já existe um download aguardando confirmação.");
+      else toast("Não foi possível baixar. Use Abrir para ver o arquivo.");
+    } finally {
+      btn.disabled = false;
+      btn.firstChild.textContent = rotulo;
+    }
+  }
+
+  async function excluir(m, btn) {
+    btn.disabled = true;
+    try {
+      await cap.db.doc("manuais/" + m.id).delete();
+      if (m.arquivo?.assetId && cap.assets) cap.assets.delete(m.arquivo.assetId).catch(() => {});
+      st.confirmarId = null;
+      if (st.editandoId === m.id) limparFormulario();
+      toast("Manual excluído.");
+    } catch (e) {
+      btn.disabled = false;
+      toast(mensagemErro(e));
+    }
+  }
+
+  // ---------- formulário ----------
+  const form = $("#form-manual");
+  const inputArq = $("#f-arquivo");
+  const CAMPOS = ["equipamento", "fabricante", "modelo", "setor", "revisao"];
+
+  function mostrarErro(txt) { const e = $("#form-erro"); e.textContent = txt; e.hidden = false; }
+  function limparErro() { const e = $("#form-erro"); e.textContent = ""; e.hidden = true; }
+
+  function renderArquivoEscolhido() {
+    const info = $("#drop-arquivo");
+    const txt = $("#drop-txt");
+    const editando = st.editandoId ? st.manuais.find((m) => m.id === st.editandoId) : null;
+    if (st.arquivo) {
+      info.textContent = `${st.arquivo.name} · ${formatarTamanho(st.arquivo.size)}`;
+      info.hidden = false;
+      txt.innerHTML = editando ? "<b>Novo arquivo escolhido</b> · substitui o atual ao salvar" : "<b>Arquivo pronto</b> · toque para trocar";
+    } else if (editando?.arquivo) {
+      info.textContent = `Atual: ${editando.arquivo.nome || "arquivo"} · ${formatarTamanho(editando.arquivo.tamanho)}`;
+      info.hidden = false;
+      txt.innerHTML = "<b>Para nova revisão</b>, arraste ou toque para substituir o arquivo";
+    } else {
+      info.hidden = true;
+      txt.innerHTML = "<b>Arraste o arquivo aqui</b> ou toque para escolher";
+    }
+  }
+
+  function tituloDoNome(n) {
+    return n.replace(/\.[^.]+$/, "").replace(/[_]+/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function escolherArquivo(f) {
+    limparErro();
+    if (!f) return;
+    if (!TIPOS_ARQ[extensao(f.name)]) {
+      mostrarErro(MSG.unsupported_type);
+      inputArq.value = "";
+      return;
+    }
+    if (f.size > MAX_BYTES) {
+      mostrarErro(`O arquivo tem ${formatarTamanho(f.size)} e o limite é 20 MB. Comprima o PDF ou divida em partes.`);
+      inputArq.value = "";
+      return;
+    }
+    st.arquivo = f;
+    const t = $("#f-titulo");
+    if (!t.value.trim()) t.value = tituloDoNome(f.name);
+    renderArquivoEscolhido();
+  }
+
+  function setEnviando(sim, txt) {
+    st.enviando = sim;
+    const b = $("#btn-salvar");
+    b.disabled = sim;
+    $("#btn-cancelar").disabled = sim;
+    const p = $("#progresso");
+    p.textContent = txt || "";
+    p.hidden = !sim;
+  }
+
+  function limparFormulario() {
+    form.reset();
+    inputArq.value = "";
+    st.arquivo = null;
+    st.editandoId = null;
+    $("#painel-titulo").textContent = "Enviar manual";
+    $("#btn-salvar").textContent = "Publicar manual";
+    $("#btn-cancelar").hidden = true;
+    limparErro();
+    renderArquivoEscolhido();
+  }
+
+  function editar(m) {
+    limparFormulario();
+    st.editandoId = m.id;
+    st.confirmarId = null;
+    $("#f-titulo").value = m.titulo || "";
+    const radio = document.querySelector(`input[name="f-area"][value="${AREAS[m.area] ? m.area : "ambas"}"]`);
+    if (radio) radio.checked = true;
+    $("#f-tipo").value = TIPOS[m.tipo] ? m.tipo : "outro";
+    for (const c of CAMPOS) $("#f-" + c).value = m[c] || "";
+    $("#f-tags").value = (m.tags || []).join(", ");
+    $("#f-obs").value = m.observacoes || "";
+    $("#painel-titulo").textContent = "Editar manual";
+    $("#btn-salvar").textContent = "Salvar alterações";
+    $("#btn-cancelar").hidden = false;
+    renderArquivoEscolhido();
+    renderLista();
+    $("#painel").open = true;
+    $("#lado").scrollIntoView({ behavior: reduzMovimento ? "auto" : "smooth", block: "start" });
+    $("#f-titulo").focus({ preventScroll: true });
+  }
+
+  async function enviarArquivo(f) {
+    const opcoes = { type: TIPOS_ARQ[extensao(f.name)] };
+    try {
+      return await cap.assets.upload(f, opcoes);
+    } catch (e) {
+      if (e?.code !== "store_unavailable") throw e;
+      await espera(1500);
+      return cap.assets.upload(f, opcoes);
+    }
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (st.enviando || !st.podeEditar) return;
+    limparErro();
+    const editando = st.editandoId ? st.manuais.find((m) => m.id === st.editandoId) : null;
+    if (st.editandoId && !editando) {
+      limparFormulario();
+      mostrarErro("Esse manual foi excluído por outra pessoa enquanto você editava.");
+      return;
+    }
+    const titulo = $("#f-titulo").value.trim();
+    if (!editando && !st.arquivo) { mostrarErro("Escolha o arquivo do manual."); inputArq.focus(); return; }
+    if (!titulo) { mostrarErro("Dê um título ao manual."); $("#f-titulo").focus(); return; }
+
+    const dados = {
+      titulo,
+      area: form.elements["f-area"].value || "mecanica",
+      tipo: $("#f-tipo").value || "manutencao",
+      tags: $("#f-tags").value.split(",").map((t) => t.trim()).filter(Boolean).slice(0, 20),
+      observacoes: $("#f-obs").value.trim(),
+      atualizadoEm: new Date().toISOString(),
+    };
+    for (const c of CAMPOS) dados[c] = $("#f-" + c).value.trim();
+
+    let novoAsset = null;
+    setEnviando(true, st.arquivo ? `Enviando ${formatarTamanho(st.arquivo.size)}…` : "Salvando…");
+    try {
+      if (st.arquivo) {
+        const r = await enviarArquivo(st.arquivo);
+        novoAsset = r.id;
+        dados.arquivo = { assetId: r.id, nome: st.arquivo.name, tamanho: r.sizeBytes, tipo: r.contentType };
+        setEnviando(true, "Salvando na biblioteca…");
+      }
+      if (editando) {
+        await cap.db.doc("manuais/" + editando.id).update(dados);
+        if (novoAsset && editando.arquivo?.assetId) cap.assets.delete(editando.arquivo.assetId).catch(() => {});
+        toast("Manual atualizado.");
+      } else {
+        dados.criadoEm = dados.atualizadoEm;
+        dados.criadoPor = (await cap.user?.id()) ?? null;
+        await cap.db.collection("manuais").add(dados);
+        toast("Manual publicado. A equipe já pode consultar.");
+      }
+      novoAsset = null;
+      limparFormulario();
+    } catch (err) {
+      if (novoAsset) cap.assets.delete(novoAsset).catch(() => {});
+      mostrarErro(mensagemErro(err));
+    } finally {
+      setEnviando(false);
+    }
+  });
+
+  inputArq.addEventListener("change", () => escolherArquivo(inputArq.files[0]));
+  const drop = $("#drop");
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("arrastando"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("arrastando"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    drop.classList.remove("arrastando");
+    escolherArquivo(e.dataTransfer?.files?.[0]);
+  });
+  $("#btn-cancelar").addEventListener("click", () => { limparFormulario(); renderLista(); });
+
+  // ---------- controles de busca ----------
+  function preencherSelectsDeTipo() {
+    $("#filtro-tipo").replaceChildren(el("option", { value: "", text: "Todos os tipos" }),
+      ...Object.entries(TIPOS).map(([k, t]) => el("option", { value: k, text: t.nome })));
+    $("#f-tipo").replaceChildren(...Object.entries(TIPOS).map(([k, t]) => el("option", { value: k, text: t.nome })));
+  }
+
+  function ligarControles() {
+    $("#busca").addEventListener("input", (e) => { st.busca = e.target.value; renderLista(); });
+    document.querySelectorAll('input[name="filtro-area"]').forEach((r) => {
+      r.checked = r.value === st.area;
+      r.addEventListener("change", () => { st.area = r.value; salvarPreferencia(); renderLista(); });
+    });
+    $("#filtro-tipo").addEventListener("change", (e) => { st.tipo = e.target.value; renderLista(); });
+    $("#filtro-setor").addEventListener("change", (e) => { st.setor = e.target.value; renderLista(); });
+    $("#ordem").addEventListener("change", (e) => { st.ordem = e.target.value; renderLista(); });
+    $("#limpar").addEventListener("click", () => {
+      st.busca = ""; st.area = "todas"; st.tipo = ""; st.setor = "";
+      $("#busca").value = ""; $("#fa-todas").checked = true; $("#filtro-tipo").value = ""; $("#filtro-setor").value = "";
+      salvarPreferencia();
+      renderLista();
+      $("#busca").focus();
+    });
+  }
+
+  // ---------- início ----------
+  async function iniciar() {
+    lerPreferencia();
+    preencherSelectsDeTipo();
+    ligarControles();
+    if (matchMedia("(max-width: 999px)").matches) $("#painel").open = false;
+    renderTudo();
+
+    if (!window.claude?.use) {
+      st.erro = "Abra a biblioteca pelo link do Claude para ver os manuais.";
+      renderTudo();
+      return;
+    }
+    const [db, user, assets, downloads] = await Promise.all(
+      ["db", "user", "assets", "downloads"].map((n) => window.claude.use(n).catch(() => null)));
+    Object.assign(cap, { db, user, assets, downloads });
+    st.podeEditar = !!(db && assets);
+    $("#lado").hidden = !st.podeEditar;
+    $("#layout").classList.toggle("com-lado", st.podeEditar);
+
+    if (!db) {
+      st.erro = "Entre na sua conta do Claude e abra o link de novo. Se continuar assim, peça acesso a quem compartilhou a biblioteca.";
+      renderTudo();
+      return;
+    }
+
+    db.collection("manuais").onSnapshot((snap) => {
+      st.manuais = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+      st.pronto = true;
+      st.erro = "";
+      if (st.confirmarId && !st.manuais.some((m) => m.id === st.confirmarId)) st.confirmarId = null;
+      if (st.editandoId && !st.manuais.some((m) => m.id === st.editandoId) && !st.enviando) {
+        limparFormulario();
+        toast("O manual que você editava foi excluído.");
+      }
+      renderTudo();
+    }, (err) => {
+      st.erro = err?.code === "revoked"
+        ? "Seu acesso a esta biblioteca mudou. Recarregue a página."
+        : "A conexão com a biblioteca caiu. Recarregue a página para tentar de novo.";
+      renderTudo();
+    });
+  }
+
+  iniciar();
+})();
+</script>
