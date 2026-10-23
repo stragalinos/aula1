@@ -58,7 +58,8 @@ Outros efeitos da IWBK:
 **O que a ME2N preenche:** com a ME2N na pasta `bases`, cada item com pedido SAP é casado pelo **pedido + material**, ou só pelo pedido quando o material não bate. Com isso o item recebe:
 - **o fornecedor:** aparece em "Quem cobrar", no Recebimento, na aba Por Fornecedor (com ✉ Cobrar) e no Painel;
 - **a data do pedido:** passa a ser o início da etapa 4, que é a base de "Dias na etapa";
-- **o preço:** só se o item não tiver preço e o pedido estiver em reais.
+- **o preço:** só se o item não tiver preço e o pedido estiver em reais;
+- **a RC SAP dos pedidos do TracOS:** se o layout tiver a coluna `Requisição de compra`. O TracOS só informa a RC enquanto a requisição está pendente.
 
 **Como exportar:** a mesma seleção da IWBK (as OS em aberto), com as colunas `Documento de compras`, `Item`, `Material`, `Fornecedor/centro fornecedor`, `Data do documento`, `Qtd.do pedido`, `Preço líquido` e `Moeda`.
 
@@ -98,7 +99,7 @@ Tudo recalcula na hora no Excel. Não é preciso rodar o script de novo depois d
 ## Como as tabelas estão organizadas
 
 - **Nº da OS e do pedido SAP sempre à vista:** ficam nas colunas fixas da esquerda, que não saem da tela quando um link leva a outra coluna.
-  - Follow-up: `OS SAP` e `Pedido SAP`.
+  - Follow-up: `OS SAP`, `RC SAP` e `Pedido SAP` nas colunas fixas; `Fornecedor` logo depois.
   - Recebimento: `Pedido SAP` e `OS SAP`.
   - Por Fornecedor: os pedidos SAP (com o nº TracOS entre parênteses) e as OS SAP afetadas, logo ao lado do fornecedor.
   - Por OS: `Pedidos SAP da OS`.

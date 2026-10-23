@@ -256,7 +256,7 @@ def normalizar_requisicao(df):
     out["atualizado_em"] = data(df["Atualizado em"])
     out["criado_por"] = df["Criado por"]
     out["grupo_compradores"] = df["Grupo de Compradores"]
-    out["req_sap"] = df["Nº Requisição de Compra SAP"]
+    out["req_sap"] = df["Nº Requisição de Compra SAP"].map(lambda v: _id_sap(v, tirar_zeros=True))  # como no SAP/IWBK
     out["nivel_liberacao"] = df["Nível de Liberação Atual"]
     out["oc_sap"] = df["Nº Ordem de Compra SAP"]
     return out
@@ -430,6 +430,9 @@ def normalizar_me2n(df):
     out["a_fornecer"] = df[col_afor].map(_num_sap) if col_afor else np.nan
     out["moeda"] = df["Moeda"].map(lambda v: np.nan if pd.isna(v) else str(v).strip())
     out["preco"] = df["Preço líquido"].map(_num_sap)
+    # opcional no layout: a RC que originou o pedido (o TracOS não informa a RC depois que o pedido sai)
+    col_rc = next((c for c in df.columns if c.lower() in ("requisição de compra", "requisicao de compra", "req.compra")), None)
+    out["rc_sap"] = df[col_rc].map(lambda v: _id_sap(v, tirar_zeros=True)) if col_rc else np.nan
     validas = out["pedido_sap"].notna()
     return out[validas].copy()
 

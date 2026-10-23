@@ -791,7 +791,7 @@ def _etapa_sap(x):
 def _integrar_me2n(L, me2n):
     """Completa com a ME2N do SAP os itens que têm pedido SAP mas não têm fornecedor (os que só existem no
     SAP: a IWBK não traz o fornecedor). Casa por pedido + material; sem o material, pelo pedido (um pedido
-    tem um fornecedor só). Também traz a data do pedido e, se faltar, o preço."""
+    tem um fornecedor só). Também traz a data do pedido, a RC (se o layout tiver a coluna) e, se faltar, o preço."""
     if not me2n:
         return None
     me = me2n["norm"]
@@ -810,6 +810,9 @@ def _integrar_me2n(L, me2n):
             L.at[j, "fornecedor"] = nomes.get(str(x["fornecedor"]).upper(), x["fornecedor"])
             preenchidos += 1
         L.at[j, "data_pedido_sap"] = x["data_pedido"]
+        # RC do pedido (se a ME2N trouxer); nas linhas só do SAP a RC da IWBK faz parte da chave e não muda
+        if _na(L.at[j, "req_sap"]) and L.at[j, "origem"] != "SAP" and not _na(x.get("rc_sap")):
+            L.at[j, "req_sap"] = x["rc_sap"]
         if _na(L.at[j, "preco"]) and x["moeda"] == "BRL" and not _na(x["preco"]) and x["preco"] > 0 \
                 and (ped, cod) in por_item.index:
             L.at[j, "preco"] = float(x["preco"])

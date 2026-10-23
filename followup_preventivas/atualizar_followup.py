@@ -167,7 +167,8 @@ DESCR_STATUS = {
 # (cabeçalho, largura, chave interna). Chaves 'f_' = fórmula; 'm_' = digitada por você.
 COLS_FU = [
     ("Status de risco", 26, "f_status"), ("Item disponível?", 10, "f_disp"), ("OS SAP", 12, "os_sap"),
-    ("Pedido SAP", 12, "pedido_sap"), ("Descrição da OS", 34, "descricao_os"), ("Código material", 10, "codigo"),
+    ("RC SAP", 11, "req_sap"), ("Pedido SAP", 12, "pedido_sap"), ("Fornecedor", 30, "fornecedor"),
+    ("Descrição da OS", 34, "descricao_os"), ("Código material", 10, "codigo"),
     ("Descrição do material", 34, "descricao"), ("Qtd", 6, "qtd"),
     ("Data de necessidade", 12, "f_nec"), ("Dias até a necessidade", 12, "f_dias_nec"),
     ("Etapa do funil", 30, "etapa_txt"), ("Quem cobrar", 38, "f_quem"),
@@ -178,7 +179,6 @@ COLS_FU = [
     # detalhes (recolhidos: clique no + acima das colunas para abrir)
     ("Prioridade", 8, "f_prio"), ("Un", 5, "unidade"), ("Preventiva", 9, "prev"), ("Origem da OS", 11, "origem_os"),
     ("Ativo", 36, "ativo"), ("Dias de atraso", 9, "f_atraso"), ("Dias na etapa atual", 10, "f_dias_etapa"),
-    ("Req. SAP", 12, "req_sap"), ("Fornecedor", 36, "fornecedor"),
     ("Valor do item (R$)", 14, "f_valor"), ("Etapa nº", 7, "etapa"), ("OS TracOS", 9, "os_tracos"),
     ("Qtd pendente", 9, "qtd_pendente"), ("Origem da data de necessidade", 26, "f_origem"),
     ("Data de necessidade (TracOS/SAP)", 12, "data_nec_tracos"), ("Data digitada para a OS", 12, "f_nec_manual"),
