@@ -5,6 +5,9 @@ repete). Toda linha de entrada termina em exatamente um lugar: numa linha do Fol
 (coluna "Linhas de origem") ou na aba Divergências como NÃO CASADO. Componentes da IWBK que não casam
 com o TracOS (RC só no SAP, itens de estoque) viram linhas próprias com origem "SAP".
 """
+import os
+import re
+
 import numpy as np
 import pandas as pd
 
@@ -39,6 +42,8 @@ SITUACAO_REC = {
     5: "✅ RECEBIDO (TracOS/SAP)",
 }
 RECEBIMENTO_OPCOES = ("SIM", "PARCIAL", "NÃO")
+# status do TracOS de registro que saiu do processo (cancelado, excluído, reprovado...): fica fora do follow-up
+RE_CANCELADO = re.compile(r"cancel|exclu|elimin|reprov|recus|rejeit|estorn|inativ", re.I)
 
 PARAMETROS_PADRAO = {"x_nivel01": 3, "x_nivel02": 5, "y_sem_pedido": 2, "z_entrega": 5}
 
@@ -216,9 +221,16 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None, so_preventivas=False
     marcas = {k: marca_recebimento(v) for k, v in manuais.get("recebimento", {}).items()}
     liberadas = {str(k) for k in manuais.get("liberadas", set())}
     prm = {**PARAMETROS_PADRAO, **(prm or {})}
-    r = B["requisicao"]["norm"]
-    f = B["fluxo"]["norm"]
-    p = B["pedido"]["norm"]
+    r0 = B["requisicao"]["norm"]
+    f0 = B["fluxo"]["norm"]
+    p0 = B["pedido"]["norm"]
+    # registros cancelados / excluídos / reprovados no TracOS não entram no cruzamento (vão para Divergências)
+    canc = {"requisição": r0[r0["status_req"].fillna("").str.contains(RE_CANCELADO)],
+            "fluxo": f0[f0["status_fluxo"].fillna("").str.contains(RE_CANCELADO)],
+            "pedido": p0[p0["status_pedido"].fillna("").str.contains(RE_CANCELADO)]}
+    r = r0.drop(canc["requisição"].index)
+    f = f0.drop(canc["fluxo"].index)
+    p = p0.drop(canc["pedido"].index)
 
     regras = {"R1": ["codigo", "requisicao", "pedido"], "R2": ["codigo", "requisicao"],
               "R3": ["codigo", "pedido"], "R4": ["codigo", "os_tracos"]}
@@ -261,6 +273,17 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None, so_preventivas=False
             preco_ref[fx["codigo"]] = pr
 
     linhas, divs = [], []
+    for base, df in canc.items():
+        col = {"requisição": "status_req", "fluxo": "status_fluxo", "pedido": "status_pedido"}[base]
+        for _, x in df.iterrows():
+            reprov = bool(re.search(r"reprov|recus|rejeit", str(x[col]), re.I))
+            divs.append(dict(
+                tipo="FORA DO FOLLOW-UP – " + ("reprovado" if reprov else "cancelado / excluído") + " no TracOS",
+                gravidade="Média" if reprov else "Info", base=base, linha=_int(x["linha_origem"]),
+                codigo=x["codigo"], descricao=x["descricao"], requisicao=_int(x.get("requisicao")),
+                pedido=_int(x.get("pedido")), os=_int(x.get("os_tracos")), fornecedor=x.get("fornecedor"),
+                detalhe=f"Status '{x[col]}'." + (" Se a OS ainda precisa do item, abra nova requisição."
+                                                 if reprov else ""), conta=True))
 
     def nova(rq=None, fx=None, pd_=None, conf=None, os_row=None):
         L = {}
@@ -653,15 +676,28 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None, so_preventivas=False
     if n_fora:
         alertas.append(f"{n_fora} de {len(p)} itens da base de pedidos não estão no fluxo "
                        f"({n_inf} com OS inferida pela requisição, {len(orfaos_ped)} sem OS → Divergências).")
-    for nome in ("requisicao", "fluxo", "pedido"):
-        if len(B[nome]["candidatos"]) > 1:
-            alertas.append(f"Vários arquivos de {nome} na pasta bases; usado o mais recente: "
-                           f"{B[nome]['arquivo']}")
+    for nome, rot in (("requisicao", "requisição"), ("fluxo", "fluxo"), ("pedido", "pedido"), ("iwbk", "IWBK")):
+        b = B.get(nome)
+        if not b or len(b["candidatos"]) < 2:
+            continue
+        movidos = [os.path.basename(c) for c in b.get("substituidos", [])]
+        outros = [os.path.basename(c) for c in b["candidatos"] if c != b["arquivo"] and c not in b.get("substituidos", [])]
+        alertas.append(f"{len(b['candidatos'])} arquivos de {rot} na pasta bases: usado '{os.path.basename(b['arquivo'])}' "
+                       f"({b.get('motivo', 'modificado por último')})."
+                       + (f" Os antigos ({', '.join(movidos)}) foram para bases/antigos." if movidos else "")
+                       + (f" Confira e apague os que não valem: {', '.join(outros)}." if outros else ""))
+    n_canc = {k: len(v) for k, v in canc.items() if len(v)}
+    if n_canc:
+        alertas.append("Fora do follow-up por estarem cancelados, excluídos ou reprovados no TracOS: "
+                       + ", ".join(f"{n} de {k}" for k, n in n_canc.items()) + " (ver Divergências).")
     if info_sap:
         alertas.append(
             f"IWBK (SAP): {info_sap['linhas']} componentes de {info_sap['os']} OS; {info_sap['casados']} casados com "
             f"o TracOS e {info_sap['novos']} só no SAP ({info_sap['estoque']} de estoque). "
             f"{info_sap['os_comuns']} OS aparecem nas duas bases.")
+        if info_sap.get("eliminadas"):
+            alertas.append(f"IWBK (SAP): {info_sap['eliminadas']} componentes eliminados da ordem ou de OS encerradas "
+                           f"ficaram de fora.")
         if info_sap["antigos"]:
             alertas.append(f"IWBK (SAP): {info_sap['antigos']} componentes em aberto com necessidade há mais de "
                            f"180 dias (reservas antigas): confira se ainda valem.")
@@ -699,7 +735,7 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None, so_preventivas=False
 
     # ------------------------------------------------ conciliação de linhas
     conc = []
-    bases_conc = [("requisição", "orig_req", r), ("fluxo", "orig_flx", f), ("pedido", "orig_ped", p)]
+    bases_conc = [("requisição", "orig_req", r0), ("fluxo", "orig_flx", f0), ("pedido", "orig_ped", p0)]
     if B.get("iwbk"):
         bases_conc.append(("iwbk", "orig_sap", B["iwbk"]["norm"]))
     for nome, col, df in bases_conc:
@@ -816,7 +852,8 @@ def _integrar_iwbk(L, iwbk, preco_ref, hoje):
     info = dict(linhas=len(iw), os=iw["os_sap"].nunique(), casados=len(s2l), novos=len(novos),
                 estoque=int(sum(1 for n in novos if n["categoria"] == "L")), antigos=antigos,
                 os_comuns=len(set(iw["os_sap"]) & set(tr["os_sap"].dropna())),
-                ignoradas=iwbk["norm"].attrs.get("linhas_ignoradas", 0))
+                ignoradas=iwbk["norm"].attrs.get("linhas_ignoradas", 0),
+                eliminadas=iwbk["norm"].attrs.get("eliminadas", 0))
     return L, info
 
 

@@ -14,7 +14,13 @@ Cruza as 3 exportações do TracOS (requisição, fluxo e pedido de compra) e ge
 
    - **Opcional:** a IWBK do SAP (`*IWBK*.xlsx`, exportada com o layout completo de colunas).
 
-   O número no fim do nome pode mudar. Se houver mais de um arquivo do mesmo tipo, o script usa o mais recente.
+   O número no fim do nome pode mudar. Se o arquivo for salvo com outro nome (ex.: `EXPORT.XLSX` do SAP), o script o reconhece pelas colunas.
+
+   **Mais de um arquivo do mesmo tipo:**
+   - O script usa o arquivo **novo**, isto é, o que não estava na pasta na última atualização.
+   - Os antigos vão sozinhos para `bases/antigos`.
+   - A data de modificação sozinha não serve: um arquivo copiado ou descompactado pode ficar com data mais nova que a de uma exportação recente.
+   - Os arquivos usados aparecem no topo do Painel e na aba Parâmetros.
 2. Dê dois cliques em **`atualizar_followup.bat`**. Também dá para rodar `python atualizar_followup.py` no terminal.
 3. A planilha abre sozinha. Ela fica salva em `saida/followup_preventivas_AAAA-MM-DD.xlsx`.
 
@@ -40,6 +46,16 @@ Outros efeitos da IWBK:
 - **Material já retirado:** itens já retirados ou baixados para a ordem vão para a aba **Histórico SAP**. Saem do Follow-up, do Recebimento e da Por OS, mas contam como disponíveis no total da OS.
 - **OS com todo o material retirado:** aparece no Painel como **✔ MATERIAL JÁ RETIRADO (SAP)**, com link para o histórico.
 - **Reservas antigas:** reservas com necessidade de mais de 180 dias vão para Divergências e ficam no fim de cada grupo no Follow-up.
+
+## Itens cancelados, excluídos ou encerrados
+
+- **TracOS:** requisição, item do fluxo ou pedido com status cancelado, excluído ou reprovado sai do Follow-up.
+  - Esses registros aparecem em Divergências como `FORA DO FOLLOW-UP`.
+  - Os reprovados aparecem como gravidade Média: se a OS ainda precisa do item, abra uma nova requisição.
+- **SAP:** se o layout da IWBK tiver a coluna de item eliminado (ex.: `Eliminado`) ou o status do sistema da ordem, ficam de fora:
+  - os componentes eliminados;
+  - os componentes de OS encerradas (ENTE / ENCE) ou marcadas para eliminação (MREL / MAEL).
+- **Item que sumiu da exportação:** sai do Follow-up na próxima atualização. As anotações dele ficam guardadas (veja abaixo).
 
 ## Rotina de gestão dos materiais: tudo na aba Follow-up
 

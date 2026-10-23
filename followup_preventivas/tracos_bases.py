@@ -3,6 +3,7 @@
 Usado por reconhecimento.py e atualizar_followup.py.
 """
 import fnmatch
+import hashlib
 import io
 import os
 import re
@@ -15,6 +16,14 @@ PADROES = {
     "requisicao": "requisi*compra*.csv",
     "fluxo": "fluxo*compras*.csv",
     "pedido": "pedido*compra*.csv",
+    "iwbk": "*iwbk*.xls*",
+}
+# colunas que identificam cada exportação: o arquivo é achado mesmo quando foi salvo com outro nome
+ASSINATURAS = {
+    "requisicao": ["Nº Requisição de Compra SAP", "Nível de Liberação Atual"],
+    "fluxo": ["Quant. Pendente", "Código Identificador"],
+    "pedido": ["Código Externo", "Custo Total"],
+    "iwbk": ["Ordem", "Material", "Nº reserva", "Disponibilidade"],
 }
 
 RE_ITEM = re.compile(r"^#?(\d+)\s+(\d+)\s*-\s*(.*)$", re.S)
@@ -30,19 +39,66 @@ def _norm(s):
     return unicodedata.normalize("NFC", s).lower()
 
 
-def localizar(pasta, padrao):
-    """Arquivo mais recente (data de modificação) cujo nome casa com o padrão.
+def _cabecalho(caminho):
+    """Colunas do arquivo (CSV do TracOS ou planilha do SAP), lendo só o começo dele."""
+    try:
+        if caminho.lower().endswith(".csv"):
+            with open(caminho, "rb") as fh:
+                raw = fh.read(8192)
+            enc = "utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+            linhas = raw.decode(enc, errors="ignore").lstrip("\ufeff").splitlines()
+            return [c.strip().lstrip("\ufeff") for c in linhas[0].split("\t")] if linhas else []
+        return [str(c).strip() for c in pd.read_excel(caminho, nrows=0).columns]
+    except Exception:
+        return []
 
-    A comparação ignora maiúsculas/minúsculas e a forma Unicode do nome.
-    """
-    candidatos = [
-        os.path.join(pasta, n)
-        for n in os.listdir(pasta)
-        if fnmatch.fnmatchcase(_norm(n), _norm(padrao))
-    ]
-    if not candidatos:
-        raise FileNotFoundError(f"Nenhum arquivo '{padrao}' em {os.path.abspath(pasta)}")
-    return max(candidatos, key=os.path.getmtime), sorted(candidatos)
+
+def candidatos(pasta, nome):
+    """Arquivos da pasta que são a exportação 'nome': pelo nome do arquivo ou, se o nome for outro,
+    pelas colunas do cabeçalho. A comparação do nome ignora maiúsculas/minúsculas e a forma Unicode."""
+    exts = (".xlsx", ".xls", ".xlsm") if nome == "iwbk" else (".csv",)
+    out = []
+    for n in sorted(os.listdir(pasta)):
+        c = os.path.join(pasta, n)
+        if n.startswith("~$") or not os.path.isfile(c):
+            continue
+        if fnmatch.fnmatchcase(_norm(n), _norm(PADROES[nome])):
+            out.append(c)
+        elif n.lower().endswith(exts) and all(x in _cabecalho(c) for x in ASSINATURAS[nome]):
+            out.append(c)
+    return out
+
+
+def md5(caminho):
+    h = hashlib.md5()
+    with open(caminho, "rb") as fh:
+        for bloco in iter(lambda: fh.read(1 << 20), b""):
+            h.update(bloco)
+    return h.hexdigest()
+
+
+def escolher(cands, anteriores=None):
+    """Escolhe o arquivo de uma base entre os que estão na pasta.
+
+    anteriores = arquivos que estavam na pasta na última atualização: {"md5": {...}} (ou {"nomes": {...}}
+    nas planilhas antigas). Vale o arquivo NOVO, que não estava lá; havendo vários novos, o modificado
+    por último. Sem arquivo novo, o modificado por último. A data de modificação sozinha engana: arquivo
+    copiado ou descompactado pode ficar com data mais nova que a de uma exportação recente.
+    Devolve (arquivo, motivo, arquivos substituídos, md5 de cada candidato)."""
+    hs = {c: md5(c) for c in cands}
+    ant = anteriores or {}
+
+    def conhecido(c):
+        if ant.get("md5"):
+            return hs[c] in ant["md5"]
+        return os.path.basename(c) in ant.get("nomes", set())
+
+    novos = [c for c in cands if not conhecido(c)]
+    if ant and novos and len(novos) < len(cands):
+        esc = max(novos, key=os.path.getmtime)
+        return esc, "arquivo novo desde a última atualização", [c for c in cands if conhecido(c)], hs
+    esc = max(cands, key=os.path.getmtime)
+    return esc, "único arquivo" if len(cands) == 1 else "modificado por último", [], hs
 
 
 def ler_csv_tracos(caminho):
@@ -246,7 +302,7 @@ def normalizar_pedido(df):
 
 
 # ---------------------------------------------------------------- SAP IWBK (opcional)
-PADRAO_IWBK = "*iwbk*.xls*"
+PADRAO_IWBK = PADROES["iwbk"]
 COLUNAS_IWBK = ["Ordem", "Item lis.téc.", "Requisição de compra", "Data da necessidade", "Material",
                 "Txt.breve ordem", "UM básica", "Qtd.necessária", "Qtd.retirada", "Item ReqC",
                 "Texto breve material", "Qtd.entrada", "Pedido", "Documento de compras", "Data de remessa",
@@ -323,26 +379,43 @@ def normalizar_iwbk(df):
     out["prev_na_descricao"] = out["descricao_os"].fillna("").str.upper().str.contains("PREV")
     out["eh_preventiva"] = eh_preventiva(out["descricao_os"])
     validas = out["os_sap"].notna() & out["codigo"].notna()
-    norm = out[validas].copy()
+    # colunas opcionais do layout: item eliminado da ordem (ex.: 'Eliminado') e status da ordem (ENTE/ENCE =
+    # encerrada, MREL/MAEL = marcada para eliminação). Esses componentes não precisam mais de material.
+    fora = pd.Series(False, index=df.index)
+    for c in df.columns:
+        nc = unicodedata.normalize("NFKD", c).encode("ascii", "ignore").decode().lower()
+        if "elimin" in nc or "exclu" in nc:
+            fora |= df[c].map(lambda v: not pd.isna(v) and str(v).strip().upper() not in
+                              ("", "0", "-", "N", "NAO", "NÃO", "FALSE", "FALSO"))
+        elif "status" in nc:
+            fora |= df[c].fillna("").astype(str).str.upper().str.contains(r"\b(?:ENTE|ENCE|MREL|MAEL|ELIM)\b")
+    norm = out[validas & ~fora].copy()
     norm.attrs["linhas_ignoradas"] = int((~validas).sum())
+    norm.attrs["eliminadas"] = int((validas & fora).sum())
     return norm
 
 
-def carregar_bases(pasta="bases"):
-    """Localiza, lê e normaliza as 3 bases do TracOS e, se existir, a IWBK do SAP."""
+def carregar_bases(pasta="bases", anteriores=None):
+    """Localiza, lê e normaliza as 3 bases do TracOS e, se existir, a IWBK do SAP.
+    anteriores = {base: arquivos que estavam na pasta na última atualização} (ver escolher)."""
+    anteriores = anteriores or {}
     res = {}
-    for nome, padrao in PADROES.items():
-        caminho, todos = localizar(pasta, padrao)
-        bruto = ler_csv_tracos(caminho)
-        norm = {"requisicao": normalizar_requisicao,
-                "fluxo": normalizar_fluxo,
-                "pedido": normalizar_pedido}[nome](bruto)
-        res[nome] = {"arquivo": caminho, "candidatos": todos, "bruto": bruto, "norm": norm}
-    try:
-        caminho, todos = localizar(pasta, PADRAO_IWBK)
-    except FileNotFoundError:
-        res["iwbk"] = None
-    else:
-        bruto = ler_iwbk(caminho)
-        res["iwbk"] = {"arquivo": caminho, "candidatos": todos, "bruto": bruto, "norm": normalizar_iwbk(bruto)}
+    for nome in PADROES:
+        cands = candidatos(pasta, nome)
+        if not cands:
+            if nome == "iwbk":
+                res["iwbk"] = None
+                continue
+            raise FileNotFoundError(f"Nenhum arquivo '{PADROES[nome]}' em {os.path.abspath(pasta)}")
+        caminho, motivo, subst, hs = escolher(cands, anteriores.get(nome))
+        if nome == "iwbk":
+            bruto = ler_iwbk(caminho)
+            norm = normalizar_iwbk(bruto)
+        else:
+            bruto = ler_csv_tracos(caminho)
+            norm = {"requisicao": normalizar_requisicao,
+                    "fluxo": normalizar_fluxo,
+                    "pedido": normalizar_pedido}[nome](bruto)
+        res[nome] = {"arquivo": caminho, "candidatos": cands, "motivo": motivo, "substituidos": subst,
+                     "md5": hs, "bruto": bruto, "norm": norm}
     return res

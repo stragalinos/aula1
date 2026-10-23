@@ -15,6 +15,7 @@ import glob
 import math
 import re
 import os
+import shutil
 import sys
 import unicodedata
 import urllib.parse
@@ -513,7 +514,7 @@ def guardar(man, aba, chave, col, v):
 
 
 def ler_versao_anterior(pasta_saida):
-    vazio = dict(arquivo=None, manuais=_anotacoes_vazias(), historico={}, prm={}, migrou=False)
+    vazio = dict(arquivo=None, manuais=_anotacoes_vazias(), historico={}, prm={}, migrou=False, arquivos={})
     arqs = [a for a in glob.glob(os.path.join(pasta_saida, PREFIXO + "*.xlsx"))
             if not os.path.basename(a).startswith("~$")]
     if not arqs:
@@ -556,13 +557,15 @@ def ler_versao_anterior(pasta_saida):
         for d in _tabela(wb["_anotacoes"], ["Aba", "Chave", "Coluna", "Valor"]):
             guardar(man, d.get("Aba"), _k(d.get("Chave")), d.get("Coluna"), d.get("Valor"))
     # 4) cadastro de e-mails dos fornecedores (aba Parâmetros) e parâmetros
-    prm = {}
+    prm, nomes_usados = {}, {}
     if "Parâmetros" in wb.sheetnames:
         ids = {p[0] for p in PARAMETROS}
         for row in wb["Parâmetros"].iter_rows(min_row=1, values_only=True):
             if not row or len(row) < 4:
                 continue
-            if row[3] == ID_FORN:
+            if isinstance(row[0], str) and row[0].startswith("Arquivo de ") and row[1]:
+                nomes_usados[row[0][len("Arquivo de "):]] = {"nomes": {str(row[1])}}
+            elif row[3] == ID_FORN:
                 guardar(man, "Fornecedor", _k(row[0]), FORN_EMAIL, row[1])
             elif row[3] in ids and row[3] != "data_ref":
                 v = row[1]
@@ -570,13 +573,21 @@ def ler_versao_anterior(pasta_saida):
                     prm[row[3]] = "" if v is None else str(v)
                 elif isinstance(v, (int, float)):
                     prm[row[3]] = v
+    # arquivos que estavam na pasta bases na última atualização (planilhas antigas: só o nome do usado)
+    arquivos = {}
+    if "_arquivos" in wb.sheetnames:
+        for d in _tabela(wb["_arquivos"], ["Base", "Arquivo", "MD5"]):
+            if d.get("Base") and d.get("MD5"):
+                arquivos.setdefault(d["Base"], {"md5": set()})["md5"].add(str(d["MD5"]))
+    else:
+        arquivos = nomes_usados
     hist = {}
     if "_historico" in wb.sheetnames:
         for d in _tabela(wb["_historico"], ["Chave", "Etapa", "Desde"]):
             if d.get("Chave") and d.get("Etapa") and d.get("Desde"):
                 hist[str(d["Chave"])] = (int(d["Etapa"]), pd.Timestamp(d["Desde"]))
     wb.close()
-    return dict(arquivo=ant, manuais=man, historico=hist, prm=prm, migrou=not novo_formato)
+    return dict(arquivo=ant, manuais=man, historico=hist, prm=prm, migrou=not novo_formato, arquivos=arquivos)
 
 
 def migrar_chaves_os(man, B):
@@ -826,14 +837,18 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
     cel(ws, (lin, 1), "Anotações reaproveitadas de", F_NEGRITO)
     cel(ws, (lin, 2), os.path.basename(info_ant["arquivo"]) if info_ant["arquivo"] else "(primeira versão)")
     lin += 1
+    lin_arquivos = lin
     for nome in ("requisicao", "fluxo", "pedido", "iwbk"):
         if not B.get(nome):
             continue
         arq = B[nome]["arquivo"]
+        outros = [os.path.basename(c) for c in B[nome]["candidatos"] if c != arq]
         cel(ws, (lin, 1), f"Arquivo de {nome}", F_NEGRITO)
         cel(ws, (lin, 2), os.path.basename(arq))
         cel(ws, (lin, 3), f"{len(B[nome]['bruto'])} linhas – modificado em "
-                          f"{dt.datetime.fromtimestamp(os.path.getmtime(arq)):%d/%m/%Y %H:%M}")
+                          f"{dt.datetime.fromtimestamp(os.path.getmtime(arq)):%d/%m/%Y %H:%M} – {B[nome]['motivo']}"
+                          + (f". Também na pasta: {', '.join(outros)}"
+                             + (" (movidos para bases/antigos)" if B[nome]["substituidos"] else "") if outros else ""))
         lin += 1
     lin += 1
     cel(ws, (lin, 1), "Conciliação (linhas de entrada × saída)", F_SECAO)
@@ -855,7 +870,7 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
     for a in R["alertas"]:
         lin += 1
         cel(ws, (lin, 1), "⚠ " + a, F_ALERTA)
-    return lin_avisos, ini_forn
+    return lin_avisos, ini_forn, lin_arquivos
 
 
 def escrever_tabela(ws, colunas, registros, valor_de, fmts, centro, negrito=(), links=(), detalhe=()):
@@ -1229,7 +1244,7 @@ def _fonte(tam=10, cor=TINTA, negrito=False, italico=False):
     return Font(name=FONTE, size=tam, color=cor, bold=negrito, italic=italico)
 
 
-def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn):
+def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
     """Painel em cartões: faixa de título, menu, indicadores clicáveis e tabelas curtas lado a lado."""
     ws = wb.create_sheet("Painel", 0)
     ws.sheet_properties.tabColor = FUNDO_TOPO
@@ -1260,13 +1275,22 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn):
     fino = Side(style="thin", color=LINHA)
 
     # ---------------------------------------------------------------- faixa de título
-    for r in range(1, 4):
+    for r in range(1, 5):
         for j in range(1, 16):
             ws.cell(row=r, column=j).fill = PatternFill("solid", fgColor=FUNDO_TOPO)
     ws.row_dimensions[1].height = 8
     ws.row_dimensions[2].height = 30
-    ws.row_dimensions[3].height = 20
-    ws.row_dimensions[4].height = 10
+    ws.row_dimensions[3].height = 18
+    ws.row_dimensions[4].height = 20
+    ws.row_dimensions[5].height = 10
+    # arquivos usados: para conferir de relance se a atualização pegou as exportações novas
+    rot = {"requisicao": "Requisição", "fluxo": "Fluxo", "pedido": "Pedido", "iwbk": "IWBK"}
+    usados = "   ·   ".join(
+        f"{rot[n]}: {os.path.basename(b['arquivo'])} ({dt.datetime.fromtimestamp(os.path.getmtime(b['arquivo'])):%d/%m %H:%M})"
+        for n, b in B.items() if b)
+    texto = "Bases usadas  ·  " + usados.replace('"', "'")
+    escrever(4, ESQ, FIM, link(f"\"#'Parâmetros'!A{lin_arquivos}\"", f'"{texto}"') if len(texto) <= 250 else texto,
+             _fonte(8, TEXTO_TOPO))  # texto entre aspas numa fórmula: máx. 255 caracteres
     escrever(2, ESQ, 10, "Follow-up de peças · Manutenção preventiva", _fonte(16, "FFFFFF", True))
     escrever(3, ESQ, 3, "Data de referência", _fonte(9, TEXTO_TOPO))
     escrever(3, 4, 4, "=DATA_REF", _fonte(10, "FFFFFF", True), fmt=FMT_DATA)
@@ -1284,16 +1308,16 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn):
     for i, (txt, aba, col) in enumerate(menu):
         c0 = [2, 4, 6, 9, 11, 13][i]
         prim = i == 0
-        escrever(5, c0, c0 + 1, link(local(aba, col), f'"{txt}"'), _fonte(10, "FFFFFF" if prim else COR_LINK, True),
+        escrever(6, c0, c0 + 1, link(local(aba, col), f'"{txt}"'), _fonte(10, "FFFFFF" if prim else COR_LINK, True),
                  h="c", preench=PatternFill("solid", fgColor=COR_AZUL if prim else "FFFFFF"))
         lado = Side(style="thin", color=COR_AZUL if prim else LINHA_BASE)
-        bordas(5, c0, c0 + 1, top=lado, bottom=lado)
-        bordas(5, c0, c0, left=lado)
-        bordas(5, c0 + 1, c0 + 1, right=lado)
-    ws.row_dimensions[5].height = 26
-    escrever(6, ESQ, FIM, "Tudo o que você preenche fica no Follow-up (colunas amarelas). Clique nos números e nomes "
+        bordas(6, c0, c0 + 1, top=lado, bottom=lado)
+        bordas(6, c0, c0, left=lado)
+        bordas(6, c0 + 1, c0 + 1, right=lado)
+    ws.row_dimensions[6].height = 26
+    escrever(7, ESQ, FIM, "Tudo o que você preenche fica no Follow-up (colunas amarelas). Clique nos números e nomes "
                           "para abrir os itens; em cada aba, a célula A1 volta para cá.", _fonte(9, TINTA_2, italico=True))
-    ws.row_dimensions[6].height = 20
+    ws.row_dimensions[7].height = 20
 
     # ---------------------------------------------------------------- indicadores
     def achar(valores, faixa):
@@ -1320,7 +1344,7 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn):
         (13, 14, "PARADOS NA APROVAÇÃO", COR_CRITICO, local("Follow-up", "A", f"MATCH(2,{FU['f_prio']},0)"),
          f"COUNTIFS({FU['f_prio']},2)", "itens além do prazo"),
     ]
-    T = 8
+    T = 9
     for c0, c1, rot, cor, loc, n, sub in tiles:
         escrever(T, c0, c1, rot, _fonte(8, TINTA_2, True))
         escrever(T + 1, c0, c1, link(loc, n), _fonte(30 if c0 == ESQ else 24, TINTA, True))
@@ -1421,7 +1445,7 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn):
         return cartao(r0, DIR, "Recebimento de materiais", "marque no Follow-up → Recebido?",
                       [("SITUAÇÃO DO ITEM", 3, "l"), ("ITENS", 1, "c"), ("", 2, "l")], linhas)
 
-    lin = par(12, c_os, c_rec)
+    lin = par(13, c_os, c_rec)
 
     # 2) OS aptas agora  |  OS com itens faltando por janela
     def c_aptas(r0):
@@ -1571,7 +1595,7 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn):
                 bordas(r0, j, j, top=fino)
         bordas(r1, c0, c1, bottom=fino)
     fundo = PatternFill("solid", fgColor=FUNDO_PAG)
-    for r in range(4, ult + 1):
+    for r in range(5, ult + 1):
         for j in range(1, 16):
             c = ws.cell(row=r, column=j)
             if c.fill is None or c.fill.fill_type is None:
@@ -1580,7 +1604,7 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn):
         ws.conditional_formatting.add(a, CellIsRule(operator="equal", formula=["0"],
                                                     font=Font(name=FONTE, color=COR_MUDO, bold=False)))
     sem_link(ws, f"A1:O{ult}", "A1")
-    ws.freeze_panes = "A7"
+    ws.freeze_panes = "A8"
     ws.sheet_view.zoomScale = 100
     paisagem(ws)
 
@@ -1673,8 +1697,8 @@ def aba_oculta(wb, nome, cabec, linhas, fmt_col=None):
 def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False):
     hoje = pd.Timestamp(hoje or dt.date.today()).normalize()
     os.makedirs(pasta_saida, exist_ok=True)
-    B = tb.carregar_bases(pasta_bases)
     ant = ler_versao_anterior(pasta_saida)
+    B = tb.carregar_bases(pasta_bases, ant["arquivos"])
     man = ant["manuais"]
     migrar_chaves_os(man, B)
     prm = dict(ant["prm"])
@@ -1693,21 +1717,25 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
 
     wb = Workbook()
     wb.remove(wb.active)
-    lin_avisos, ini_forn = aba_parametros(wb, {**cz.PARAMETROS_PADRAO, **prm}, B, R, data_fixa, ant, man["forn"])
+    lin_avisos, ini_forn, lin_arquivos = aba_parametros(wb, {**cz.PARAMETROS_PADRAO, **prm}, B, R, data_fixa, ant, man["forn"])
     aba_followup(wb, R["linhas"], man, FU, POS)
     aba_recebimento(wb, R["recebimento"], FU, POS)
     aba_por_os(wb, R["por_os"], FU)
     aba_por_fornecedor(wb, R["por_fornecedor"], FU, ini_forn)
     aba_divergencias(wb, R["divergencias"], orfas)
-    aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn)
+    aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos)
     aba_historico_sap(wb, R["historico_sap"])
     aba_outras_os(wb, R["outras"], so_prev)
     aba_bases(wb, B)
     aba_oculta(wb, "_historico", ["Chave", "Etapa", "Desde"],
                [[k, e, d] for k, (e, d) in sorted(R["historico"].items())], fmt_col="C")
     aba_oculta(wb, "_anotacoes", ["Aba", "Chave", "Coluna", "Valor"], orfas_reg)
+    aba_oculta(wb, "_arquivos", ["Base", "Arquivo", "MD5", "Modificado em", "Usado"],
+               [[nome, os.path.basename(c), b["md5"][c], dt.datetime.fromtimestamp(os.path.getmtime(c)),
+                 "SIM" if c == b["arquivo"] else "NÃO"]
+                for nome, b in B.items() if b for c in b["candidatos"]], fmt_col="D")
     ordem = ["Painel", "Follow-up", "Por OS", "Recebimento", "Por Fornecedor", "Divergências", "Histórico SAP",
-             "Outras OS", "Parâmetros", "Bases tratadas", "_historico", "_anotacoes"]
+             "Outras OS", "Parâmetros", "Bases tratadas", "_historico", "_anotacoes", "_arquivos"]
     wb._sheets = [wb[n] for n in ordem]
     wb.active = 0
     wb.calculation.fullCalcOnLoad = True
@@ -1719,18 +1747,46 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
         destino = os.path.join(pasta_saida, f"{PREFIXO}{hoje:%Y-%m-%d}_{dt.datetime.now():%H%M%S}.xlsx")
         wb.save(destino)
         print("AVISO: a planilha do dia estava aberta no Excel; salvei com outro nome.")
+    movidos = arquivar_substituidos(B, pasta_bases)
 
     if not silencioso:
-        resumo(R, destino, ant, orfas)
+        resumo(R, destino, ant, orfas, B, movidos)
     return destino, R
 
 
-def resumo(R, destino, ant, orfas):
+def arquivar_substituidos(B, pasta_bases):
+    """Exportações antigas que foram substituídas por uma nova vão para bases/antigos, para que a pasta
+    bases fique só com as exportações atuais."""
+    pasta = os.path.join(pasta_bases, "antigos")
+    movidos = []
+    for b in B.values():
+        for c in (b or {}).get("substituidos", []):
+            os.makedirs(pasta, exist_ok=True)
+            raiz, ext = os.path.splitext(os.path.join(pasta, os.path.basename(c)))
+            alvo, k = raiz + ext, 1
+            while os.path.exists(alvo):
+                alvo, k = f"{raiz} ({k}){ext}", k + 1
+            try:
+                shutil.move(c, alvo)
+                movidos.append(os.path.basename(c))
+            except OSError as e:
+                print(f"AVISO: não consegui mover {c} para {pasta}: {e}")
+    return movidos
+
+
+def resumo(R, destino, ant, orfas, B, movidos):
     L, po, rc = R["linhas"], R["por_os"], R["recebimento"]
     print("=" * 78)
     print("FOLLOW-UP DE PEÇAS – atualização concluída")
     print("=" * 78)
     print(f"Arquivo gerado: {destino}")
+    print("Bases usadas:")
+    for nome, b in B.items():
+        if b:
+            print(f"  {nome:<11} {os.path.basename(b['arquivo'])}  (modificado em "
+                  f"{dt.datetime.fromtimestamp(os.path.getmtime(b['arquivo'])):%d/%m/%Y %H:%M}; {b['motivo']})")
+    if movidos:
+        print(f"  exportações antigas movidas para bases/antigos: {', '.join(movidos)}")
     m = ant["manuais"]
     print(f"Anotações reaproveitadas de: {os.path.basename(ant['arquivo']) if ant['arquivo'] else '(primeira versão)'}"
           f"  |  {len(m['item'])} itens e {len(m['os'])} OS com anotação, {len(m['forn'])} e-mails de fornecedor, "

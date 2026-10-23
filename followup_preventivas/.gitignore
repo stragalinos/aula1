@@ -4,3 +4,4 @@ bases/*.xls*
 bases/*.XLS*
 saida/
 __pycache__/
+bases/antigos/
