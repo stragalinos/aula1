@@ -1,18 +1,20 @@
-"""ETAPAS 1 e 2 - cruzamento das 3 bases, etapa do funil e status de risco.
+"""ETAPAS 1 e 2 - cruzamento das 3 bases do TracOS (+ IWBK do SAP), etapa do funil e status de risco.
 
 Grão da tabela: uma linha por material x requisição x OS (com sequencial quando o mesmo trio se
 repete). Toda linha de entrada termina em exatamente um lugar: numa linha do Follow-up
-(coluna "Linhas de origem") ou na aba Divergências como NÃO CASADO.
+(coluna "Linhas de origem") ou na aba Divergências como NÃO CASADO. Componentes da IWBK que não casam
+com o TracOS (RC só no SAP, itens de estoque) viram linhas próprias com origem "SAP".
 """
 import numpy as np
 import pandas as pd
 
 ETAPAS = {
-    1: "1 - Aguardando aprovação gestor (nível 01)",
+    0: "0 - Falta em estoque (reserva SAP)",
+    1: "1 - Aguardando aprovação (gestor nível 01 / RC SAP)",
     2: "2 - Aguardando almox corporativo (nível 02)",
-    3: "3 - Compra autorizada (sem pedido)",
+    3: "3 - Compra autorizada / RC liberada (sem pedido)",
     4: "4 - Pedido emitido (aguardando entrega)",
-    5: "5 - Entregue / Concluído",
+    5: "5 - Entregue / disponível",
 }
 
 # prioridade -> texto (a ordem é a prioridade do status de risco)
@@ -30,10 +32,11 @@ STATUS = {
 SITUACAO_REC = {
     0: "🚚 A CAMINHO – ATRASADO",
     1: "🚚 A CAMINHO",
+    6: "📦 FALTA EM ESTOQUE",
     2: "🟡 RECEBIDO PARCIAL",
     3: "⛔ NÃO RECEBIDO",
     4: "✅ RECEBIDO (manual)",
-    5: "✅ RECEBIDO (TracOS)",
+    5: "✅ RECEBIDO (TracOS/SAP)",
 }
 RECEBIMENTO_OPCOES = ("SIM", "PARCIAL", "NÃO")
 
@@ -51,7 +54,17 @@ CONFIANCA = {
     "SO_REQ": "Só requisição – pendente (sem vínculo esperado)",
     "SO_FLX": "Só fluxo – compra autorizada, sem pedido",
     "FLX_SEM_PED": "Só fluxo – pedido não encontrado na base de pedidos",
+    "S1": "SAP – OS + material + RC",
+    "S2": "SAP – OS + material + pedido",
+    "S3": "SAP – OS + material",
+    "S4": "SAP – material + RC",
+    "S5": "SAP – material + pedido",
+    "SO_SAP": "Só SAP (IWBK) – compra sem item no TracOS",
+    "SO_SAP_L": "Só SAP (IWBK) – componente de estoque",
 }
+REGRAS_SAP = [("S1", ["os_sap", "codigo", "rc_n"]), ("S2", ["os_sap", "codigo", "pedido_sap"]),
+              ("S3", ["os_sap", "codigo"]), ("S4", ["codigo", "rc_n"]), ("S5", ["codigo", "pedido_sap"])]
+CAMPOS_SAP = ["categoria", "disponibilidade", "qtd_retirada", "data_remessa", "reserva"]
 
 
 def _na(v):
@@ -141,11 +154,11 @@ def prioridade(etapa, data_nec, inicio, hoje, prm, disponivel=None):
         return 6
     if d_nec is not None and d_nec < 0:
         return 1
-    if etapa <= 2 and (d_etapa or 0) > (prm["x_nivel01"] if etapa == 1 else prm["x_nivel02"]):
+    if 1 <= etapa <= 2 and (d_etapa or 0) > (prm["x_nivel01"] if etapa == 1 else prm["x_nivel02"]):
         return 2
     if etapa == 3 and (d_etapa or 0) > prm["y_sem_pedido"]:
         return 3
-    if etapa == 4 and d_nec is not None and d_nec <= prm["z_entrega"]:
+    if etapa in (0, 4) and d_nec is not None and d_nec <= prm["z_entrega"]:
         return 4
     if d_nec is None:
         return 7
@@ -169,7 +182,7 @@ def disponivel(marca, etapa):
     return etapa == 5
 
 
-def situacao_recebimento(marca, recebido_tracos, data_nec, hoje):
+def situacao_recebimento(marca, recebido_tracos, data_nec, hoje, etapa=None):
     """Espelho da fórmula 'Situação' da aba Recebimento."""
     if marca == "SIM":
         return SITUACAO_REC[4]
@@ -179,6 +192,8 @@ def situacao_recebimento(marca, recebido_tracos, data_nec, hoje):
         return SITUACAO_REC[3]
     if recebido_tracos:
         return SITUACAO_REC[5]
+    if etapa == 0:
+        return SITUACAO_REC[6]
     d = dias(data_nec, hoje)
     return SITUACAO_REC[0] if d is not None and d < 0 else SITUACAO_REC[1]
 
@@ -188,17 +203,17 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
     por_fornecedor, requisicoes, historico novo, alertas e conciliacao.
 
     manuais = anotações da versão anterior da planilha:
-      datas_os    {OS TracOS: data de necessidade digitada na aba Por OS}
+      datas_os    {OS SAP: data de necessidade digitada na aba Por OS}
       recebimento {chave: SIM / PARCIAL / NÃO digitado na aba Recebimento}
-      liberadas   {OS TracOS já liberadas para a equipe}
+      liberadas   {OS SAP já liberadas para a equipe}
     """
     hoje = pd.Timestamp(hoje).normalize()
     historico = historico or {}
     manuais = manuais or {}
-    datas_os = {int(k): pd.Timestamp(v).normalize() for k, v in manuais.get("datas_os", {}).items()
+    datas_os = {str(k): pd.Timestamp(v).normalize() for k, v in manuais.get("datas_os", {}).items()
                 if not _na(v)}
     marcas = {k: marca_recebimento(v) for k, v in manuais.get("recebimento", {}).items()}
-    liberadas = {int(k) for k in manuais.get("liberadas", set())}
+    liberadas = {str(k) for k in manuais.get("liberadas", set())}
     prm = {**PARAMETROS_PADRAO, **(prm or {})}
     r = B["requisicao"]["norm"]
     f = B["fluxo"]["norm"]
@@ -426,21 +441,35 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
                 .agg(lambda s: s.value_counts().index[0]))
     falta = L["ativo"].isna() & L["os_tracos"].notna()
     L.loc[falta, "ativo"] = L.loc[falta, "os_tracos"].map(ativo_os)
-
-    # data de necessidade: do fluxo; sem ela, herda a data dos outros itens da mesma OS
     L["data_nec_tracos"] = pd.to_datetime(L["data_nec_tracos"])
-    L["origem_data_tracos"] = np.where(L["data_nec_tracos"].notna(), "TracOS (fluxo)", None)
-    nec_os = L.dropna(subset=["os_tracos", "data_nec_tracos"]).groupby("os_tracos")["data_nec_tracos"].min()
-    falta = L["data_nec_tracos"].isna() & L["os_tracos"].notna() & L["os_tracos"].isin(nec_os.index)
-    L.loc[falta, "data_nec_tracos"] = L.loc[falta, "os_tracos"].map(nec_os)
+    L["origem_data_tracos"] = pd.Series(np.where(L["data_nec_tracos"].notna(), "TracOS (fluxo)", None),
+                                        index=L.index, dtype=object)
+
+    # SAP (IWBK): casa com as linhas do TracOS e acrescenta o que só existe no SAP
+    L["origem"] = "TracOS"
+    L["orig_sap"] = np.nan
+    L["etapa_txt_sap"] = None
+    L["sap_consumido"] = False
+    for c in CAMPOS_SAP:
+        L[c] = np.nan
+    L, info_sap = _integrar_iwbk(L, B.get("iwbk"), preco_ref, hoje)
+
+    # data de necessidade: do fluxo/IWBK; sem ela, herda a data dos outros itens da mesma OS
+    nec_os = L.dropna(subset=["os_sap", "data_nec_tracos"]).groupby("os_sap")["data_nec_tracos"].min()
+    falta = L["data_nec_tracos"].isna() & L["os_sap"].notna() & L["os_sap"].isin(nec_os.index)
+    L.loc[falta, "data_nec_tracos"] = L.loc[falta, "os_sap"].map(nec_os)
     L.loc[falta, "origem_data_tracos"] = "Herdada de outro item da OS"
 
     # chave = material | requisição | OS (+ sequencial quando o trio se repete)
     L["_ord"] = L["req_item"].fillna(0).astype(float) * 1e6 + L["orig_req"].fillna(0) + \
-        L["orig_flx"].fillna(0) * 1e3 + L["orig_ped"].fillna(0) * 1e4
-    L = L.sort_values(["codigo", "requisicao", "os_tracos", "_ord"], na_position="last")
+        L["orig_flx"].fillna(0) * 1e3 + L["orig_ped"].fillna(0) * 1e4 + L["orig_sap"].fillna(0)
+    L = L.sort_values(["codigo", "requisicao", "os_tracos", "os_sap", "_ord"], na_position="last")
     base_chave = (L["codigo"].astype(str) + "|R" + L["requisicao"].map(lambda v: "-" if _na(v) else str(int(v)))
                   + "|OS" + L["os_tracos"].map(lambda v: "-" if _na(v) else str(int(v))))
+    # linha só do SAP: material | RC SAP | OS SAP
+    so_sap = L["origem"].eq("SAP")
+    base_chave = base_chave.where(~so_sap, L["codigo"].astype(str) + "|RC" + L["req_sap"].fillna("-").astype(str)
+                                  + "|OS" + L["os_sap"].astype(str))
     L["seq"] = base_chave.groupby(base_chave).cumcount() + 1
     L["chave"] = base_chave + L["seq"].map(lambda s: "" if s == 1 else f"|{s}")
     L = L.drop(columns="_ord")
@@ -450,7 +479,7 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
     for _, l in L.iterrows():
         h = historico.get(l["chave"])
         e = l["etapa"]
-        if e == 1:
+        if e == 1 and not _na(l["criado_req"]):
             ini, b = l["criado_req"], "Criado em (requisição)"
         elif e == 2:
             if h and h[0] == 2:
@@ -476,10 +505,11 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
     L["inicio_etapa"] = inicios
     L["base_inicio"] = bases_ini
     L["etapa_txt"] = L["etapa"].map(ETAPAS)
+    L.loc[L["etapa_txt_sap"].notna(), "etapa_txt"] = L["etapa_txt_sap"]
 
     # anotações manuais: data de necessidade da OS (manda sobre a do TracOS) e recebimento
     L["data_nec_manual"] = pd.to_datetime(
-        L["os_tracos"].map(lambda o: None if _na(o) else datas_os.get(int(o))))
+        L["os_sap"].map(lambda o: None if _na(o) else datas_os.get(str(o))))
     L["data_necessidade"] = L["data_nec_manual"].fillna(L["data_nec_tracos"])
     L["origem_data"] = np.where(L["data_nec_manual"].notna(), "Manual (Por OS)", L["origem_data_tracos"])
     L["rec_manual"] = L["chave"].map(marcas)
@@ -494,10 +524,11 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
         for rq, it in zip(L["requisicao"], L["req_item"])]
     L["origens"] = [" | ".join(x for x in (
         f"REQ L{int(a)}" if not _na(a) else "", f"FLX L{int(b)}" if not _na(b) else "",
-        f"PED L{int(c)}" if not _na(c) else "") if x)
-        for a, b, c in zip(L["orig_req"], L["orig_flx"], L["orig_ped"])]
+        f"PED L{int(c)}" if not _na(c) else "", f"IWBK L{int(d)}" if not _na(d) else "") if x)
+        for a, b, c, d in zip(L["orig_req"], L["orig_flx"], L["orig_ped"], L["orig_sap"])]
     L["eh_preventiva"] = L["eh_preventiva"].fillna(False).astype(bool)
-    L = L.sort_values(["prioridade", "data_necessidade", "os_tracos", "codigo", "seq"],
+    L["sap_consumido"] = L["sap_consumido"].fillna(False).astype(bool)
+    L = L.sort_values(["prioridade", "data_necessidade", "os_sap", "codigo", "seq"],
                       na_position="last").reset_index(drop=True)
 
     novo_hist = {c: (int(e), pd.Timestamp(i)) for c, e, i in zip(L["chave"], L["etapa"], L["inicio_etapa"])}
@@ -505,7 +536,8 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
     # ------------------------------------------------ divergências adicionais
     chave_por_origem = {}
     for _, l in L.iterrows():
-        for base, col in (("requisição", "orig_req"), ("fluxo", "orig_flx"), ("pedido", "orig_ped")):
+        for base, col in (("requisição", "orig_req"), ("fluxo", "orig_flx"), ("pedido", "orig_ped"),
+                          ("iwbk", "orig_sap")):
             if not _na(l[col]):
                 chave_por_origem[(base, int(l[col]))] = l["chave"]
 
@@ -589,6 +621,14 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
         if len(B[nome]["candidatos"]) > 1:
             alertas.append(f"Vários arquivos de {nome} na pasta bases; usado o mais recente: "
                            f"{B[nome]['arquivo']}")
+    if info_sap:
+        alertas.append(
+            f"IWBK (SAP): {info_sap['linhas']} componentes de {info_sap['os']} OS; {info_sap['casados']} casados com "
+            f"o TracOS e {info_sap['novos']} só no SAP ({info_sap['estoque']} de estoque). "
+            f"{info_sap['os_comuns']} OS aparecem nas duas bases.")
+        if info_sap["antigos"]:
+            alertas.append(f"IWBK (SAP): {info_sap['antigos']} componentes em aberto com necessidade há mais de "
+                           f"180 dias (reservas antigas): confira se ainda valem.")
     for a in alertas:
         divs.append(dict(tipo="ALERTA DE CARGA", gravidade="Alta", base="-", linha=None, codigo=None,
                          descricao=None, requisicao=None, pedido=None, os=None, fornecedor=None,
@@ -620,61 +660,179 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
 
     # ------------------------------------------------ conciliação de linhas
     conc = []
-    for nome, col, df in (("requisição", "orig_req", r), ("fluxo", "orig_flx", f), ("pedido", "orig_ped", p)):
+    bases_conc = [("requisição", "orig_req", r), ("fluxo", "orig_flx", f), ("pedido", "orig_ped", p)]
+    if B.get("iwbk"):
+        bases_conc.append(("iwbk", "orig_sap", B["iwbk"]["norm"]))
+    for nome, col, df in bases_conc:
         em_fu = [int(x) for x in L[col].dropna()]
         em_dv = [int(x) for x in D.loc[D["conta"] & D["base"].eq(nome), "linha"].dropna()] if len(D) else []
         todas = set(int(x) for x in df["linha_origem"])
         conc.append(dict(base=nome, entrada=len(df), follow_up=len(em_fu), divergencias=len(em_dv),
                          total_saida=len(em_fu) + len(em_dv),
                          ok=(sorted(em_fu + em_dv) == sorted(todas))))
-    return dict(linhas=L, recebimento=receb, divergencias=D, por_os=por_os, por_fornecedor=por_forn, requisicoes=reqs,
+    return dict(info_sap=info_sap, linhas=L, recebimento=receb, divergencias=D, por_os=por_os, por_fornecedor=por_forn, requisicoes=reqs,
                 historico=novo_hist, alertas=alertas, conciliacao=pd.DataFrame(conc), prm=prm, hoje=hoje)
 
 
+def _etapa_sap(x):
+    """Etapa de um componente da IWBK: (etapa, texto da etapa, já consumido pela OS?)."""
+    disp = str(x["disponibilidade"] if not _na(x["disponibilidade"]) else "").lower()
+    nec = 0 if _na(x["qtd"]) else x["qtd"]
+    ret = 0 if _na(x["qtd_retirada"]) else x["qtd_retirada"]
+    ent = 0 if _na(x["qtd_entrada"]) else x["qtd_entrada"]
+    if nec > 0 and ret >= nec:
+        return 5, "5 - Retirado para a OS (SAP)", True
+    if "registro final" in disp:
+        return 5, "5 - Baixa final na reserva (SAP)", True
+    if x["categoria"] == "L":
+        if "falta" in disp or "não disponível" in disp:
+            return 0, ETAPAS[0], False
+        return 5, "5 - Disponível em estoque (SAP)", False
+    if (nec > 0 and ent >= nec) or "efetuada a em" in disp:
+        return 5, "5 - Entrada registrada (SAP)", False
+    if not _na(x["pedido_sap"]):
+        return 4, "4 - Pedido SAP emitido (aguardando entrega)", False
+    if "não liberada" in disp:
+        return 1, "1 - RC SAP não liberada", False
+    if not _na(x["rc_sap"]):
+        return 3, "3 - RC SAP liberada, sem pedido", False
+    return 3, "3 - Componente sem RC no SAP", False
+
+
+def _integrar_iwbk(L, iwbk, preco_ref, hoje):
+    """Casa a IWBK com as linhas do TracOS (S1..S5) e acrescenta como linhas novas o que só existe no SAP."""
+    if not iwbk:
+        return L, None
+    iw = iwbk["norm"].copy()
+    iw["rc_n"] = iw["rc_sap"]
+    tr = L[L["origem"] == "TracOS"][["os_sap", "codigo", "req_sap", "pedido_sap"]].copy()
+    tr["rc_n"] = tr["req_sap"].map(lambda v: np.nan if _na(v) else str(v).lstrip("0"))
+    ua, ub, s2l = set(), set(), {}
+    for nome, chaves in REGRAS_SAP:
+        for i, (j, n) in _casar(iw, tr, chaves, ua, ub).items():
+            s2l[i] = (j, nome)
+
+    for i, (j, nome) in s2l.items():
+        x = iw.loc[i]
+        e, txt, consumido = _etapa_sap(x)
+        L.at[j, "origem"] = "TracOS + SAP"
+        L.at[j, "orig_sap"] = x["linha_origem"]
+        L.at[j, "confianca"] = f"{L.at[j, 'confianca']}; {CONFIANCA[nome]}"
+        for c in CAMPOS_SAP:
+            L.at[j, c] = x[c]
+        if _na(L.at[j, "data_nec_tracos"]) and not _na(x["data_necessidade"]):
+            L.at[j, "data_nec_tracos"] = x["data_necessidade"]
+            L.at[j, "origem_data_tracos"] = "SAP (IWBK)"
+        if _na(L.at[j, "pedido_sap"]) and not _na(x["pedido_sap"]):
+            L.at[j, "pedido_sap"] = x["pedido_sap"]
+        if e == 5 and L.at[j, "etapa"] < 5:  # o SAP já tem entrada/retirada que o TracOS ainda não mostra
+            L.at[j, "etapa"] = 5
+            L.at[j, "etapa_txt_sap"] = txt
+            L.at[j, "sap_consumido"] = consumido
+
+    # dados da OS que já existem no TracOS (nº TracOS, plano, ativo, descrição)
+    info_os = {}
+    for _, l in L[L["origem"] != "SAP"].iterrows():
+        d = info_os.setdefault(l["os_sap"], {})
+        for c in ("os_tracos", "plano", "descricao_os", "ativo"):
+            if d.get(c) is None and not _na(l[c]):
+                d[c] = l[c]
+        d["eh_preventiva"] = d.get("eh_preventiva", False) or bool(l["eh_preventiva"])
+
+    novos = []
+    for i, x in iw.iterrows():
+        if i in s2l:
+            continue
+        e, txt, consumido = _etapa_sap(x)
+        o = info_os.get(x["os_sap"], {})
+        nec = 0 if _na(x["qtd"]) else x["qtd"]
+        feito = x["qtd_retirada"] if x["categoria"] == "L" else x["qtd_entrada"]
+        preco = preco_ref.get(x["codigo"])
+        novos.append(dict(
+            codigo=x["codigo"], descricao=x["descricao"], os_tracos=o.get("os_tracos"), os_sap=x["os_sap"],
+            plano=o.get("plano"), descricao_os=o.get("descricao_os", x["descricao_os"]),
+            eh_preventiva=bool(x["eh_preventiva"]) or o.get("eh_preventiva", False), ativo=o.get("ativo"),
+            qtd=x["qtd"], unidade=x["unidade"], qtd_pendente=max(nec - (0 if _na(feito) else feito), 0),
+            data_nec_tracos=x["data_necessidade"],
+            origem_data_tracos="SAP (IWBK)" if not _na(x["data_necessidade"]) else None,
+            requisicao=None, req_item=None, req_sap=x["rc_n"],
+            nivel_liberacao="RC SAP não liberada" if e == 1 else None, grupo_compradores=None, criado_req=None,
+            pedido=None, pedido_sap=x["pedido_sap"], status_pedido=x["status_pedido_sap"], criado_ped=None,
+            atualizado_ped=None, fornecedor=None,
+            entrada=None if _na(x["qtd_entrada"]) or not x["qtd_entrada"] else f"{x['qtd_entrada']:g} {x['unidade']}",
+            entrada_em=None, nota_fiscal=None, local_estoque=None, centro_custo=None, status_fluxo=None,
+            status_req=None, preco=preco, origem_preco="ref. (mesmo material no fluxo)" if preco else None,
+            etapa=e, etapa_txt_sap=txt,
+            confianca=CONFIANCA["SO_SAP_L" if x["categoria"] == "L" else "SO_SAP"],
+            orig_req=None, orig_flx=None, orig_ped=None, orig_sap=x["linha_origem"], _tem_ped=False,
+            origem="SAP", sap_consumido=consumido, **{c: x[c] for c in CAMPOS_SAP}))
+    if novos:
+        L = pd.concat([L, pd.DataFrame(novos)], ignore_index=True)
+        L["data_nec_tracos"] = pd.to_datetime(L["data_nec_tracos"])
+    abertos = [i for i, x in iw.iterrows() if _etapa_sap(x)[0] < 5]
+    antigos = int((iw.loc[abertos, "data_necessidade"] < hoje - pd.Timedelta(days=180)).sum())
+    info = dict(linhas=len(iw), os=iw["os_sap"].nunique(), casados=len(s2l), novos=len(novos),
+                estoque=int(sum(1 for n in novos if n["categoria"] == "L")), antigos=antigos,
+                os_comuns=len(set(iw["os_sap"]) & set(tr["os_sap"].dropna())),
+                ignoradas=iwbk["norm"].attrs.get("linhas_ignoradas", 0))
+    return L, info
+
+
 def _por_os(L, datas_os, liberadas):
-    g = L.dropna(subset=["os_tracos"]).copy()
+    g = L.dropna(subset=["os_sap"]).copy()
     if not len(g):
         return pd.DataFrame()
     g["_falta"] = ~g["disponivel"]
     g["_caminho"] = (g["etapa"] >= 4) & ~g["disponivel"]
-    g["_compra"] = g["etapa"] <= 3
+    g["_compra"] = g["etapa"].between(1, 3)
+    g["_estoque"] = (g["etapa"] == 0) & ~g["disponivel"]
     g["_r5"] = g["confianca"].str.startswith(CONFIANCA["R5"])
 
     def resumo(s):
         c = s.value_counts().sort_index()
-        nomes = {1: "aprov. gestor", 2: "almox corp.", 3: "sem pedido", 4: "em pedido", 5: "entregue"}
+        nomes = {0: "falta em estoque", 1: "aprovação", 2: "almox corp.", 3: "sem pedido", 4: "em pedido",
+                 5: "disponível"}
         return ", ".join(f"{n} {nomes[e]}" for e, n in c.items())
 
-    out = g.groupby("os_tracos").agg(
-        os_sap=("os_sap", "first"), plano=("plano", "first"), descricao_os=("descricao_os", "first"),
+    def origem(s):
+        t = {"TracOS" if "TracOS" in v else "" for v in s} | {"SAP" if "SAP" in v else "" for v in s}
+        t.discard("")
+        return " + ".join(sorted(t, reverse=True))
+
+    out = g.groupby("os_sap").agg(
+        os_tracos=("os_tracos", "first"), plano=("plano", "first"), descricao_os=("descricao_os", "first"),
         preventiva=("eh_preventiva", "max"),
         ativo=("ativo", lambda s: s.dropna().value_counts().index[0] if s.notna().any() else None),
         centro_custo=("centro_custo", "first"), data_tracos=("data_nec_tracos", "min"),
         itens=("codigo", "size"), disponiveis=("disponivel", "sum"), faltando=("_falta", "sum"),
-        a_caminho=("_caminho", "sum"), em_compra=("_compra", "sum"), fluxo_incompleto=("_r5", "any"),
-        situacao=("etapa", resumo), pior_prio=("prioridade", "min"),
+        a_caminho=("_caminho", "sum"), em_compra=("_compra", "sum"), falta_estoque=("_estoque", "sum"),
+        fluxo_incompleto=("_r5", "any"), situacao=("etapa", resumo), origem_itens=("origem", origem),
+        retirados=("sap_consumido", "sum"), pior_prio=("prioridade", "min"),
     ).reset_index()
-    out["data_manual"] = pd.to_datetime(out["os_tracos"].map(lambda o: datas_os.get(int(o))))
+    out["data_manual"] = pd.to_datetime(out["os_sap"].map(lambda o: datas_os.get(str(o))))
     out["data_usada"] = out["data_manual"].fillna(out["data_tracos"])
-    out["liberada"] = out["os_tracos"].map(lambda o: int(o) in liberadas)
-    out["apta"] = (out["itens"] > 0) & (out["faltando"] == 0)
+    out["liberada"] = out["os_sap"].map(lambda o: str(o) in liberadas)
+    # todo o material já foi retirado para a ordem no SAP: OS já em execução / concluída
+    out["ja_retirada"] = (out["itens"] > 0) & (out["retirados"] == out["itens"])
+    out["apta"] = (out["itens"] > 0) & (out["faltando"] == 0) & ~out["ja_retirada"]
     # preventivas primeiro; dentro delas: aptas ainda não liberadas, depois as que faltam menos itens
-    out["_ordem"] = np.where(out["liberada"], 2, np.where(out["apta"], 0, 1))
-    out = out.sort_values(["preventiva", "_ordem", "faltando", "data_usada", "os_tracos"],
+    out["_ordem"] = np.where(out["liberada"], 2, np.where(out["ja_retirada"], 3, np.where(out["apta"], 0, 1)))
+    out = out.sort_values(["preventiva", "_ordem", "faltando", "data_usada", "os_sap"],
                           ascending=[False, True, True, True, True], na_position="last")
     return out.drop(columns="_ordem").reset_index(drop=True)
 
 
 def _recebimento(L, ped_sem_os, marcas, hoje):
-    """Itens que podem chegar: tudo que já tem pedido (inclusive pedidos sem OS identificada)."""
-    cols = ["chave", "os_tracos", "eh_preventiva", "descricao_os", "ativo", "codigo", "descricao", "qtd",
-            "unidade", "fornecedor", "pedido", "pedido_sap", "status_pedido", "entrada", "entrada_em",
-            "nota_fiscal", "data_necessidade", "etapa"]
-    a = L[L["etapa"] >= 4][cols].copy()
+    """Itens que podem chegar: tudo que tem pedido (inclusive pedidos sem OS) e o que falta no estoque.
+    Componentes do SAP já retirados/baixados pela OS ficam de fora."""
+    cols = ["chave", "os_sap", "os_tracos", "eh_preventiva", "descricao_os", "ativo", "codigo", "descricao",
+            "qtd", "unidade", "fornecedor", "pedido", "pedido_sap", "status_pedido", "entrada", "entrada_em",
+            "nota_fiscal", "data_necessidade", "etapa", "origem"]
+    a = L[((L["etapa"] >= 4) | (L["etapa"] == 0)) & ~L["sap_consumido"]][cols].copy()
     a["no_followup"] = True
     b = pd.DataFrame({
         "chave": [f"{x['codigo']}|R{_int(x['requisicao'])}|PED{_int(x['pedido'])}" for _, x in ped_sem_os.iterrows()],
-        "os_tracos": None, "eh_preventiva": False, "descricao_os": "(pedido sem OS identificada)",
+        "os_sap": None, "os_tracos": None, "eh_preventiva": False, "descricao_os": "(pedido sem OS identificada)",
         "ativo": [_ativo_txt(t, n) for t, n in zip(ped_sem_os["ativo_tag"], ped_sem_os["ativo_nome"])],
         "codigo": ped_sem_os["codigo"].values, "descricao": ped_sem_os["descricao"].values, "qtd": None,
         "unidade": None, "fornecedor": ped_sem_os["fornecedor"].values, "pedido": ped_sem_os["pedido"].values,
@@ -683,17 +841,18 @@ def _recebimento(L, ped_sem_os, marcas, hoje):
         "nota_fiscal": ped_sem_os["nota_fiscal"].values, "data_necessidade": pd.NaT,
         "etapa": [5 if (_etapa_pedido(s) == 5 or not _na(e)) else 4
                   for s, e in zip(ped_sem_os["status_pedido"], ped_sem_os["entrada"])],
-        "no_followup": False,
+        "origem": "TracOS", "no_followup": False,
     })
     out = pd.concat([a, b], ignore_index=True) if len(b) else a.reset_index(drop=True)
     out["recebido_tracos"] = out["etapa"] == 5
     out["marca"] = out["chave"].map(marcas)
-    out["situacao"] = [situacao_recebimento(m if isinstance(m, str) else None, t, d, hoje)
-                       for m, t, d in zip(out["marca"], out["recebido_tracos"], out["data_necessidade"])]
-    rank = {v: k for k, v in SITUACAO_REC.items()}
+    out["situacao"] = [situacao_recebimento(m if isinstance(m, str) else None, t, d, hoje, e)
+                       for m, t, d, e in zip(out["marca"], out["recebido_tracos"], out["data_necessidade"],
+                                             out["etapa"])]
+    rank = {v: i for i, v in enumerate(SITUACAO_REC.values())}
     out["_r"] = out["situacao"].map(rank)
-    out["_sem_os"] = out["os_tracos"].isna()
-    out = out.sort_values(["_r", "_sem_os", "data_necessidade", "os_tracos", "fornecedor", "pedido"],
+    out["_sem_os"] = out["os_sap"].isna()
+    out = out.sort_values(["_r", "_sem_os", "data_necessidade", "os_sap", "fornecedor", "pedido"],
                           na_position="last")
     return out.drop(columns=["_r", "_sem_os"]).reset_index(drop=True)
 

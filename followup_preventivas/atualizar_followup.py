@@ -53,7 +53,7 @@ FORN_EMAIL = "E-mail do fornecedor"
 MANUAIS = {
     "Follow-up": ([COL_CHAVE], [COL_OBS]),
     "Recebimento": ([COL_CHAVE], [REC_MARCA, REC_QTD, REC_DATA, REC_LOCAL, REC_OBS]),
-    "Por OS": (["OS TracOS"], [OS_DATA, OS_LIB, COL_OBS]),
+    "Por OS": (["OS SAP"], [OS_DATA, OS_LIB, COL_OBS]),
     "Por Fornecedor": (["Fornecedor"], [FORN_EMAIL, COL_OBS]),
     "Divergências": (["Tipo", COL_CHAVE], [COL_OBS]),
 }
@@ -102,6 +102,7 @@ CORES_STATUS = [
 ]
 CORES_REC = [
     ("ATRASADO", "FFC7CE", "9C0006"),
+    ("FALTA EM ESTOQUE", "F8CBAD", "833C0B"),
     ("A CAMINHO", "FFE699", "7F6000"),
     ("PARCIAL", "FFD8A8", "843C0C"),
     ("NÃO RECEBIDO", "F4B6B6", "7F0000"),
@@ -109,6 +110,7 @@ CORES_REC = [
 ]
 CORES_APTA = [
     ("FALTANDO", "FF0000", "FFFFFF"),
+    ("RETIRADO", "E2EFDA", "375623"),
     ("LIBERADA", "DDEBF7", "1F4E78"),
     ("APTA", "C6EFCE", "006100"),
     ("AGUARDANDO", "FFC7CE", "9C0006"),
@@ -156,13 +158,13 @@ COLS_FU = [
     ("Prioridade", 8, "f_prio"), ("Status de risco", 28, "f_status"), ("Item disponível?", 10, "f_disp"),
     ("Recebimento (aba Recebimento)", 13, "f_rec"), ("Etapa nº", 7, "etapa"),
     ("Etapa do funil", 38, "etapa_txt"), ("Quem cobrar", 44, "f_quem"), (COL_OBS, 42, "m_obs"),
-    ("Preventiva", 9, "prev"), ("OS TracOS", 9, "os_tracos"), ("OS SAP", 12, "os_sap"),
+    ("Preventiva", 9, "prev"), ("Origem", 11, "origem"), ("OS TracOS", 9, "os_tracos"), ("OS SAP", 12, "os_sap"),
     ("Descrição da OS", 42, "descricao_os"), ("Ativo", 36, "ativo"),
     ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
     ("Qtd", 7, "qtd"), ("Qtd pendente", 9, "qtd_pendente"), ("Un", 5, "unidade"),
     ("Data de necessidade", 12, "f_nec"), ("Origem da data de necessidade", 26, "f_origem"),
     ("Dias até a necessidade", 11, "f_dias_nec"), ("Dias de atraso", 9, "f_atraso"),
-    ("Data de necessidade TracOS", 12, "data_nec_tracos"), ("Data manual da OS (aba Por OS)", 13, "f_nec_manual"),
+    ("Data de necessidade (TracOS/SAP)", 12, "data_nec_tracos"), ("Data manual da OS (aba Por OS)", 13, "f_nec_manual"),
     ("Início da etapa", 12, "inicio_etapa"), ("Base do início da etapa", 30, "base_inicio"),
     ("Dias na etapa atual", 10, "f_dias_etapa"),
     ("Requisição", 10, "requisicao_txt"), ("Req. SAP", 12, "req_sap"),
@@ -174,30 +176,36 @@ COLS_FU = [
     ("Local de estoque", 20, "local_estoque"), ("Centro de custo", 28, "centro_custo"),
     ("Grupo de compradores", 30, "grupo_compradores"), ("Plano", 8, "plano"),
     ("Confiança do vínculo", 44, "confianca"), ("Linhas de origem", 24, "origens"),
+    ("Categoria SAP (N compra / L estoque)", 10, "categoria"), ("Disponibilidade no SAP (IWBK)", 44, "disponibilidade"),
+    ("Qtd retirada (SAP)", 9, "qtd_retirada"), ("Data de remessa do pedido (SAP)", 12, "data_remessa"),
+    ("Reserva SAP", 12, "reserva"),
     (COL_CHAVE, 24, "chave"),
 ]
 COLS_REC = [
     ("Situação", 26, "f_sit"), (REC_MARCA, 11, "m_rec"), (REC_QTD, 9, "m_qtd"), (REC_DATA, 12, "m_data"),
     (REC_LOCAL, 22, "m_local"), (REC_OBS, 34, "m_obs"), ("Itens que faltam na OS", 10, "f_falta_os"),
-    ("OS TracOS", 9, "os_tracos"), ("Preventiva", 9, "prev"), ("Descrição da OS", 40, "descricao_os"),
+    ("OS SAP", 12, "os_sap"), ("OS TracOS", 9, "os_tracos"), ("Origem", 10, "origem"), ("Etapa nº", 7, "etapa"),
+    ("Preventiva", 9, "prev"), ("Descrição da OS", 40, "descricao_os"),
     ("Ativo", 34, "ativo"), ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
     ("Qtd pedida", 8, "qtd"), ("Un", 5, "unidade"), ("Data de necessidade", 12, "f_nec"),
     ("Dias até a necessidade", 11, "f_dias"), ("Fornecedor", 34, "fornecedor"), ("Pedido", 8, "pedido"),
-    ("Pedido SAP", 12, "pedido_sap"), ("Status do pedido (TracOS)", 15, "status_pedido"),
-    ("Entrada no TracOS?", 10, "rec_tracos"), ("Entrada", 8, "entrada"),
+    ("Pedido SAP", 12, "pedido_sap"), ("Status do pedido (TracOS/SAP)", 15, "status_pedido"),
+    ("Entrada registrada (TracOS/SAP)?", 11, "rec_tracos"), ("Entrada", 8, "entrada"),
     ("Data da entrada (TracOS)", 12, "entrada_em"), ("Nota fiscal", 11, "nota_fiscal"),
     (COL_CHAVE, 24, "chave"),
 ]
 COLS_OS = [
-    ("OS TracOS", 9, "os_tracos"), ("OS SAP", 12, "os_sap"), ("Descrição da OS", 40, "descricao_os"),
-    ("Preventiva", 9, "prev"), ("Ativo", 34, "ativo"), ("APTA PARA PROGRAMAR?", 25, "f_apta"),
+    ("OS SAP", 12, "os_sap"), ("OS TracOS", 9, "os_tracos"), ("Descrição da OS", 40, "descricao_os"),
+    ("Preventiva", 9, "prev"), ("Ativo", 34, "ativo"), ("APTA PARA PROGRAMAR?", 27, "f_apta"),
     ("Itens que faltam", 55, "f_lista"), ("Ir para os itens", 15, "f_ir"), (OS_DATA, 13, "m_data"),
     ("Data de necessidade (usada)", 12, "f_data"),
     ("Dias até a necessidade", 11, "f_dias"), ("Total de itens", 8, "f_total"),
     ("Itens disponíveis", 9, "f_disp"), ("Itens faltando", 9, "f_falt"),
     ("A caminho (com pedido)", 9, "f_caminho"), ("Em compra / aprovação", 10, "f_compra"),
+    ("Falta em estoque (SAP)", 9, "f_estoque"), ("Itens já retirados (SAP)", 9, "retirados"),
     ("Itens em risco 🔴", 9, "f_risco"), ("Valor pendente (R$)", 14, "f_valor"),
-    ("Data de necessidade TracOS", 12, "data_tracos"), ("Lista de itens", 30, "lista_ok"),
+    ("Data de necessidade (TracOS/SAP)", 12, "data_tracos"), ("Origem dos itens", 13, "origem_itens"),
+    ("Lista de itens", 30, "lista_ok"),
     ("Situação das peças (na geração)", 34, "situacao"), (OS_LIB, 13, "m_lib"),
     ("Plano", 8, "plano"), ("Centro de custo", 26, "centro_custo"), (COL_OBS, 40, "m_obs"),
     # auxiliares do Painel (ocultas)
@@ -451,13 +459,23 @@ def ler_versao_anterior(pasta_saida):
     return dict(arquivo=ant, manuais=man, historico=hist, prm=prm)
 
 
+def migrar_chaves_os(man, B):
+    """Versões antigas guardavam anotações por nº da OS no TracOS; agora a chave é o nº SAP."""
+    mapa = {}
+    for nome in ("requisicao", "fluxo"):
+        for t, s_ in B[nome]["norm"][["os_tracos", "os_sap"]].dropna().itertuples(index=False):
+            mapa[str(int(t))] = str(s_)
+    novo = {}
+    for k, d in man["Por OS"].items():
+        k2 = mapa.get(k, k) if len(k) < 8 else k
+        novo.setdefault(k2, {}).update(d)
+    man["Por OS"] = novo
+
+
 def manuais_para_cruzamento(man):
     datas, lib = {}, set()
     for k, d in man["Por OS"].items():
-        try:
-            os_ = int(k)
-        except ValueError:
-            continue
+        os_ = str(k)
         dd = _data(d.get(OS_DATA))
         if dd is not None:
             datas[os_] = dd
@@ -524,9 +542,16 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant):
 
     secao("Regras fixas (no script)")
     linhas_texto([
-        ("Preventiva", "OS com 'PREV' na descrição OU com nº de plano de manutenção."),
-        ("Data de necessidade", "1º a data manual da OS (aba Por OS); 2º a do item no fluxo do TracOS; 3º a de "
-         "outro item da mesma OS no fluxo. A base de requisição não traz data."),
+        ("Preventiva", "OS com 'PREV' na descrição, com nº de plano de manutenção ou com descrição iniciada por "
+         "'MSI_' (manutenção sistemática)."),
+        ("Data de necessidade", "1º a data manual da OS (aba Por OS); 2º a do item no fluxo do TracOS ou na IWBK do "
+         "SAP; 3º a de outro item da mesma OS. A base de requisição do TracOS não traz data."),
+        ("IWBK (SAP) – opcional", "Arquivo '*IWBK*.xlsx' na pasta bases. Casa com o TracOS por OS + material + RC, "
+         "OS + material + pedido, OS + material, material + RC e material + pedido. O que não casar entra como "
+         "item 'SAP': estoque (L) em falta = etapa 0; RC não liberada = 1; RC liberada sem pedido = 3; com pedido = 4; "
+         "entrada, retirada ou disponível em estoque = 5. A IWBK não traz fornecedor."),
+        ("OS com material já retirado", "Quando todos os itens já foram retirados/baixados para a ordem no SAP, a OS "
+         "aparece como ✔ MATERIAL JÁ RETIRADO (SAP) – provavelmente já está em execução ou concluída."),
         ("Preço do item", "Entrada > negociado > estimado (R$ 1,00 do TracOS é ignorado como 'sem preço') > "
          "preço do mesmo material em outra linha do fluxo ('ref.')."),
         ("Valor do item", "Quantidade × preço unitário. A requisição e o pedido não trazem preço por item: "
@@ -548,10 +573,11 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant):
         lin += 1
 
     secao("Legenda – situação no Recebimento")
-    descr_rec = {0: "Tem pedido, não chegou e a data de necessidade já passou.",
+    descr_rec = {6: "Componente de estoque (SAP) em falta: aguarda reposição do almoxarifado.",
+                 0: "Tem pedido, não chegou e a data de necessidade já passou.",
                  1: "Tem pedido e ainda não chegou.", 2: "Você marcou PARCIAL: não libera a OS.",
                  3: "Você marcou NÃO.", 4: "Você marcou SIM.",
-                 5: "Entrada registrada no TracOS (sem marca sua)."}
+                 5: "Entrada registrada no TracOS ou no SAP (sem marca sua)."}
     for k, txt in cz.SITUACAO_REC.items():
         fundo, letra = next((f, l) for w, f, l in CORES_REC if w in txt)
         cel(ws, (lin, 1), txt, Font(name=FONTE, bold=True, color=letra), preench=PatternFill("solid", fgColor=fundo))
@@ -559,7 +585,8 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant):
         lin += 1
 
     secao("Legenda – etapas do funil")
-    quem = {1: "Gestor da unidade", 2: "Almox corporativo", 3: "Comprador", 4: "Fornecedor",
+    quem = {0: "Almoxarifado (reposição do estoque)", 1: "Gestor da unidade / aprovador da RC no SAP",
+            2: "Almox corporativo", 3: "Comprador", 4: "Fornecedor (ou comprador, se o pedido for só do SAP)",
             5: "— (retirar no almoxarifado)"}
     for e, txt in cz.ETAPAS.items():
         cel(ws, (lin, 1), txt, F_NEGRITO)
@@ -577,6 +604,13 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant):
         "SO_REQ": "Requisição pendente: ainda não tem fluxo nem pedido (é o esperado).",
         "SO_FLX": "Compra autorizada que ainda não virou pedido.",
         "FLX_SEM_PED": "Fluxo diz que há pedido, mas ele não veio na exportação de pedidos.",
+        "S1": "IWBK ↔ TracOS pela OS SAP + material + nº da RC SAP.",
+        "S2": "IWBK ↔ TracOS pela OS SAP + material + nº do pedido SAP.",
+        "S3": "IWBK ↔ TracOS pela OS SAP + material.",
+        "S4": "IWBK ↔ TracOS pelo material + nº da RC SAP.",
+        "S5": "IWBK ↔ TracOS pelo material + nº do pedido SAP.",
+        "SO_SAP": "Item de compra que só existe no SAP (RC/pedido criado direto no SAP).",
+        "SO_SAP_L": "Componente de estoque reservado para a ordem no SAP (o TracOS não mostra).",
     }
     linhas_texto([(txt, expl[k]) for k, txt in cz.CONFIANCA.items()])
 
@@ -588,7 +622,9 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant):
     cel(ws, (lin, 1), "Anotações reaproveitadas de", F_NEGRITO)
     cel(ws, (lin, 2), os.path.basename(info_ant["arquivo"]) if info_ant["arquivo"] else "(primeira versão)")
     lin += 1
-    for nome in ("requisicao", "fluxo", "pedido"):
+    for nome in ("requisicao", "fluxo", "pedido", "iwbk"):
+        if not B.get(nome):
+            continue
         arq = B[nome]["arquivo"]
         cel(ws, (lin, 1), f"Arquivo de {nome}", F_NEGRITO)
         cel(ws, (lin, 2), os.path.basename(arq))
@@ -640,28 +676,30 @@ def aba_followup(wb, L, man, FU, REC, POS):
     c = letras(COLS_FU)
     E, N, DN, DE, I, Q, PR, FO, PS, P, D, RC, NM, NT, OS, CH = (c[k] for k in (
         "etapa", "f_nec", "f_dias_nec", "f_dias_etapa", "inicio_etapa", "qtd", "preco", "fornecedor",
-        "pedido_sap", "f_prio", "f_disp", "f_rec", "f_nec_manual", "data_nec_tracos", "os_tracos", "chave"))
+        "pedido_sap", "f_prio", "f_disp", "f_rec", "f_nec_manual", "data_nec_tracos", "os_sap", "chave"))
     status_txt = ",".join(f'"{cz.STATUS[i]}"' for i in range(1, 8))
     f = {
         "f_prio": (f'=IF({D}{{r}}="SIM",6,IF(AND({N}{{r}}<>"",N({DN}{{r}})<0),1,'
-                   f'IF(AND({E}{{r}}<=2,N({DE}{{r}})>IF({E}{{r}}=1,X_NIVEL01,X_NIVEL02)),2,'
+                   f'IF(AND({E}{{r}}>=1,{E}{{r}}<=2,N({DE}{{r}})>IF({E}{{r}}=1,X_NIVEL01,X_NIVEL02)),2,'
                    f'IF(AND({E}{{r}}=3,N({DE}{{r}})>Y_SEM_PEDIDO),3,'
-                   f'IF(AND({E}{{r}}=4,{N}{{r}}<>"",N({DN}{{r}})<=Z_ENTREGA),4,'
+                   f'IF(AND(OR({E}{{r}}=4,{E}{{r}}=0),{N}{{r}}<>"",N({DN}{{r}})<=Z_ENTREGA),4,'
                    f'IF({N}{{r}}="",7,5))))))'),
         "f_status": f"=CHOOSE({P}{{r}},{status_txt})",
         "f_rec": (f'=IFERROR(IF(INDEX({REC["m_rec"]},MATCH({CH}{{r}},{REC["chave"]},0))="","",'
                   f'UPPER(TRIM(INDEX({REC["m_rec"]},MATCH({CH}{{r}},{REC["chave"]},0))))),"")'),
         "f_disp": (f'=IF({RC}{{r}}="SIM","SIM",IF(OR({RC}{{r}}="PARCIAL",{RC}{{r}}="NÃO"),"NÃO",'
                    f'IF({E}{{r}}=5,"SIM","NÃO")))'),
-        "f_quem": (f'=IF({D}{{r}}="SIM","Ninguém – material disponível",CHOOSE({E}{{r}},'
+        "f_quem": (f'=IF({D}{{r}}="SIM","Ninguém – material disponível",IF({E}{{r}}=0,'
+                   f'"Almoxarifado – material em falta no estoque (SAP)",CHOOSE({E}{{r}},'
                    f'"Gestor da unidade"&IF(NOME_GESTOR="",""," – "&NOME_GESTOR),'
                    f'"Almox corporativo"&IF(NOME_ALMOX="",""," – "&NOME_ALMOX),'
                    f'"Comprador"&IF(NOME_COMPRADOR="",""," – "&NOME_COMPRADOR)&" (emitir o pedido)",'
-                   f'IF({FO}{{r}}="","Comprador (pedido sem fornecedor)","Fornecedor: "&{FO}{{r}}'
+                   f'IF({FO}{{r}}="",IF({PS}{{r}}="","Comprador (pedido sem fornecedor)",'
+                   f'"Comprador – acompanhar o pedido SAP "&{PS}{{r}}),"Fornecedor: "&{FO}{{r}}'
                    f'&IF({PS}{{r}}="",""," – pedido SAP "&{PS}{{r}})),'
-                   f'"Almoxarifado – TracOS tem entrada, conferir o físico"))'),
-        "f_nec_manual": (f'=IFERROR(IF(INDEX({POS["m_data"]},MATCH({OS}{{r}},{POS["os_tracos"]},0))="","",'
-                         f'INDEX({POS["m_data"]},MATCH({OS}{{r}},{POS["os_tracos"]},0))),"")'),
+                   f'"Almoxarifado – sistema tem entrada, conferir o físico")))'),
+        "f_nec_manual": (f'=IFERROR(IF(INDEX({POS["m_data"]},MATCH({OS}{{r}},{POS["os_sap"]},0))="","",'
+                         f'INDEX({POS["m_data"]},MATCH({OS}{{r}},{POS["os_sap"]},0))),"")'),
         "f_nec": f'=IF(ISNUMBER({NM}{{r}}),{NM}{{r}},IF({NT}{{r}}="","",{NT}{{r}}))',
         "f_dias_nec": f'=IF({N}{{r}}="","",{N}{{r}}-INT(DATA_REF))',
         "f_atraso": f'=IF(AND({D}{{r}}<>"SIM",{N}{{r}}<>""),MAX(0,INT(DATA_REF)-{N}{{r}}),0)',
@@ -683,6 +721,7 @@ def aba_followup(wb, L, man, FU, REC, POS):
         return l[k]
 
     fmts = {"f_nec": FMT_DATA, "data_nec_tracos": FMT_DATA, "f_nec_manual": FMT_DATA, "inicio_etapa": FMT_DATA,
+            "data_remessa": FMT_DATA,
             "entrada_em": FMT_DATA, "preco": FMT_RS, "f_valor": FMT_RS, "f_dias_nec": FMT_DIAS,
             "f_dias_etapa": "0", "f_atraso": FMT_ATRASO}
     centro = {"f_prio", "f_disp", "f_rec", "etapa", "prev", "os_tracos", "codigo", "qtd", "qtd_pendente",
@@ -709,15 +748,16 @@ def aba_recebimento(wb, rec, man, FU, POS):
            "As colunas amarelas são preservadas nas próximas atualizações.")
     cabecalho(ws, LIN_CAB, COLS_REC)
     c = letras(COLS_REC)
-    B_, P_, Q_, H_, V_ = c["m_rec"], c["f_nec"], c["f_dias"], c["os_tracos"], c["rec_tracos"]
+    B_, P_, Q_, H_, V_, ET = c["m_rec"], c["f_nec"], c["f_dias"], c["os_sap"], c["rec_tracos"], c["etapa"]
     m = f"UPPER(TRIM({B_}{{r}}))"
     f = {
         "f_sit": (f'=IF({m}="SIM","{cz.SITUACAO_REC[4]}",IF({m}="PARCIAL","{cz.SITUACAO_REC[2]}",'
                   f'IF({m}="NÃO","{cz.SITUACAO_REC[3]}",IF({V_}{{r}}="SIM","{cz.SITUACAO_REC[5]}",'
-                  f'IF(AND({P_}{{r}}<>"",N({Q_}{{r}})<0),"{cz.SITUACAO_REC[0]}","{cz.SITUACAO_REC[1]}")))))'),
+                  f'IF({ET}{{r}}=0,"{cz.SITUACAO_REC[6]}",'
+                  f'IF(AND({P_}{{r}}<>"",N({Q_}{{r}})<0),"{cz.SITUACAO_REC[0]}","{cz.SITUACAO_REC[1]}"))))))'),
         "f_dias": f'=IF({P_}{{r}}="","",{P_}{{r}}-INT(DATA_REF))',
-        "f_falta_os": (f'=IF({H_}{{r}}="","",IFERROR(HYPERLINK("#\'Por OS\'!F"&(MATCH({H_}{{r}},{POS["os_tracos"]},0)'
-                       f'+{LIN_CAB}),INDEX({POS["f_falt"]},MATCH({H_}{{r}},{POS["os_tracos"]},0))),""))'),
+        "f_falta_os": (f'=IF({H_}{{r}}="","",IFERROR(HYPERLINK("#\'Por OS\'!F"&(MATCH({H_}{{r}},{POS["os_sap"]},0)'
+                       f'+{LIN_CAB}),INDEX({POS["f_falt"]},MATCH({H_}{{r}},{POS["os_sap"]},0))),""))'),
     }
     mm = man["Recebimento"]
 
@@ -741,7 +781,8 @@ def aba_recebimento(wb, rec, man, FU, POS):
         return x[k]
 
     fmts = {"f_nec": FMT_DATA, "m_data": FMT_DATA, "entrada_em": FMT_DATA, "f_dias": FMT_DIAS}
-    centro = {"m_rec", "m_qtd", "m_data", "f_falta_os", "os_tracos", "prev", "codigo", "qtd", "unidade",
+    centro = {"m_rec", "m_qtd", "m_data", "f_falta_os", "os_tracos", "os_sap", "etapa", "origem", "prev", "codigo",
+              "qtd", "unidade",
               "f_dias", "pedido", "rec_tracos", "entrada"}
     ult = escrever_tabela(ws, COLS_REC, [x for _, x in rec.iterrows()], valor_de, fmts, centro, negrito={"f_sit"},
                           links={"f_falta_os"})
@@ -767,29 +808,32 @@ def aba_por_os(wb, por_os, man, FU, REC):
            "necessidade quando a OS não tiver (vale para todos os itens dela) e a data em que liberou para a equipe.")
     cabecalho(ws, LIN_CAB, COLS_OS)
     c = letras(COLS_OS)
-    A, TOT, DSP, FAL, LIB, MD, FD, DT_, PV, DI, G = (c[k] for k in (
-        "os_tracos", "f_total", "f_disp", "f_falt", "m_lib", "m_data", "f_data", "data_tracos", "prev", "f_dias",
-        "f_grupo"))
+    A, TOT, DSP, FAL, LIB, MD, FD, DT_, PV, DI, G, RT = (c[k] for k in (
+        "os_sap", "f_total", "f_disp", "f_falt", "m_lib", "m_data", "f_data", "data_tracos", "prev", "f_dias",
+        "f_grupo", "retirados"))
     a = f"${A}{{r}}"
     f = {
         "f_apta": (f'=IF({LIB}{{r}}<>"",IF({FAL}{{r}}=0,"▶ LIBERADA PARA A EQUIPE",'
                    f'"⚠ LIBERADA FALTANDO "&{FAL}{{r}}&IF({FAL}{{r}}=1," ITEM"," ITENS")),'
+                   f'IF(AND({TOT}{{r}}>0,{RT}{{r}}={TOT}{{r}}),"✔ MATERIAL JÁ RETIRADO (SAP)",'
                    f'IF(AND({TOT}{{r}}>0,{FAL}{{r}}=0),'
-                   f'"✅ APTA PARA PROGRAMAR","⛔ AGUARDANDO "&{FAL}{{r}}&IF({FAL}{{r}}=1," ITEM"," ITENS")))'),
+                   f'"✅ APTA PARA PROGRAMAR","⛔ AGUARDANDO "&{FAL}{{r}}&IF({FAL}{{r}}=1," ITEM"," ITENS"))))'),
         "f_data": f'=IF(ISNUMBER({MD}{{r}}),{MD}{{r}},IF({DT_}{{r}}="","",{DT_}{{r}}))',
         "f_dias": f'=IF({FD}{{r}}="","",{FD}{{r}}-INT(DATA_REF))',
-        "f_total": f"=COUNTIFS({FU['os_tracos']},{a})",
-        "f_disp": f'=COUNTIFS({FU["os_tracos"]},{a},{FU["f_disp"]},"SIM")',
+        "f_total": f"=COUNTIFS({FU['os_sap']},{a})",
+        "f_disp": f'=COUNTIFS({FU["os_sap"]},{a},{FU["f_disp"]},"SIM")',
         "f_falt": f"={TOT}{{r}}-{DSP}{{r}}",
-        "f_caminho": f'=COUNTIFS({FU["os_tracos"]},{a},{FU["etapa"]},">=4",{FU["f_disp"]},"NÃO")',
-        "f_compra": f'=COUNTIFS({FU["os_tracos"]},{a},{FU["etapa"]},"<=3")',
-        "f_risco": f'=COUNTIFS({FU["os_tracos"]},{a},{FU["f_prio"]},"<=2")',
-        "f_valor": f'=SUMIFS({FU["f_valor"]},{FU["os_tracos"]},{a},{FU["f_disp"]},"NÃO")',
-        "f_ir": (f'=IFERROR(HYPERLINK("#\'Recebimento\'!B"&(MATCH({a},{REC["os_tracos"]},0)+{LIN_CAB}),"➜ Recebimento"),'
-                 f'IFERROR(HYPERLINK("#\'Follow-up\'!A"&(MATCH({a},{FU["os_tracos"]},0)+{LIN_CAB}),"➜ Follow-up"),""))'),
+        "f_caminho": f'=COUNTIFS({FU["os_sap"]},{a},{FU["etapa"]},">=4",{FU["f_disp"]},"NÃO")',
+        "f_compra": f'=COUNTIFS({FU["os_sap"]},{a},{FU["etapa"]},">=1",{FU["etapa"]},"<=3")',
+        "f_estoque": f'=COUNTIFS({FU["os_sap"]},{a},{FU["etapa"]},0,{FU["f_disp"]},"NÃO")',
+        "f_risco": f'=COUNTIFS({FU["os_sap"]},{a},{FU["f_prio"]},"<=2")',
+        "f_valor": f'=SUMIFS({FU["f_valor"]},{FU["os_sap"]},{a},{FU["f_disp"]},"NÃO")',
+        "f_ir": (f'=IFERROR(HYPERLINK("#\'Recebimento\'!B"&(MATCH({a},{REC["os_sap"]},0)+{LIN_CAB}),"➜ Recebimento"),'
+                 f'IFERROR(HYPERLINK("#\'Follow-up\'!A"&(MATCH({a},{FU["os_sap"]},0)+{LIN_CAB}),"➜ Follow-up"),""))'),
         "f_grupo": (f'=IF({LIB}{{r}}<>"",IF({FAL}{{r}}=0,"LIBERADA","LIBERADA FALTANDO"),'
+                    f'IF(AND({TOT}{{r}}>0,{RT}{{r}}={TOT}{{r}}),"RETIRADO",'
                     f'IF(AND({TOT}{{r}}>0,{FAL}{{r}}=0),"APTA",IF({FAL}{{r}}=1,"FALTA 1",'
-                    f'IF({FAL}{{r}}<=3,"FALTA 2-3","FALTA 4+"))))'),
+                    f'IF({FAL}{{r}}<=3,"FALTA 2-3","FALTA 4+")))))'),
         "f_janela": (f'=IF(OR({FAL}{{r}}=0,{PV}{{r}}<>"SIM"),"",IF({FD}{{r}}="","SEM DATA",'
                      f'IF({DI}{{r}}<0,"VENCIDA",IF({DI}{{r}}<=7,"ATE 7",IF({DI}{{r}}<=15,"ATE 15",'
                      f'IF({DI}{{r}}<=30,"ATE 30","MAIS DE 30"))))))'),
@@ -803,11 +847,11 @@ def aba_por_os(wb, por_os, man, FU, REC):
         if k == "f_lista":
             ref = f"{c['f_lista']}{r}"
             return ArrayFormula(ref, (
-                f'=IFERROR(_xlfn.TEXTJOIN("; ",TRUE,IF(({FU["os_tracos"]}={A}{r})*({FU["f_disp"]}="NÃO"),'
+                f'=IFERROR(_xlfn.TEXTJOIN("; ",TRUE,IF(({FU["os_sap"]}={A}{r})*({FU["f_disp"]}="NÃO"),'
                 f'{FU["codigo"]}&" "&{FU["descricao"]},"")),"ver aba Follow-up")'))
         if k.startswith("m_"):
             col = {"m_data": OS_DATA, "m_lib": OS_LIB, "m_obs": COL_OBS}[k]
-            v = mm.get(_k(o["os_tracos"]), {}).get(col)
+            v = mm.get(str(o["os_sap"]), {}).get(col)
             return (_data(v) or v) if k in ("m_data", "m_lib") and v is not None else v
         if k == "prev":
             return "SIM" if o["preventiva"] else "NÃO"
@@ -818,7 +862,7 @@ def aba_por_os(wb, por_os, man, FU, REC):
     fmts = {"m_data": FMT_DATA, "f_data": FMT_DATA, "f_dias": FMT_DIAS, "f_valor": FMT_RS,
             "data_tracos": FMT_DATA, "m_lib": FMT_DATA}
     centro = {"os_tracos", "prev", "m_data", "f_data", "f_dias", "f_total", "f_disp", "f_falt", "f_caminho",
-              "f_compra", "f_risco", "data_tracos", "m_lib", "plano"}
+              "f_compra", "f_estoque", "retirados", "f_risco", "data_tracos", "m_lib", "plano", "origem_itens"}
     ult = escrever_tabela(ws, COLS_OS, [o for _, o in por_os.iterrows()], valor_de, fmts, centro,
                           negrito={"f_apta"}, links={"f_ir"})
     ws.freeze_panes = f"D{LIN_1}"
@@ -987,6 +1031,7 @@ def aba_painel(wb, R, FU, REC, POS):
         ("⛔ AGUARDANDO 4 OU MAIS ITENS", "FALTA 4+", "Acompanhar compra / aprovação"),
         ("▶ LIBERADA PARA A EQUIPE", "LIBERADA", "—"),
         ("⚠ LIBERADA FALTANDO ITENS", "LIBERADA FALTANDO", "Conferir: OS na equipe sem todos os itens"),
+        ("✔ MATERIAL JÁ RETIRADO (SAP)", "RETIRADO", "Material já saiu para a ordem: conferir execução / encerrar"),
     ]
     for txt, g, acao in grupos:
         loc = local("Por OS", "A", f'MATCH("{g}",{POS["f_grupo"]},0)')
@@ -1010,20 +1055,21 @@ def aba_painel(wb, R, FU, REC, POS):
     for k in range(1, 11):
         m = f'MATCH({k},{POS["f_seq"]},0)'
         vazio = '"Nenhuma OS apta no momento – marque os itens que chegaram na aba Recebimento."' if k == 1 else '""'
-        cel(ws, (lin, 1), f'=IFERROR(HYPERLINK("#\'Por OS\'!A"&({m}+{LIN_CAB}),"OS #"&INDEX({POS["os_tracos"]},{m})'
+        cel(ws, (lin, 1), f'=IFERROR(HYPERLINK("#\'Por OS\'!A"&({m}+{LIN_CAB}),"OS "&INDEX({POS["os_sap"]},{m})'
                           f'&" – "&INDEX({POS["descricao_os"]},{m})),{vazio})', F_LINK_B)
         cel(ws, (lin, 2), f'=IFERROR(INDEX({POS["f_total"]},{m}),"")', alin=AL_CENTRO)
         cel(ws, (lin, 3), f'=IFERROR(IF(INDEX({POS["f_data"]},{m})="","",INDEX({POS["f_data"]},{m})),"")',
             fmt=FMT_DATA, alin=AL_CENTRO)
-        cel(ws, (lin, 4), f'=IFERROR(INDEX({POS["ativo"]},{m}),"")')
+        cel(ws, (lin, 4), f'=IFERROR(IF(INDEX({POS["ativo"]},{m})="","",INDEX({POS["ativo"]},{m})),"")')
         lin += 1
 
     # 2. recebimento
     secao("2. Recebimento de materiais", "Clique para ir à aba Recebimento já na coluna 'Recebido?'.")
     cab(["Situação do item", "Itens", "O que fazer"])
     acoes = {0: "Cobrar o fornecedor e conferir se já chegou", 1: "Acompanhar a entrega",
-             2: "Cobrar o saldo do fornecedor", 3: "Conferir com o almoxarifado / TracOS",
-             4: "Separado – verificar se a OS ficou apta", 5: "Conferir o físico e marcar SIM"}
+             6: "Cobrar a reposição do almoxarifado", 2: "Cobrar o saldo do fornecedor",
+             3: "Conferir com o almoxarifado / sistema", 4: "Separado – verificar se a OS ficou apta",
+             5: "Conferir o físico e marcar SIM"}
     ini = lin
     for k, txt in cz.SITUACAO_REC.items():
         loc = local("Recebimento", "B", f'MATCH("{txt}",{REC["f_sit"]},0)')
@@ -1103,13 +1149,25 @@ def aba_painel(wb, R, FU, REC, POS):
     secao("7. Requisições paradas por nível de aprovação",
           "Preencha os e-mails do gestor e do almox em Parâmetros para ativar ✉ Cobrar.")
     cab(["Nível", "Requisições pendentes", "Itens", "Itens parados (> X dias)", "Dias da mais antiga"])
+    tr = f'{FU["origem"]},"<>SAP"'
     for e, rot in ((1, "01 - Gestor da unidade"), (2, "02 - Almox corporativo")):
         loc = local("Follow-up", "A", f"MATCH({e},{FU['etapa']},0)")
         cel(ws, (lin, 1), link(loc, f'"{rot}"'), F_LINK_B)
         cel(ws, (lin, 2), int((reqs["etapa"] == e).sum()) if len(reqs) else 0)
-        cel(ws, (lin, 3), link(loc, f"COUNTIFS({FU['etapa']},{e})"), F_LINK)
-        cel(ws, (lin, 4), f"=COUNTIFS({FU['etapa']},{e},{FU['f_prio']},2)")
-        cel(ws, (lin, 5), f"=SUMPRODUCT(MAX(({FU['etapa']}={e})*{FU['f_dias_etapa']}))")
+        cel(ws, (lin, 3), link(loc, f"COUNTIFS({FU['etapa']},{e},{tr})"), F_LINK)
+        cel(ws, (lin, 4), f"=COUNTIFS({FU['etapa']},{e},{FU['f_prio']},2,{tr})")
+        cel(ws, (lin, 5), f"=SUMPRODUCT(MAX(({FU['etapa']}={e})*({FU['origem']}<>\"SAP\")*{FU['f_dias_etapa']}))")
+        lin += 1
+    rc_sap = R["linhas"][(R["linhas"]["origem"] == "SAP") & (R["linhas"]["etapa"] == 1)]
+    if len(rc_sap):
+        sap = f'{FU["origem"]},"SAP"'
+        loc = local("Follow-up", "A", f'MATCH("1 - RC SAP não liberada",{FU["etapa_txt"]},0)')
+        cel(ws, (lin, 1), link(loc, '"RC SAP não liberada (só no SAP)"'), F_LINK_B)
+        cel(ws, (lin, 2), int(rc_sap["req_sap"].nunique()))
+        cel(ws, (lin, 3), link(loc, f"COUNTIFS({FU['etapa']},1,{sap})"), F_LINK)
+        cel(ws, (lin, 4), f"=COUNTIFS({FU['etapa']},1,{FU['f_prio']},2,{sap})")
+        cel(ws, (lin, 5), f"=SUMPRODUCT(MAX(({FU['etapa']}=1)*({FU['origem']}=\"SAP\")*{FU['f_dias_etapa']}))")
+        cel(ws, (lin, 6), "dias contados desde a 1ª vez que a RC apareceu na IWBK", F_NOTA)
         lin += 1
     lin += 1
     cab(["OS / ativo (clique para ver os itens)", "Requisição", "Req. SAP", "Nível", "Itens", "Início",
@@ -1150,11 +1208,14 @@ def aba_bases(wb, B):
     ws = wb.create_sheet("Bases tratadas")
     ws.sheet_properties.tabColor = "A6A6A6"
     titulo(ws, "Bases tratadas (auditoria)",
-           "As 3 exportações já normalizadas. 'linha_origem' = linha no CSV (1 = cabeçalho); é a "
+           "As exportações (TracOS e IWBK do SAP) já normalizadas. 'linha_origem' = linha no CSV (1 = cabeçalho); é a "
            "referência usada em 'Linhas de origem' no Follow-up e em Divergências.")
     lin = LIN_CAB + 1
     larg = {}
-    for nome, tab in (("requisicao", "tbRequisicao"), ("fluxo", "tbFluxo"), ("pedido", "tbPedido")):
+    for nome, tab in (("requisicao", "tbRequisicao"), ("fluxo", "tbFluxo"), ("pedido", "tbPedido"),
+                      ("iwbk", "tbIWBK")):
+        if not B.get(nome):
+            continue
         df = B[nome]["norm"]
         cel(ws, (lin, 1), f"{nome.upper()} – {os.path.basename(B[nome]['arquivo'])} ({len(df)} linhas)", F_SECAO)
         lin += 1
@@ -1195,6 +1256,7 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
     B = tb.carregar_bases(pasta_bases)
     ant = ler_versao_anterior(pasta_saida)
     man = ant["manuais"]
+    migrar_chaves_os(man, B)
     prm = dict(ant["prm"])
     R = cz.cruzar(B, hoje, ant["historico"],
                   {k: v for k, v in prm.items() if not k.startswith(("nome_", "email_"))},
@@ -1205,7 +1267,7 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
     atuais = {
         "Follow-up": set(R["linhas"]["chave"]),
         "Recebimento": set(R["recebimento"]["chave"]),
-        "Por OS": {_k(int(x)) for x in R["por_os"]["os_tracos"]} if len(R["por_os"]) else set(),
+        "Por OS": {str(x) for x in R["por_os"]["os_sap"]} if len(R["por_os"]) else set(),
         "Por Fornecedor": set(R["por_fornecedor"]["fornecedor"]) if len(R["por_fornecedor"]) else set(),
         "Divergências": {f"{t}|{c}" for t, c in zip(Dv["tipo"], Dv["chave"])} if len(Dv) else set(),
     }
@@ -1273,9 +1335,10 @@ def resumo(R, destino, ant, orfas):
     if len(po):
         aptas = po[po["apta"] & ~po["liberada"]]
         print(f"\nOS: {len(po)} | aptas para programar: {len(aptas)} | liberadas: {int(po['liberada'].sum())} | "
-              f"aguardando itens: {int((~po['apta'] & ~po['liberada']).sum())}")
+              f"material já retirado (SAP): {int(po['ja_retirada'].sum())} | "
+              f"aguardando itens: {int((~po['apta'] & ~po['liberada'] & ~po['ja_retirada']).sum())}")
         for _, o in aptas.head(10).iterrows():
-            print(f"  ✅ OS #{int(o['os_tracos'])} {o['descricao_os']} ({int(o['itens'])} itens)")
+            print(f"  ✅ OS {o['os_sap']} {o['descricao_os']} ({int(o['itens'])} itens)")
     print("\nRecebimento:")
     for s, n in rc["situacao"].value_counts().reindex(list(cz.SITUACAO_REC.values())).dropna().items():
         print(f"  {s:<28} {int(n):>4}")

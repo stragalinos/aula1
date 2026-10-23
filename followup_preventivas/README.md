@@ -12,16 +12,38 @@ Cruza as 3 exportações do TracOS (requisição, fluxo e pedido de compra) e ge
    - `fluxo de compras *.csv`
    - `pedido de compra *.csv`
 
+   - **Opcional:** a IWBK do SAP (`*IWBK*.xlsx`, exportada com o layout completo de colunas).
+
    O número no fim do nome pode mudar. Se houver mais de um arquivo do mesmo tipo, o script usa o mais recente.
 2. Dê dois cliques em **`atualizar_followup.bat`**. Também dá para rodar `python atualizar_followup.py` no terminal.
 3. A planilha abre sozinha. Ela fica salva em `saida/followup_preventivas_AAAA-MM-DD.xlsx`.
 
 Na primeira vez, o `.bat` instala as bibliotecas `pandas` e `openpyxl`. Para isso, o Python precisa estar instalado com a opção "Add python.exe to PATH" marcada.
 
+## IWBK do SAP (RC e itens que só existem no SAP)
+
+Com a IWBK na pasta `bases`, cada componente de ordem do SAP é casado com o TracOS nesta ordem: OS + material + RC, OS + material + pedido, OS + material, material + RC, material + pedido. Quando casa, a linha do TracOS ganha a data de necessidade e a situação do SAP.
+
+O que não casa entra no Follow-up com **Origem = SAP**:
+
+| Situação na IWBK | Etapa |
+|---|---|
+| Item de estoque (L) em falta | **0 - Falta em estoque** (cobrar o almoxarifado) |
+| RC não liberada | 1 |
+| RC liberada sem pedido | 3 |
+| Com pedido | 4 (a IWBK não traz o fornecedor: cobrar o comprador) |
+| Entrada registrada, disponível em estoque ou retirado para a OS | 5 |
+
+Outros efeitos da IWBK:
+- **OS pelo nº SAP:** as OS passam a ser identificadas pelo nº SAP, porque há OS que só existem no SAP.
+- **Data de necessidade:** a da IWBK vale também para os itens do TracOS da mesma OS.
+- **Material já retirado:** quando todo o material de uma OS já foi retirado no SAP, ela aparece como **✔ MATERIAL JÁ RETIRADO (SAP)**, e não como apta.
+
 ## Rotina de gestão dos materiais
 
 | Quando | Onde | O que fazer |
 |---|---|---|
+| Item de estoque em falta (📦) | Aba **Recebimento** | Cobre a reposição do almoxarifado. Quando o material chegar e for separado, marque **SIM**. |
 | Material chegou e foi separado para a OS | Aba **Recebimento** | Em `Recebido?`, escolha **SIM**. Preencha data e local/kit se quiser. Use **PARCIAL** se chegou só parte e **NÃO** se o TracOS mostra entrada mas o material não está aqui. |
 | A OS não tem data de necessidade (só está em requisição) | Aba **Por OS** | Preencha `Data de necessidade (manual)`. A data vale para todos os itens da OS e manda sobre a do TracOS. |
 | A OS ficou ✅ APTA PARA PROGRAMAR | Aba **Por OS** | Programe a OS e preencha `Liberada para a equipe em`. Se faltar item, a OS fica em vermelho: ⚠ LIBERADA FALTANDO. |
@@ -73,7 +95,7 @@ O script sempre lê a planilha mais recente da pasta `saida`. **Faça as marcaç
 
 - `atualizar_followup.py`: gera a planilha (abas, fórmulas e preservação das anotações).
 - `cruzamento.py`: regras de casamento entre as bases, etapa, status de risco, recebimento e situação da OS.
-- `tracos_bases.py`: leitura dos CSVs do TracOS (UTF-16, TAB, "-" = vazio) e extração de códigos.
+- `tracos_bases.py`: leitura dos CSVs do TracOS (UTF-16, TAB, "-" = vazio) e da IWBK do SAP, e extração de códigos.
 - `reconhecimento.py`: relatório de diagnóstico das bases. Opcional.
 
 Os CSVs e as planilhas geradas ficam fora do Git (`.gitignore`), porque têm dados de compra.

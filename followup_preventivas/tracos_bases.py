@@ -155,9 +155,18 @@ def ordem_servico(s):
         "descricao_os": q.map(lambda p: p[3]),
     }, index=s.index)
     out["prev_na_descricao"] = out["descricao_os"].fillna("").str.upper().str.contains("PREV")
-    # preventiva = "PREV" na descrição OU OS gerada por plano de manutenção
-    out["eh_preventiva"] = out["prev_na_descricao"] | out["plano"].notna()
+    out["eh_preventiva"] = eh_preventiva(out["descricao_os"], out["plano"])
     return out
+
+
+def eh_preventiva(descricao_os, plano=None):
+    """Preventiva = 'PREV' na descrição, OS gerada por plano, ou descrição 'MSI_' (manutenção sistemática;
+    no TracOS, toda OS MSI_ tem plano ou PREV)."""
+    d = descricao_os.fillna("").str.upper().str.strip()
+    r = d.str.contains("PREV") | d.str.startswith("MSI")
+    if plano is not None:
+        r = r | plano.notna()
+    return r
 
 
 def ativo(s):
@@ -236,8 +245,91 @@ def normalizar_pedido(df):
     return out
 
 
+# ---------------------------------------------------------------- SAP IWBK (opcional)
+PADRAO_IWBK = "*iwbk*.xls*"
+COLUNAS_IWBK = ["Ordem", "Item lis.téc.", "Requisição de compra", "Data da necessidade", "Material",
+                "Txt.breve ordem", "UM básica", "Qtd.necessária", "Qtd.retirada", "Item ReqC",
+                "Texto breve material", "Qtd.entrada", "Pedido", "Documento de compras", "Data de remessa",
+                "Categoria do item", "Disponibilidade", "Nº reserva"]
+
+
+def _id_sap(v, tirar_zeros=False):
+    """Código vindo do Excel do SAP (texto ou número) -> texto; vazio -> NaN."""
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return np.nan
+    if isinstance(v, (int, np.integer)) or (isinstance(v, float) and float(v).is_integer()):
+        t = str(int(v))
+    else:
+        t = str(v).strip()
+    if tirar_zeros:
+        t = t.lstrip("0")
+    return t if t and t != "-" else np.nan
+
+
+def _num_sap(v):
+    if v is None or (isinstance(v, float) and np.isnan(v)):
+        return np.nan
+    if isinstance(v, (int, float, np.integer, np.floating)):
+        return float(v)
+    return _num_br(v)
+
+
+def _data_sap(v):
+    if v is None or (isinstance(v, float) and np.isnan(v)) or (isinstance(v, str) and not v.strip()):
+        return pd.NaT
+    if isinstance(v, (pd.Timestamp, np.datetime64)) or hasattr(v, "year"):
+        return pd.Timestamp(v)
+    t = str(v).strip()
+    for fmt in ("%d.%m.%Y", "%d/%m/%Y", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return pd.Timestamp(pd.to_datetime(t, format=fmt))
+        except ValueError:
+            continue
+    return pd.NaT
+
+
+def ler_iwbk(caminho):
+    df = pd.read_excel(caminho, dtype=object)
+    df.columns = [str(c).strip() for c in df.columns]
+    falta = [c for c in COLUNAS_IWBK if c not in df.columns]
+    if falta:
+        raise ValueError(f"A IWBK não tem as colunas {falta}. Exporte com o layout completo.")
+    return df
+
+
+def normalizar_iwbk(df):
+    """Uma linha por componente de ordem. Linhas sem 'Ordem' (totais por unidade no fim do relatório)
+    ficam de fora e são contadas em 'linhas_ignoradas'."""
+    out = pd.DataFrame(index=df.index)
+    out["linha_origem"] = df.index + 2
+    out["os_sap"] = df["Ordem"].map(_id_sap)
+    out["item_lista"] = df["Item lis.téc."].map(_id_sap)
+    out["codigo"] = df["Material"].map(lambda v: _id_sap(v, tirar_zeros=True))
+    out["descricao"] = df["Texto breve material"].map(lambda v: np.nan if pd.isna(v) else str(v).strip())
+    out["descricao_os"] = df["Txt.breve ordem"].map(lambda v: np.nan if pd.isna(v) else str(v).strip())
+    out["unidade"] = df["UM básica"]
+    out["qtd"] = df["Qtd.necessária"].map(_num_sap)
+    out["qtd_retirada"] = df["Qtd.retirada"].map(_num_sap)
+    out["qtd_entrada"] = df["Qtd.entrada"].map(_num_sap)
+    out["rc_sap"] = df["Requisição de compra"].map(lambda v: _id_sap(v, tirar_zeros=True))
+    out["rc_item"] = df["Item ReqC"].map(_id_sap)
+    out["pedido_sap"] = df["Documento de compras"].map(_id_sap)
+    out["status_pedido_sap"] = df["Pedido"].map(lambda v: np.nan if pd.isna(v) or not str(v).strip() else str(v).strip())
+    out["data_necessidade"] = pd.to_datetime(df["Data da necessidade"].map(_data_sap))
+    out["data_remessa"] = pd.to_datetime(df["Data de remessa"].map(_data_sap))
+    out["categoria"] = df["Categoria do item"]
+    out["disponibilidade"] = df["Disponibilidade"].map(lambda v: np.nan if pd.isna(v) else str(v).strip())
+    out["reserva"] = df["Nº reserva"].map(_id_sap)
+    out["prev_na_descricao"] = out["descricao_os"].fillna("").str.upper().str.contains("PREV")
+    out["eh_preventiva"] = eh_preventiva(out["descricao_os"])
+    validas = out["os_sap"].notna() & out["codigo"].notna()
+    norm = out[validas].copy()
+    norm.attrs["linhas_ignoradas"] = int((~validas).sum())
+    return norm
+
+
 def carregar_bases(pasta="bases"):
-    """Localiza, lê e normaliza as 3 bases. Retorna dict com brutos, normalizados e arquivos."""
+    """Localiza, lê e normaliza as 3 bases do TracOS e, se existir, a IWBK do SAP."""
     res = {}
     for nome, padrao in PADROES.items():
         caminho, todos = localizar(pasta, padrao)
@@ -246,4 +338,11 @@ def carregar_bases(pasta="bases"):
                 "fluxo": normalizar_fluxo,
                 "pedido": normalizar_pedido}[nome](bruto)
         res[nome] = {"arquivo": caminho, "candidatos": todos, "bruto": bruto, "norm": norm}
+    try:
+        caminho, todos = localizar(pasta, PADRAO_IWBK)
+    except FileNotFoundError:
+        res["iwbk"] = None
+    else:
+        bruto = ler_iwbk(caminho)
+        res["iwbk"] = {"arquivo": caminho, "candidatos": todos, "bruto": bruto, "norm": normalizar_iwbk(bruto)}
     return res
