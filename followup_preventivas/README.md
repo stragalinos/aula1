@@ -30,6 +30,23 @@ A OS só fica **APTA** quando **todos** os itens estão disponíveis. Um item es
 
 Tudo recalcula na hora no Excel. Não é preciso rodar o script de novo depois de marcar.
 
+## Painel clicável
+
+- **Menu no topo:** os botões azuis abrem cada aba. Em todas as abas, a célula A1 tem **⬅ Voltar ao Painel**.
+- **Textos e números sublinhados:** levam direto ao primeiro item do grupo.
+  - Exemplo: "🚚 A CAMINHO – ATRASADO 22" abre o Recebimento nessa linha, já na coluna `Recebido?`.
+  - Grupo vazio leva ao início da aba.
+- **OS aptas para programar agora:** a lista se atualiza conforme você marca o recebimento. Clique na OS para abri-la.
+- **✉ Cobrar:** abre o e-mail pronto no Outlook.
+  - Fornecedor: já com os pedidos SAP. Cadastre o e-mail na aba Por Fornecedor.
+  - Requisição parada: já com o nº SAP, a OS e desde quando está pendente. Cadastre os e-mails do gestor e do almox na aba Parâmetros.
+  - O texto do e-mail vai sem acentos, por causa do limite de 255 caracteres dos links no Excel.
+- **Dentro das abas:**
+  - Por OS: `Ir para os itens` abre o Recebimento (ou o Follow-up) daquela OS.
+  - Recebimento: `Itens que faltam na OS` abre a OS na aba Por OS.
+
+Não há macros: o arquivo é um `.xlsx` comum e abre sem aviso de segurança. Filtrar a tabela automaticamente ao clicar exigiria macro (`.xlsm`). Para ver todos os itens de um grupo, use o filtro do cabeçalho.
+
 ## O que é preservado entre atualizações
 
 - **Células amarelas:** Recebimento, datas e liberação das OS, observações e parâmetros voltam na próxima versão.
@@ -43,7 +60,7 @@ O script sempre lê a planilha mais recente da pasta `saida`. **Faça as marcaç
 
 | Aba | Conteúdo |
 |---|---|
-| Painel | OS aptas para programar, recebimento, funil por etapa, status de risco, OS preventivas com itens faltando, fornecedores atrasados e requisições paradas |
+| Painel | Menu de navegação e, em seções clicáveis: OS aptas para programar (com lista), recebimento, funil por etapa, status de risco, OS preventivas com itens faltando, fornecedores atrasados e requisições paradas (com ✉ Cobrar) |
 | Por OS | APTA PARA PROGRAMAR?, itens que faltam, data de necessidade manual e liberação para a equipe |
 | Recebimento | Itens com pedido (inclusive pedidos sem OS), para marcar o que chegou |
 | Follow-up | Uma linha por material × requisição × OS, ordenada por risco e data de necessidade |

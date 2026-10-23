@@ -739,7 +739,8 @@ def _requisicoes(L, hoje, prm):
     if not len(g):
         return pd.DataFrame()
     out = g.groupby(["etapa", "requisicao"]).agg(
-        req_sap=("req_sap", "first"), os_tracos=("os_tracos", "first"), descricao_os=("descricao_os", "first"),
+        req_sap=("req_sap", "first"), os_tracos=("os_tracos", "first"), os_sap=("os_sap", "first"),
+        descricao_os=("descricao_os", "first"),
         ativo=("ativo", "first"), preventiva=("eh_preventiva", "max"), itens=("codigo", "size"),
         inicio=("inicio_etapa", "min"), criado=("criado_req", "min"),
     ).reset_index()
