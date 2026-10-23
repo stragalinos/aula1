@@ -37,7 +37,9 @@ O que não casa entra no Follow-up com **Origem = SAP**:
 Outros efeitos da IWBK:
 - **OS pelo nº SAP:** as OS passam a ser identificadas pelo nº SAP, porque há OS que só existem no SAP.
 - **Data de necessidade:** a da IWBK vale também para os itens do TracOS da mesma OS.
-- **Material já retirado:** quando todo o material de uma OS já foi retirado no SAP, ela aparece como **✔ MATERIAL JÁ RETIRADO (SAP)**, e não como apta.
+- **Material já retirado:** itens já retirados ou baixados para a ordem vão para a aba **Histórico SAP**. Saem do Follow-up, do Recebimento e da Por OS, mas contam como disponíveis no total da OS.
+- **OS com todo o material retirado:** aparece no Painel como **✔ MATERIAL JÁ RETIRADO (SAP)**, com link para o histórico.
+- **Reservas antigas:** reservas com necessidade de mais de 180 dias vão para Divergências e ficam no fim de cada grupo no Follow-up.
 
 ## Rotina de gestão dos materiais
 
@@ -51,6 +53,10 @@ Outros efeitos da IWBK:
 A OS só fica **APTA** quando **todos** os itens estão disponíveis. Um item está disponível quando você marcou SIM no Recebimento, ou quando o TracOS mostra entrada e não há marca PARCIAL ou NÃO. A coluna `Itens que faltam` lista o que ainda falta em cada OS.
 
 Tudo recalcula na hora no Excel. Não é preciso rodar o script de novo depois de marcar.
+
+As abas Follow-up, Recebimento e Por OS mostram só as colunas do dia a dia. As colunas técnicas (chaves, linhas de origem, dados do SAP, preço etc.) ficam recolhidas: clique no **+** acima das colunas para abrir.
+
+Dentro de cada status, as **preventivas vêm primeiro**.
 
 ## Painel clicável
 
@@ -87,7 +93,8 @@ O script sempre lê a planilha mais recente da pasta `saida`. **Faça as marcaç
 | Recebimento | Itens com pedido (inclusive pedidos sem OS), para marcar o que chegou |
 | Follow-up | Uma linha por material × requisição × OS, ordenada por risco e data de necessidade |
 | Por Fornecedor | Pedidos abertos, valor e atraso mais antigo, para a cobrança |
-| Divergências | Itens não casados, vínculos de baixa confiança, duplicidades, alertas e anotações sem item |
+| Divergências | Itens não casados, vínculos de baixa confiança, duplicidades, reservas antigas do SAP, alertas e anotações sem item |
+| Histórico SAP | Itens da IWBK já retirados ou baixados para a ordem (sem ação pendente) |
 | Parâmetros | Limites editáveis, legenda e conciliação de linhas |
 | Bases tratadas | As 3 bases já normalizadas, para auditoria |
 
