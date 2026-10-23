@@ -198,7 +198,7 @@ def situacao_recebimento(marca, recebido_tracos, data_nec, hoje, etapa=None):
     return SITUACAO_REC[0] if d is not None and d < 0 else SITUACAO_REC[1]
 
 
-def cruzar(B, hoje, historico=None, prm=None, manuais=None):
+def cruzar(B, hoje, historico=None, prm=None, manuais=None, so_preventivas=False):
     """Cruza as bases. Retorna dict com linhas (Follow-up), recebimento, divergencias, por_os,
     por_fornecedor, requisicoes, historico novo, alertas e conciliacao.
 
@@ -206,6 +206,7 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
       datas_os    {OS SAP: data de necessidade digitada na aba Por OS}
       recebimento {chave: SIM / PARCIAL / NÃO digitado na aba Recebimento}
       liberadas   {OS SAP já liberadas para a equipe}
+    so_preventivas: as abas de trabalho ficam só com OS preventivas; as demais vão para 'outras'.
     """
     hoje = pd.Timestamp(hoje).normalize()
     historico = historico or {}
@@ -528,11 +529,16 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
         for a, b, c, d in zip(L["orig_req"], L["orig_flx"], L["orig_ped"], L["orig_sap"])]
     L["eh_preventiva"] = L["eh_preventiva"].fillna(False).astype(bool)
     L["sap_consumido"] = L["sap_consumido"].fillna(False).astype(bool)
-    # dentro de cada status: preventivas primeiro; reservas antigas (> 180 dias) no fim
+    # tabela em blocos por OS: preventivas primeiro, depois a OS com o pior status e a data mais próxima;
+    # OS só com reservas antigas (> 180 dias) no fim. Dentro da OS, por status e data.
     L["_antiga"] = L["data_necessidade"] < hoje - pd.Timedelta(days=180)
-    L = L.sort_values(["prioridade", "eh_preventiva", "_antiga", "data_necessidade", "os_sap", "codigo", "seq"],
-                      ascending=[True, False, True, True, True, True, True],
-                      na_position="last").drop(columns="_antiga").reset_index(drop=True)
+    L["_os"] = L["os_sap"].fillna("~sem OS")
+    rank = (L.groupby("_os").agg(_prev=("eh_preventiva", "max"), _ant=("_antiga", "all"), _p=("prioridade", "min"),
+                                 _d=("data_necessidade", "min"))
+            .sort_values(["_prev", "_ant", "_p", "_d"], ascending=[False, True, True, True], na_position="last"))
+    L["_ros"] = L["_os"].map({o: i for i, o in enumerate(rank.index)})
+    L = L.sort_values(["_ros", "prioridade", "data_necessidade", "codigo", "seq"], na_position="last") \
+        .drop(columns=["_antiga", "_os", "_ros"]).reset_index(drop=True)
 
     novo_hist = {c: (int(e), pd.Timestamp(i)) for c, e, i in zip(L["chave"], L["etapa"], L["inicio_etapa"])}
 
@@ -541,6 +547,14 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
     so_hist = L["sap_consumido"] & L["origem"].eq("SAP")
     H = L[so_hist].sort_values(["os_sap", "codigo"]).reset_index(drop=True)
     L = L[~so_hist].reset_index(drop=True)
+
+    # OS não preventivas: fora das abas de trabalho quando so_preventivas (aba Outras OS)
+    O = L.iloc[0:0].copy()
+    if so_preventivas:
+        nao = ~L["eh_preventiva"]
+        O = L[nao].sort_values(["os_sap", "codigo"]).reset_index(drop=True)
+        L = L[~nao].reset_index(drop=True)
+    L["faixa"] = (L["os_sap"].fillna("") != L["os_sap"].fillna("").shift()).cumsum() % 2
 
     # ------------------------------------------------ divergências adicionais
     chave_por_origem = {}
@@ -671,9 +685,9 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
             .drop(columns="_g").reset_index(drop=True)
 
     # ------------------------------------------------ agregações
-    receb = _recebimento(L, p.loc[orfaos_ped], marcas, hoje)
+    receb = _recebimento(L, p.iloc[0:0] if so_preventivas else p.loc[orfaos_ped], marcas, hoje)
     por_os = _por_os(L, datas_os, liberadas, H)
-    os_retiradas = (H[~H["os_sap"].isin(set(L["os_sap"].dropna()))]
+    os_retiradas = (H[~H["os_sap"].isin(set(L["os_sap"].dropna()) | set(O["os_sap"].dropna()))]
                     .groupby("os_sap").agg(descricao_os=("descricao_os", "first"), preventiva=("eh_preventiva", "max"),
                                            itens=("codigo", "size")).reset_index())
     por_forn = _por_fornecedor(L, p, up, hoje)
@@ -687,12 +701,13 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None):
     for nome, col, df in bases_conc:
         em_fu = [int(x) for x in L[col].dropna()]
         em_hi = [int(x) for x in H[col].dropna()]
+        em_ou = [int(x) for x in O[col].dropna()]
         em_dv = [int(x) for x in D.loc[D["conta"] & D["base"].eq(nome), "linha"].dropna()] if len(D) else []
         todas = set(int(x) for x in df["linha_origem"])
-        conc.append(dict(base=nome, entrada=len(df), follow_up=len(em_fu), historico=len(em_hi),
-                         divergencias=len(em_dv), total_saida=len(em_fu) + len(em_hi) + len(em_dv),
-                         ok=(sorted(em_fu + em_hi + em_dv) == sorted(todas))))
-    return dict(info_sap=info_sap, linhas=L, historico_sap=H, os_retiradas=os_retiradas, recebimento=receb,
+        conc.append(dict(base=nome, entrada=len(df), follow_up=len(em_fu), historico=len(em_hi), outras=len(em_ou),
+                         divergencias=len(em_dv), total_saida=len(em_fu) + len(em_hi) + len(em_ou) + len(em_dv),
+                         ok=(sorted(em_fu + em_hi + em_ou + em_dv) == sorted(todas))))
+    return dict(info_sap=info_sap, linhas=L, historico_sap=H, outras=O, os_retiradas=os_retiradas, recebimento=receb,
                 divergencias=D, por_os=por_os, por_fornecedor=por_forn, requisicoes=reqs,
                 historico=novo_hist, alertas=alertas, conciliacao=pd.DataFrame(conc), prm=prm, hoje=hoje)
 
@@ -876,11 +891,14 @@ def _recebimento(L, ped_sem_os, marcas, hoje):
                                              out["etapa"])]
     rank = {v: i for i, v in enumerate(SITUACAO_REC.values())}
     out["_r"] = out["situacao"].map(rank)
-    out["_sem_os"] = out["os_sap"].isna()
+    # agrupado como o material chega: por situação, fornecedor e pedido (falta em estoque: por OS)
     out["_antiga"] = out["data_necessidade"] < hoje - pd.Timedelta(days=180)
-    out = out.sort_values(["_r", "_sem_os", "eh_preventiva", "_antiga", "data_necessidade", "os_sap", "fornecedor",
-                           "pedido"], ascending=[True, True, False, True, True, True, True, True], na_position="last")
-    return out.drop(columns=["_r", "_sem_os", "_antiga"]).reset_index(drop=True)
+    out = out.sort_values(["_r", "fornecedor", "pedido_sap", "_antiga", "os_sap", "data_necessidade", "pedido"],
+                          na_position="last").reset_index(drop=True)
+    grupo = (out["_r"].astype(str) + "|" + out["fornecedor"].fillna(out["os_sap"]).fillna("").astype(str) + "|"
+             + out["pedido_sap"].fillna("").astype(str))
+    out["faixa"] = (grupo != grupo.shift()).cumsum() % 2
+    return out.drop(columns=["_r", "_antiga"])
 
 
 def _por_fornecedor(L, p, usados_p, hoje):

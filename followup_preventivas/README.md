@@ -54,9 +54,13 @@ A OS só fica **APTA** quando **todos** os itens estão disponíveis. Um item es
 
 Tudo recalcula na hora no Excel. Não é preciso rodar o script de novo depois de marcar.
 
-As abas Follow-up, Recebimento e Por OS mostram só as colunas do dia a dia. As colunas técnicas (chaves, linhas de origem, dados do SAP, preço etc.) ficam recolhidas: clique no **+** acima das colunas para abrir.
+## Como as tabelas estão organizadas
 
-Dentro de cada status, as **preventivas vêm primeiro**.
+- **Por OS, Recebimento e Follow-up mostram 13 colunas cada.** As colunas técnicas (chaves, linhas de origem, dados do SAP, preço etc.) ficam recolhidas: clique no **+** acima das colunas para abrir.
+- **Follow-up em blocos por OS:** os itens de cada OS ficam juntos, com faixas de cor alternadas. As OS mais urgentes vêm primeiro.
+- **Recebimento por situação, fornecedor e pedido,** que é como o material chega. Os itens em falta no estoque vêm agrupados por OS.
+- **Só OS preventivas nas abas de trabalho.** Corretivas, compras e giro de estoque ficam na aba **Outras OS**.
+  - Para ver todas, mude o parâmetro "Abas de trabalho só com OS preventivas?" para **NÃO** na aba Parâmetros e atualize.
 
 ## Painel clicável
 
@@ -95,6 +99,7 @@ O script sempre lê a planilha mais recente da pasta `saida`. **Faça as marcaç
 | Por Fornecedor | Pedidos abertos, valor e atraso mais antigo, para a cobrança |
 | Divergências | Itens não casados, vínculos de baixa confiança, duplicidades, reservas antigas do SAP, alertas e anotações sem item |
 | Histórico SAP | Itens da IWBK já retirados ou baixados para a ordem (sem ação pendente) |
+| Outras OS | Itens de OS não preventivas (quando o parâmetro "só preventivas" está SIM) |
 | Parâmetros | Limites editáveis, legenda e conciliação de linhas |
 | Bases tratadas | As 3 bases já normalizadas, para auditoria |
 

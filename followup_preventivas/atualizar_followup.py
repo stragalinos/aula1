@@ -139,6 +139,9 @@ PARAMETROS = [
      "Usado no botão ✉ Cobrar das requisições paradas no nível 01 (Painel). Vários: separe com ';'."),
     ("email_almox", "EMAIL_ALMOX", "E-mail do almox corporativo (nível 02)", "",
      "Usado no botão ✉ Cobrar das requisições paradas no nível 02 (Painel)."),
+    ("so_preventivas", "SO_PREVENTIVAS", "Abas de trabalho só com OS preventivas? (SIM / NÃO)", "SIM",
+     "SIM = Por OS, Recebimento e Follow-up mostram só OS preventivas; as demais ficam na aba Outras OS. "
+     "Mude para NÃO para ver todas. Vale a partir da próxima atualização."),
 ]
 
 DESCR_STATUS = {
@@ -155,17 +158,16 @@ DESCR_STATUS = {
 # ------------------------------------------------------------------ colunas das abas
 # (cabeçalho, largura, chave interna). Chaves 'f_' = fórmula; 'm_' = digitada por você.
 COLS_FU = [
-    ("Prioridade", 8, "f_prio"), ("Status de risco", 28, "f_status"), ("Item disponível?", 10, "f_disp"),
-    ("Etapa do funil", 38, "etapa_txt"), ("Quem cobrar", 44, "f_quem"), (COL_OBS, 42, "m_obs"),
-    ("Preventiva", 9, "prev"), ("Origem", 11, "origem"), ("OS SAP", 12, "os_sap"),
-    ("Descrição da OS", 42, "descricao_os"), ("Ativo", 36, "ativo"),
-    ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
-    ("Qtd", 7, "qtd"), ("Un", 5, "unidade"),
+    ("Status de risco", 28, "f_status"), ("Item disponível?", 10, "f_disp"), ("OS SAP", 12, "os_sap"),
+    ("Descrição da OS", 40, "descricao_os"), ("Código material", 10, "codigo"),
+    ("Descrição do material", 36, "descricao"), ("Qtd", 7, "qtd"), ("Un", 5, "unidade"),
     ("Data de necessidade", 12, "f_nec"), ("Dias até a necessidade", 11, "f_dias_nec"),
+    ("Etapa do funil", 36, "etapa_txt"), ("Quem cobrar", 44, "f_quem"), (COL_OBS, 42, "m_obs"),
+    # detalhes (recolhidos: clique no + acima das colunas para abrir)
+    ("Prioridade", 8, "f_prio"), ("Preventiva", 9, "prev"), ("Origem", 11, "origem"), ("Ativo", 36, "ativo"),
     ("Dias de atraso", 9, "f_atraso"), ("Dias na etapa atual", 10, "f_dias_etapa"),
     ("Req. SAP", 12, "req_sap"), ("Pedido SAP", 12, "pedido_sap"), ("Fornecedor", 36, "fornecedor"),
     ("Valor do item (R$)", 14, "f_valor"),
-    # detalhes (recolhidos: clique no + acima das colunas para abrir)
     ("Recebimento (aba Recebimento)", 13, "f_rec"), ("Etapa nº", 7, "etapa"), ("OS TracOS", 9, "os_tracos"),
     ("Qtd pendente", 9, "qtd_pendente"), ("Origem da data de necessidade", 26, "f_origem"),
     ("Data de necessidade (TracOS/SAP)", 12, "data_nec_tracos"), ("Data manual da OS (aba Por OS)", 13, "f_nec_manual"),
@@ -180,33 +182,34 @@ COLS_FU = [
     ("Categoria SAP (N compra / L estoque)", 10, "categoria"), ("Disponibilidade no SAP (IWBK)", 44, "disponibilidade"),
     ("Qtd retirada (SAP)", 9, "qtd_retirada"), ("Data de remessa do pedido (SAP)", 12, "data_remessa"),
     ("Reserva SAP", 12, "reserva"), (COL_CHAVE, 24, "chave"),
+    ("Faixa (auxiliar)", 6, "faixa"),
 ]
-DETALHE_FU = {k for _, _, k in COLS_FU[COLS_FU.index(("Recebimento (aba Recebimento)", 13, "f_rec")):]}
+DETALHE_FU = {k for _, _, k in COLS_FU[COLS_FU.index(("Prioridade", 8, "f_prio")):]}
 COLS_REC = [
-    ("Situação", 26, "f_sit"), (REC_MARCA, 11, "m_rec"), (REC_QTD, 9, "m_qtd"), (REC_DATA, 12, "m_data"),
-    (REC_LOCAL, 22, "m_local"), (REC_OBS, 34, "m_obs"), ("Itens que faltam na OS", 10, "f_falta_os"),
-    ("OS SAP", 12, "os_sap"), ("Preventiva", 9, "prev"), ("Descrição da OS", 40, "descricao_os"),
-    ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
-    ("Qtd pedida", 8, "qtd"), ("Un", 5, "unidade"), ("Data de necessidade", 12, "f_nec"),
-    ("Dias até a necessidade", 11, "f_dias"), ("Fornecedor", 34, "fornecedor"), ("Pedido SAP", 12, "pedido_sap"),
-    ("Data da entrada (TracOS)", 12, "entrada_em"),
+    ("Situação", 26, "f_sit"), (REC_MARCA, 11, "m_rec"), (REC_DATA, 12, "m_data"), (REC_LOCAL, 22, "m_local"),
+    ("Fornecedor", 34, "fornecedor"), ("Pedido SAP", 12, "pedido_sap"), ("OS SAP", 12, "os_sap"),
+    ("Descrição do material", 36, "descricao"), ("Qtd pedida", 8, "qtd"), ("Data de necessidade", 12, "f_nec"),
+    ("Dias até a necessidade", 11, "f_dias"), ("Itens que faltam na OS", 10, "f_falta_os"), (REC_OBS, 34, "m_obs"),
     # detalhes (recolhidos)
+    (REC_QTD, 9, "m_qtd"), ("Código material", 10, "codigo"), ("Un", 5, "unidade"), ("Preventiva", 9, "prev"),
+    ("Descrição da OS", 40, "descricao_os"), ("Data da entrada (TracOS)", 12, "entrada_em"),
     ("OS TracOS", 9, "os_tracos"), ("Origem", 10, "origem"), ("Etapa nº", 7, "etapa"), ("Ativo", 34, "ativo"),
     ("Pedido (TracOS)", 8, "pedido"), ("Status do pedido (TracOS/SAP)", 15, "status_pedido"),
     ("Entrada registrada (TracOS/SAP)?", 11, "rec_tracos"), ("Entrada", 8, "entrada"),
     ("Nota fiscal", 11, "nota_fiscal"), (COL_CHAVE, 24, "chave"),
+    ("Faixa (auxiliar)", 6, "faixa"),
 ]
-DETALHE_REC = {k for _, _, k in COLS_REC[COLS_REC.index(("OS TracOS", 9, "os_tracos")):]}
+DETALHE_REC = {k for _, _, k in COLS_REC[COLS_REC.index((REC_QTD, 9, "m_qtd")):]}
 COLS_OS = [
-    ("OS SAP", 12, "os_sap"), ("Descrição da OS", 40, "descricao_os"), ("Preventiva", 9, "prev"),
-    ("Ativo", 34, "ativo"), ("APTA PARA PROGRAMAR?", 27, "f_apta"), ("Itens que faltam", 55, "f_lista"),
-    ("Ir para os itens", 15, "f_ir"), (OS_DATA, 13, "m_data"), ("Data de necessidade (usada)", 12, "f_data"),
-    ("Dias até a necessidade", 11, "f_dias"), ("Total de itens", 8, "f_total"),
-    ("Itens disponíveis", 9, "f_disp"), ("Itens faltando", 9, "f_falt"),
-    ("A caminho (com pedido)", 9, "f_caminho"), ("Em compra / aprovação", 10, "f_compra"),
-    ("Falta em estoque (SAP)", 9, "f_estoque"), ("Itens em risco 🔴", 9, "f_risco"),
-    ("Lista de itens", 30, "lista_ok"), (OS_LIB, 13, "m_lib"), (COL_OBS, 40, "m_obs"),
+    ("OS SAP", 12, "os_sap"), ("Descrição da OS", 40, "descricao_os"), ("Ativo", 30, "ativo"),
+    ("APTA PARA PROGRAMAR?", 27, "f_apta"), ("Itens que faltam", 55, "f_lista"), (OS_DATA, 13, "m_data"),
+    ("Data de necessidade (usada)", 12, "f_data"), ("Dias até a necessidade", 11, "f_dias"),
+    ("Total de itens", 8, "f_total"), ("Itens faltando", 9, "f_falt"), ("Ir para os itens", 15, "f_ir"),
+    (OS_LIB, 13, "m_lib"), (COL_OBS, 40, "m_obs"),
     # detalhes (recolhidos)
+    ("Preventiva", 9, "prev"), ("Itens disponíveis", 9, "f_disp"), ("A caminho (com pedido)", 9, "f_caminho"),
+    ("Em compra / aprovação", 10, "f_compra"), ("Falta em estoque (SAP)", 9, "f_estoque"),
+    ("Itens em risco 🔴", 9, "f_risco"), ("Lista de itens", 30, "lista_ok"),
     ("OS TracOS", 9, "os_tracos"), ("Itens já retirados (SAP)", 9, "retirados"),
     ("Valor pendente (R$)", 14, "f_valor"), ("Data de necessidade (TracOS/SAP)", 12, "data_tracos"),
     ("Origem dos itens", 13, "origem_itens"), ("Situação das peças (na geração)", 34, "situacao"),
@@ -214,7 +217,7 @@ COLS_OS = [
     # auxiliares do Painel (ocultas)
     ("Grupo (painel)", 12, "f_grupo"), ("Janela (painel)", 10, "f_janela"), ("Nº apta (painel)", 8, "f_seq"),
 ]
-DETALHE_OS = {"os_tracos", "retirados", "f_valor", "data_tracos", "origem_itens", "situacao", "plano", "centro_custo"}
+DETALHE_OS = {k for _, _, k in COLS_OS[COLS_OS.index(("Preventiva", 9, "prev")):]} - {"f_grupo", "f_janela", "f_seq"}
 COLS_HIST = [
     ("OS SAP", 12, "os_sap"), ("OS TracOS", 9, "os_tracos"), ("Descrição da OS", 40, "descricao_os"),
     ("Preventiva", 9, "prev"), ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
@@ -222,6 +225,14 @@ COLS_HIST = [
     ("Data de necessidade", 12, "data_nec_tracos"), ("Situação", 30, "etapa_txt"),
     ("Disponibilidade no SAP (IWBK)", 44, "disponibilidade"), ("Reserva SAP", 12, "reserva"),
     ("RC SAP", 11, "req_sap"), ("Pedido SAP", 12, "pedido_sap"), ("Linha na IWBK", 9, "orig_sap"),
+    (COL_CHAVE, 24, "chave"),
+]
+COLS_OUTRAS = [
+    ("OS SAP", 12, "os_sap"), ("OS TracOS", 9, "os_tracos"), ("Descrição da OS", 40, "descricao_os"),
+    ("Origem", 11, "origem"), ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
+    ("Qtd", 7, "qtd"), ("Un", 5, "unidade"), ("Data de necessidade", 12, "data_necessidade"),
+    ("Status (na geração)", 28, "status"), ("Etapa do funil", 36, "etapa_txt"), ("Req. SAP", 12, "req_sap"),
+    ("Pedido SAP", 12, "pedido_sap"), ("Fornecedor", 34, "fornecedor"), ("Linhas de origem", 24, "origens"),
     (COL_CHAVE, 24, "chave"),
 ]
 COLS_FORN = [
@@ -234,7 +245,8 @@ COLS_FORN = [
     ("OS afetadas", 22, "os_afetadas"), ("Itens sem OS identificada", 10, "itens_sem_os"),
     (COL_OBS, 40, "m_obs"), ("Link do e-mail (auxiliar)", 10, "f_url"),
 ]
-OCULTAS = {"f_grupo", "f_janela", "f_seq", "f_url"}
+OCULTAS = {"f_grupo", "f_janela", "f_seq", "f_url", "faixa"}
+P_FAIXA = PatternFill("solid", fgColor="EDF2F9", bgColor="EDF2F9")
 LISTA_INCOMPLETA = "⚠ conferir no TracOS (fluxo incompleto)"
 
 
@@ -361,6 +373,19 @@ def validar_data(ws, rng):
     ws.add_data_validation(dv)
 
 
+def faixas_alternadas(ws, colunas, ult):
+    """Fundo alternado por bloco (OS no Follow-up, pedido no Recebimento) usando a coluna auxiliar 'faixa'."""
+    c = letras(colunas)
+    vis = [j for j, (_, _, k) in enumerate(colunas, 1) if not k.startswith("m_") and k not in OCULTAS]
+    blocos, ini = [], None
+    for a, b in zip(vis, vis[1:] + [None]):
+        ini = a if ini is None else ini
+        if b != a + 1:
+            blocos.append(f"{get_column_letter(ini)}{LIN_1}:{get_column_letter(a)}{ult}")
+            ini = None
+    ws.conditional_formatting.add(" ".join(blocos), FormulaRule(formula=[f"${c['faixa']}{LIN_1}=1"], fill=P_FAIXA))
+
+
 def letras(colunas):
     return {k: get_column_letter(j) for j, (_, _, k) in enumerate(colunas, 1)}
 
@@ -464,7 +489,7 @@ def ler_versao_anterior(pasta_saida):
         for row in wb["Parâmetros"].iter_rows(min_row=1, max_row=40, values_only=True):
             if row and len(row) >= 4 and row[3] in ids and row[3] != "data_ref":
                 v = row[1]
-                if row[3].startswith(("nome_", "email_")):
+                if row[3].startswith(("nome_", "email_", "so_")):
                     prm[row[3]] = "" if v is None else str(v)
                 elif isinstance(v, (int, float)):
                     prm[row[3]] = v
@@ -520,6 +545,10 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant):
             alin=Alignment(horizontal="left"))
         cel(ws, (lin, 3), desc, F_NOTA)
         cel(ws, (lin, 4), pid, F_NOTA)
+        if pid == "so_preventivas":
+            dv = DataValidation(type="list", formula1='"SIM,NÃO"', allow_blank=False)
+            dv.add(f"B{lin}")
+            ws.add_data_validation(dv)
         nome_definido(wb, nome, f"'Parâmetros'!$B${lin}")
     ws.column_dimensions["D"].hidden = True
     lin = LIN_1 + len(PARAMETROS) + 1
@@ -649,14 +678,14 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant):
     cel(ws, (lin, 1), "Conciliação (linhas de entrada × saída)", F_SECAO)
     lin += 1
     for j, t in enumerate(["Base", "Linhas de entrada", "No Follow-up", "Histórico SAP (já retirado)",
-                           "Divergências (não casadas)", "OK?"], 1):
+                           "Outras OS (não preventivas)", "Divergências (não casadas)", "OK?"], 1):
         cel(ws, (lin, j), t, F_CAB, preench=P_CAB, alin=AL_CAB)
-    for col in "EF":
+    for col in "EFG":
         ws.column_dimensions[col].width = 12
     lin += 1
     for _, c in R["conciliacao"].iterrows():
-        for j, v in enumerate([c["base"], c["entrada"], c["follow_up"], c["historico"], c["divergencias"],
-                               "SIM" if c["ok"] else "NÃO"], 1):
+        for j, v in enumerate([c["base"], c["entrada"], c["follow_up"], c["historico"], c["outras"],
+                               c["divergencias"], "SIM" if c["ok"] else "NÃO"], 1):
             cel(ws, (lin, j), v)
         lin += 1
     lin += 1
@@ -694,7 +723,7 @@ def aba_followup(wb, L, man, FU, REC, POS):
     ws = wb.create_sheet("Follow-up")
     ws.sheet_properties.tabColor = "548235"
     titulo(ws, "Follow-up de peças por OS",
-           "Ordenado por prioridade de risco e data de necessidade no momento da geração. Status, dias e "
+           "Itens agrupados por OS (faixas de cor): primeiro as OS mais urgentes. Status, dias e "
            "disponibilidade recalculam com a data de referência e com o que você marca nas abas Recebimento e "
            "Por OS. Coluna amarela = sua observação. Colunas técnicas recolhidas: clique no + acima das colunas.")
     cabecalho(ws, LIN_CAB, COLS_FU)
@@ -754,6 +783,7 @@ def aba_followup(wb, L, man, FU, REC, POS):
     ult = escrever_tabela(ws, COLS_FU, [l for _, l in L.iterrows()], valor_de, fmts, centro, detalhe=DETALHE_FU)
     ws.freeze_panes = f"D{LIN_1}"
     cf_palavras(ws, f"{c['f_status']}{LIN_1}:{c['f_status']}{ult}", f"${c['f_status']}{LIN_1}", CORES_STATUS)
+    faixas_alternadas(ws, COLS_FU, ult)
     ws.conditional_formatting.add(f"{D}{LIN_1}:{D}{ult}", FormulaRule(
         formula=[f'{D}{LIN_1}="SIM"'], fill=PatternFill("solid", fgColor="C6EFCE", bgColor="C6EFCE"),
         font=Font(name=FONTE, bold=True, color="006100")))
@@ -768,7 +798,7 @@ def aba_recebimento(wb, rec, man, FU, POS):
     ws = wb.create_sheet("Recebimento")
     ws.sheet_properties.tabColor = "70AD47"
     titulo(ws, "Recebimento de materiais – controle dos itens que estão chegando",
-           "Todos os itens com pedido (inclusive pedidos sem OS). Marque 'Recebido?' quando o material chegar e "
+           "Agrupado por situação, fornecedor e pedido (como o material chega). Marque 'Recebido?' quando o material chegar e "
            "for separado para a OS: SIM / PARCIAL / NÃO. Em branco = vale a entrada do TracOS. "
            "As colunas amarelas são preservadas nas próximas atualizações.")
     cabecalho(ws, LIN_CAB, COLS_REC)
@@ -819,6 +849,7 @@ def aba_recebimento(wb, rec, man, FU, POS):
     validar_data(ws, f"{c['m_data']}{LIN_1}:{c['m_data']}{ult}")
     ws.freeze_panes = f"C{LIN_1}"
     cf_palavras(ws, f"A{LIN_1}:A{ult}", f"$A{LIN_1}", CORES_REC)
+    faixas_alternadas(ws, COLS_REC, ult)
     ws.conditional_formatting.add(f"{c['f_falta_os']}{LIN_1}:{c['f_falta_os']}{ult}", CellIsRule(
         operator="equal", formula=["0"], fill=PatternFill("solid", fgColor="C6EFCE", bgColor="C6EFCE"),
         font=Font(name=FONTE, bold=True, color="006100")))
@@ -889,11 +920,11 @@ def aba_por_os(wb, por_os, man, FU, REC):
               "f_compra", "f_estoque", "retirados", "f_risco", "data_tracos", "m_lib", "plano", "origem_itens"}
     ult = escrever_tabela(ws, COLS_OS, [o for _, o in por_os.iterrows()], valor_de, fmts, centro,
                           negrito={"f_apta"}, links={"f_ir"}, detalhe=DETALHE_OS)
-    ws.freeze_panes = f"D{LIN_1}"
+    ws.freeze_panes = f"C{LIN_1}"
     for k in ("m_data", "m_lib"):
         validar_data(ws, f"{c[k]}{LIN_1}:{c[k]}{ult}")
-    ws.conditional_formatting.add(f"A{LIN_1}:E{ult}", FormulaRule(
-        formula=[f'$D{LIN_1}="SIM"'], fill=P_PREV, font=Font(name=FONTE, bold=True)))
+    ws.conditional_formatting.add(f"A{LIN_1}:{c['ativo']}{ult}", FormulaRule(
+        formula=[f'${c["prev"]}{LIN_1}="SIM"'], fill=P_PREV, font=Font(name=FONTE, bold=True)))
     cf_palavras(ws, f"{c['f_apta']}{LIN_1}:{c['f_apta']}{ult}", f"${c['f_apta']}{LIN_1}", CORES_APTA)
     ws.conditional_formatting.add(f"{c['f_dias']}{LIN_1}:{c['f_dias']}{ult}", CellIsRule(
         operator="lessThan", formula=["0"], font=Font(name=FONTE, color="9C0006", bold=True)))
@@ -1261,6 +1292,24 @@ def aba_historico_sap(wb, H):
     paisagem(ws)
 
 
+def aba_outras_os(wb, O, ativo):
+    ws = wb.create_sheet("Outras OS")
+    ws.sheet_properties.tabColor = "BFBFBF"
+    titulo(ws, "Outras OS (não preventivas)",
+           "Corretivas, compras, giro de estoque etc. Fora das abas de trabalho porque o parâmetro 'Abas de trabalho "
+           "só com OS preventivas' está como SIM (aba Parâmetros). Status calculado na geração.")
+    cabecalho(ws, LIN_CAB, COLS_OUTRAS)
+    regs = [] if O is None or not len(O) else [o for _, o in O.iterrows()]
+    if not ativo:
+        cel(ws, (LIN_1, 1), "Parâmetro como NÃO: todas as OS estão nas abas de trabalho.", F_NOTA)
+    escrever_tabela(ws, COLS_OUTRAS, regs, lambda k, o, r: o[k], {"data_necessidade": FMT_DATA},
+                    {"os_tracos", "codigo", "qtd", "unidade", "data_necessidade"})
+    ws.freeze_panes = f"C{LIN_1}"
+    if regs:
+        cf_palavras(ws, f"J{LIN_1}:J{LIN_1 + len(regs) - 1}", f"$J{LIN_1}", CORES_STATUS)
+    paisagem(ws)
+
+
 def aba_bases(wb, B):
     ws = wb.create_sheet("Bases tratadas")
     ws.sheet_properties.tabColor = "A6A6A6"
@@ -1315,9 +1364,10 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
     man = ant["manuais"]
     migrar_chaves_os(man, B)
     prm = dict(ant["prm"])
+    so_prev = str(prm.get("so_preventivas", "SIM")).strip().upper() not in ("NÃO", "NAO", "N")
     R = cz.cruzar(B, hoje, ant["historico"],
-                  {k: v for k, v in prm.items() if not k.startswith(("nome_", "email_"))},
-                  manuais=manuais_para_cruzamento(man))
+                  {k: v for k, v in prm.items() if not k.startswith(("nome_", "email_", "so_"))},
+                  manuais=manuais_para_cruzamento(man), so_preventivas=so_prev)
 
     # anotações cujo item/OS sumiu: não se perdem (aba oculta _anotacoes + aviso em Divergências)
     Dv = R["divergencias"]
@@ -1354,12 +1404,13 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
     aba_divergencias(wb, Dv, man, orfas)
     aba_painel(wb, R, FU, REC, POS, lin_avisos)
     aba_historico_sap(wb, R["historico_sap"])
+    aba_outras_os(wb, R["outras"], so_prev)
     aba_bases(wb, B)
     aba_oculta(wb, "_historico", ["Chave", "Etapa", "Desde"],
                [[k, e, d] for k, (e, d) in sorted(R["historico"].items())], fmt_col="C")
     aba_oculta(wb, "_anotacoes", ["Aba", "Chave", "Coluna", "Valor"], orfas_reg)
     ordem = ["Painel", "Por OS", "Recebimento", "Follow-up", "Por Fornecedor", "Divergências", "Histórico SAP",
-             "Parâmetros", "Bases tratadas", "_historico", "_anotacoes"]
+             "Outras OS", "Parâmetros", "Bases tratadas", "_historico", "_anotacoes"]
     wb._sheets = [wb[n] for n in ordem]
     wb.active = 0
     wb.calculation.fullCalcOnLoad = True
@@ -1386,10 +1437,10 @@ def resumo(R, destino, ant, orfas):
     n_anot = sum(len(v) for v in ant["manuais"].values())
     print(f"Anotações reaproveitadas de: {os.path.basename(ant['arquivo']) if ant['arquivo'] else '(primeira versão)'}"
           f"  |  {n_anot} itens/OS com anotação, {len(orfas)} sem item atual")
-    print("\nConciliação (entrada = Follow-up + Histórico SAP + Divergências não casadas):")
+    print("\nConciliação (entrada = Follow-up + Histórico SAP + Outras OS + Divergências não casadas):")
     for _, c in R["conciliacao"].iterrows():
         print(f"  {c['base']:<11} entrada {c['entrada']:>4} | follow-up {c['follow_up']:>4} | "
-              f"histórico {c['historico']:>4} | divergências {c['divergencias']:>3} | "
+              f"histórico {c['historico']:>4} | outras OS {c['outras']:>4} | divergências {c['divergencias']:>3} | "
               f"{'OK' if c['ok'] else 'DIFERENÇA!'}")
     if len(po):
         aptas = po[po["apta"] & ~po["liberada"]]
