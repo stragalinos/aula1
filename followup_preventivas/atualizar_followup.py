@@ -6,8 +6,8 @@ Uso:
     2. Rode:  python atualizar_followup.py        (ou dê dois cliques em atualizar_followup.bat)
     3. A planilha sai em ./saida/followup_preventivas_AAAA-MM-DD.xlsx
 
-As observações digitadas na coluna "Observação / Follow-up" (e os parâmetros editados na aba
-Parâmetros) da versão anterior são reaproveitadas automaticamente.
+Tudo o que você digita nas células amarelas da versão anterior (observações, recebimento dos itens,
+data de necessidade e liberação da OS, parâmetros) é reaproveitado automaticamente.
 """
 import argparse
 import datetime as dt
@@ -24,6 +24,8 @@ from openpyxl.formatting.rule import CellIsRule, FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.workbook.defined_name import DefinedName
+from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.worksheet.formula import ArrayFormula
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
 import cruzamento as cz
@@ -33,21 +35,39 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 PREFIXO = "followup_preventivas_"
 COL_OBS = "Observação / Follow-up"
 COL_CHAVE = "Chave"
-ABAS_OBS = ("Follow-up", "Divergências", "Por OS", "Por Fornecedor")  # abas com observação preservada
-TIPO_OBS_ORFA = "OBSERVAÇÃO SEM ITEM ATUAL"
 LIN_CAB = 3          # linha do cabeçalho nas abas de tabela
 LIN_1 = LIN_CAB + 1  # primeira linha de dados
+
+# colunas digitadas por você (amarelas), preservadas entre atualizações: aba -> (chave, colunas)
+REC_MARCA = "Recebido?"
+REC_QTD = "Qtd recebida"
+REC_DATA = "Data do recebimento"
+REC_LOCAL = "Local / kit de separação"
+REC_OBS = "Observação do recebimento"
+OS_DATA = "Data de necessidade (manual)"
+OS_LIB = "Liberada para a equipe em"
+MANUAIS = {
+    "Follow-up": ([COL_CHAVE], [COL_OBS]),
+    "Recebimento": ([COL_CHAVE], [REC_MARCA, REC_QTD, REC_DATA, REC_LOCAL, REC_OBS]),
+    "Por OS": (["OS TracOS"], [OS_DATA, OS_LIB, COL_OBS]),
+    "Por Fornecedor": (["Fornecedor"], [COL_OBS]),
+    "Divergências": (["Tipo", COL_CHAVE], [COL_OBS]),
+}
+TIPO_ORFA = "ANOTAÇÃO SEM ITEM ATUAL"
+TIPO_ORFA_V1 = "OBSERVAÇÃO SEM ITEM ATUAL"  # nome usado na 1ª versão da planilha
 
 # ------------------------------------------------------------------ estilo
 FONTE = "Arial"
 F_NORMAL = Font(name=FONTE, size=10)
 F_NEGRITO = Font(name=FONTE, size=10, bold=True)
 F_CAB = Font(name=FONTE, size=10, bold=True, color="FFFFFF")
+F_CAB_ED = Font(name=FONTE, size=10, bold=True, color="1F3864")
 F_TITULO = Font(name=FONTE, size=14, bold=True, color="1F3864")
 F_SECAO = Font(name=FONTE, size=11, bold=True, color="1F3864")
 F_NOTA = Font(name=FONTE, size=9, italic=True, color="595959")
 F_ALERTA = Font(name=FONTE, size=10, bold=True, color="9C0006")
 P_CAB = PatternFill("solid", fgColor="1F3864")
+P_CAB_ED = PatternFill("solid", fgColor="FFD966")  # cabeçalho de coluna editável
 P_EDITAVEL = PatternFill("solid", fgColor="FFF2CC")
 P_TOTAL = PatternFill("solid", fgColor="D9E1F2")
 P_PREV = PatternFill("solid", fgColor="EAF1FB")
@@ -72,6 +92,19 @@ CORES_STATUS = [
     ("ENTREGUE", "DDEBF7", "1F4E78"),
     ("SEM DATA", "E7E6E6", "404040"),
 ]
+CORES_REC = [
+    ("ATRASADO", "FFC7CE", "9C0006"),
+    ("A CAMINHO", "FFE699", "7F6000"),
+    ("PARCIAL", "FFD8A8", "843C0C"),
+    ("NÃO RECEBIDO", "F4B6B6", "7F0000"),
+    ("RECEBIDO", "C6EFCE", "006100"),
+]
+CORES_APTA = [
+    ("FALTANDO", "FF0000", "FFFFFF"),
+    ("LIBERADA", "DDEBF7", "1F4E78"),
+    ("APTA", "C6EFCE", "006100"),
+    ("AGUARDANDO", "FFC7CE", "9C0006"),
+]
 
 PARAMETROS = [
     # id, nome definido, rótulo, padrão, descrição
@@ -95,14 +128,76 @@ PARAMETROS = [
 ]
 
 DESCR_STATUS = {
-    1: "Data de necessidade já passou e o material não entrou.",
+    1: "Data de necessidade já passou e o material não está disponível.",
     2: "Requisição pendente há mais de X dias (X do nível atual).",
     3: "Compra autorizada há mais de Y dias e ainda sem pedido.",
     4: "Pedido emitido e faltam Z dias ou menos para a necessidade.",
     5: "Tem data de necessidade e está dentro dos limites.",
-    6: "Material entregue (pedido concluído / entrada registrada).",
-    7: "Item só na base de requisição: o TracOS não traz data de necessidade nessa etapa.",
+    6: "Material disponível: marcado como recebido na aba Recebimento ou com entrada no TracOS.",
+    7: "Sem data de necessidade: o TracOS só informa a data quando o item entra no fluxo de compras. "
+       "Digite a data da OS na aba Por OS.",
 }
+
+# ------------------------------------------------------------------ colunas das abas
+# (cabeçalho, largura, chave interna). Chaves 'f_' = fórmula; 'm_' = digitada por você.
+COLS_FU = [
+    ("Prioridade", 8, "f_prio"), ("Status de risco", 28, "f_status"), ("Item disponível?", 10, "f_disp"),
+    ("Recebimento (aba Recebimento)", 13, "f_rec"), ("Etapa nº", 7, "etapa"),
+    ("Etapa do funil", 38, "etapa_txt"), ("Quem cobrar", 44, "f_quem"), (COL_OBS, 42, "m_obs"),
+    ("Preventiva", 9, "prev"), ("OS TracOS", 9, "os_tracos"), ("OS SAP", 12, "os_sap"),
+    ("Descrição da OS", 42, "descricao_os"), ("Ativo", 36, "ativo"),
+    ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
+    ("Qtd", 7, "qtd"), ("Qtd pendente", 9, "qtd_pendente"), ("Un", 5, "unidade"),
+    ("Data de necessidade", 12, "f_nec"), ("Origem da data de necessidade", 26, "f_origem"),
+    ("Dias até a necessidade", 11, "f_dias_nec"), ("Dias de atraso", 9, "f_atraso"),
+    ("Data de necessidade TracOS", 12, "data_nec_tracos"), ("Data manual da OS (aba Por OS)", 13, "f_nec_manual"),
+    ("Início da etapa", 12, "inicio_etapa"), ("Base do início da etapa", 30, "base_inicio"),
+    ("Dias na etapa atual", 10, "f_dias_etapa"),
+    ("Requisição", 10, "requisicao_txt"), ("Req. SAP", 12, "req_sap"),
+    ("Nível de liberação", 22, "nivel_liberacao"), ("Pedido", 8, "pedido"),
+    ("Pedido SAP", 12, "pedido_sap"), ("Status do pedido", 15, "status_pedido"),
+    ("Fornecedor", 36, "fornecedor"), ("Preço unitário (R$)", 13, "preco"),
+    ("Origem do preço", 17, "origem_preco"), ("Valor do item (R$)", 14, "f_valor"),
+    ("Entrada", 8, "entrada"), ("Data da entrada", 12, "entrada_em"), ("Nota fiscal", 11, "nota_fiscal"),
+    ("Local de estoque", 20, "local_estoque"), ("Centro de custo", 28, "centro_custo"),
+    ("Grupo de compradores", 30, "grupo_compradores"), ("Plano", 8, "plano"),
+    ("Confiança do vínculo", 44, "confianca"), ("Linhas de origem", 24, "origens"),
+    (COL_CHAVE, 24, "chave"),
+]
+COLS_REC = [
+    ("Situação", 26, "f_sit"), (REC_MARCA, 11, "m_rec"), (REC_QTD, 9, "m_qtd"), (REC_DATA, 12, "m_data"),
+    (REC_LOCAL, 22, "m_local"), (REC_OBS, 34, "m_obs"), ("Itens que faltam na OS", 10, "f_falta_os"),
+    ("OS TracOS", 9, "os_tracos"), ("Preventiva", 9, "prev"), ("Descrição da OS", 40, "descricao_os"),
+    ("Ativo", 34, "ativo"), ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
+    ("Qtd pedida", 8, "qtd"), ("Un", 5, "unidade"), ("Data de necessidade", 12, "f_nec"),
+    ("Dias até a necessidade", 11, "f_dias"), ("Fornecedor", 34, "fornecedor"), ("Pedido", 8, "pedido"),
+    ("Pedido SAP", 12, "pedido_sap"), ("Status do pedido (TracOS)", 15, "status_pedido"),
+    ("Entrada no TracOS?", 10, "rec_tracos"), ("Entrada", 8, "entrada"),
+    ("Data da entrada (TracOS)", 12, "entrada_em"), ("Nota fiscal", 11, "nota_fiscal"),
+    (COL_CHAVE, 24, "chave"),
+]
+COLS_OS = [
+    ("OS TracOS", 9, "os_tracos"), ("OS SAP", 12, "os_sap"), ("Descrição da OS", 40, "descricao_os"),
+    ("Preventiva", 9, "prev"), ("Ativo", 34, "ativo"), ("APTA PARA PROGRAMAR?", 25, "f_apta"),
+    ("Itens que faltam", 55, "f_lista"), (OS_DATA, 13, "m_data"), ("Data de necessidade (usada)", 12, "f_data"),
+    ("Dias até a necessidade", 11, "f_dias"), ("Total de itens", 8, "f_total"),
+    ("Itens disponíveis", 9, "f_disp"), ("Itens faltando", 9, "f_falt"),
+    ("A caminho (com pedido)", 9, "f_caminho"), ("Em compra / aprovação", 10, "f_compra"),
+    ("Itens em risco 🔴", 9, "f_risco"), ("Valor pendente (R$)", 14, "f_valor"),
+    ("Data de necessidade TracOS", 12, "data_tracos"), ("Lista de itens", 30, "lista_ok"),
+    ("Situação das peças (na geração)", 34, "situacao"), (OS_LIB, 13, "m_lib"),
+    ("Plano", 8, "plano"), ("Centro de custo", 26, "centro_custo"), (COL_OBS, 40, "m_obs"),
+]
+COLS_FORN = [
+    ("Fornecedor", 38, "fornecedor"), ("Pedidos abertos", 9, "n_pedidos"),
+    ("Pedidos (TracOS / SAP)", 48, "pedidos"), ("Itens em aberto no TracOS", 9, "itens_abertos"),
+    ("Itens a receber (follow-up)", 10, "f_receber"), ("Itens com necessidade vencida", 11, "f_vencidos"),
+    ("Atraso mais antigo (dias)", 10, "f_atraso"), ("Valor em aberto (R$)", 14, "valor_aberto"),
+    ("Pedido mais antigo (emissão)", 13, "pedido_mais_antigo"), ("Dias desde a emissão", 10, "f_dias"),
+    ("OS afetadas", 22, "os_afetadas"), ("Itens sem OS identificada", 10, "itens_sem_os"),
+    (COL_OBS, 40, "m_obs"),
+]
+LISTA_INCOMPLETA = "⚠ conferir no TracOS (fluxo incompleto)"
 
 
 # ------------------------------------------------------------------ utilidades
@@ -139,12 +234,13 @@ def cel(ws, ref, valor=None, fonte=F_NORMAL, fmt=None, preench=None, alin=None):
     return c
 
 
-def cabecalho(ws, linha, titulos, larguras=None):
-    for j, t in enumerate(titulos, start=1):
-        c = cel(ws, (linha, j), t, F_CAB, preench=P_CAB, alin=AL_CAB)
+def cabecalho(ws, linha, colunas):
+    """Cabeçalho de tabela; colunas digitadas (chave 'm_') ganham cabeçalho amarelo."""
+    for j, (t, larg, k) in enumerate(colunas, start=1):
+        ed = k.startswith("m_")
+        c = cel(ws, (linha, j), t, F_CAB_ED if ed else F_CAB, preench=P_CAB_ED if ed else P_CAB, alin=AL_CAB)
         c.border = BORDA
-        if larguras:
-            ws.column_dimensions[get_column_letter(j)].width = larguras[j - 1]
+        ws.column_dimensions[get_column_letter(j)].width = larg
     ws.row_dimensions[linha].height = 32
 
 
@@ -154,9 +250,9 @@ def titulo(ws, texto, sub=None):
         cel(ws, "A2", sub, F_NOTA)
 
 
-def cf_status(ws, rng, col_ref):
-    """Formatação condicional pelas palavras do status (coluna col_ref, ex.: '$B4')."""
-    for palavra, fundo, letra in CORES_STATUS:
+def cf_palavras(ws, rng, col_ref, cores):
+    """Formatação condicional pelas palavras do texto da célula col_ref (ex.: '$B4')."""
+    for palavra, fundo, letra in cores:
         ws.conditional_formatting.add(rng, FormulaRule(
             formula=[f'ISNUMBER(SEARCH("{palavra}",{col_ref}))'], stopIfTrue=True,
             fill=PatternFill("solid", fgColor=fundo, bgColor=fundo),
@@ -180,6 +276,46 @@ def nome_definido(wb, nome, ref):
         wb.defined_names.append(dn)
 
 
+def validar_data(ws, rng):
+    dv = DataValidation(type="date", operator="greaterThan", formula1="36526", allow_blank=True,
+                        errorTitle="Data", error="Digite uma data (dd/mm/aaaa).")
+    dv.add(rng)
+    ws.add_data_validation(dv)
+
+
+def letras(colunas):
+    return {k: get_column_letter(j) for j, (_, _, k) in enumerate(colunas, 1)}
+
+
+def faixas(aba, colunas, n):
+    """Intervalos absolutos de cada coluna da tabela (ex.: 'Follow-up'!$J$4:$J$264)."""
+    ult = max(LIN_1 + n - 1, LIN_1)
+    return {k: f"'{aba}'!${c}${LIN_1}:${c}${ult}" for k, c in letras(colunas).items()}
+
+
+def _k(v):
+    """Chave de leitura: 411.0 -> '411'."""
+    if isinstance(v, float) and v.is_integer():
+        v = int(v)
+    return str(v)
+
+
+def _data(v):
+    """Data digitada (datetime do Excel ou texto dd/mm/aaaa) -> Timestamp; senão None."""
+    if v is None or v == "":
+        return None
+    if isinstance(v, (dt.datetime, dt.date)):
+        return pd.Timestamp(v)
+    try:
+        return pd.Timestamp(dt.datetime.strptime(str(v).strip(), "%d/%m/%Y"))
+    except ValueError:
+        return None
+
+
+def _vazio(v):
+    return v is None or (isinstance(v, str) and v.strip() == "")
+
+
 # ------------------------------------------------------------------ versão anterior
 def _tabela(ws, colunas):
     """Lê uma aba de tabela da versão anterior: acha o cabeçalho e devolve lista de dicts."""
@@ -199,12 +335,12 @@ def _tabela(ws, colunas):
     for row in linhas:
         if row is None:
             continue
-        out.append({c: row[cab.index(c)] if cab.index(c) < len(row) else None for c in cab if c})
+        out.append({c: row[i] if i < len(row) else None for i, c in enumerate(cab) if c})
     return out
 
 
 def ler_versao_anterior(pasta_saida):
-    vazio = dict(arquivo=None, obs={a: {} for a in ABAS_OBS}, historico={}, prm={})
+    vazio = dict(arquivo=None, manuais={a: {} for a in MANUAIS}, historico={}, prm={})
     arqs = [a for a in glob.glob(os.path.join(pasta_saida, PREFIXO + "*.xlsx"))
             if not os.path.basename(a).startswith("~$")]
     if not arqs:
@@ -213,25 +349,32 @@ def ler_versao_anterior(pasta_saida):
     try:
         wb = load_workbook(ant, read_only=True, data_only=True)
     except Exception as e:  # arquivo corrompido / aberto de forma exclusiva
-        print(f"AVISO: não consegui ler a versão anterior ({ant}): {e}. Observações não reaproveitadas.")
+        print(f"AVISO: não consegui ler a versão anterior ({ant}): {e}. Anotações não reaproveitadas.")
         return vazio
-    obs = {a: {} for a in ABAS_OBS}
-    chaves = {"Follow-up": [COL_CHAVE], "Divergências": ["Tipo", COL_CHAVE],
-              "Por OS": ["OS TracOS"], "Por Fornecedor": ["Fornecedor"]}
-    for aba, ks in chaves.items():
+    man = {a: {} for a in MANUAIS}
+
+    def guardar(aba, chave, col, v):
+        if not _vazio(v) and chave not in (None, "None"):
+            man[aba].setdefault(chave, {})[col] = v
+
+    # anotações órfãs guardadas por versões anteriores (itens que tinham sumido das bases)
+    if "_anotacoes" in wb.sheetnames:
+        for d in _tabela(wb["_anotacoes"], ["Aba", "Chave", "Coluna", "Valor"]):
+            if d.get("Aba") in man:
+                guardar(d["Aba"], _k(d["Chave"]), d["Coluna"], d["Valor"])
+    for aba, (ks, cols) in MANUAIS.items():
         if aba not in wb.sheetnames:
             continue
-        for d in _tabela(wb[aba], ks + [COL_OBS]):
-            texto = d.get(COL_OBS)
-            if texto is None or str(texto).strip() == "":
+        for d in _tabela(wb[aba], ks):
+            if aba == "Divergências" and d.get("Tipo") in (TIPO_ORFA, TIPO_ORFA_V1):
+                if d.get("Tipo") == TIPO_ORFA_V1 and d.get("Base") in man:  # formato da 1ª versão
+                    destino = d["Base"]
+                    k = d.get(COL_CHAVE) if destino != "Divergências" else d.get("Detalhe")
+                    guardar(destino, _k(k), COL_OBS, d.get(COL_OBS))
                 continue
-            if aba == "Divergências" and d.get("Tipo") == TIPO_OBS_ORFA:
-                destino = d.get("Base") if d.get("Base") in obs else "Divergências"
-                k = d.get(COL_CHAVE) if destino != "Divergências" else d.get("Detalhe")
-                obs[destino][str(k)] = texto
-                continue
-            k = "|".join(str(d.get(x)) for x in ks) if aba == "Divergências" else str(d.get(ks[0]))
-            obs[aba][k] = texto
+            chave = "|".join(_k(d.get(x)) for x in ks)
+            for c in cols:
+                guardar(aba, chave, c, d.get(c))
     hist = {}
     if "_historico" in wb.sheetnames:
         for d in _tabela(wb["_historico"], ["Chave", "Etapa", "Desde"]):
@@ -248,18 +391,35 @@ def ler_versao_anterior(pasta_saida):
                 elif isinstance(v, (int, float)):
                     prm[row[3]] = v
     wb.close()
-    return dict(arquivo=ant, obs=obs, historico=hist, prm=prm)
+    return dict(arquivo=ant, manuais=man, historico=hist, prm=prm)
+
+
+def manuais_para_cruzamento(man):
+    datas, lib = {}, set()
+    for k, d in man["Por OS"].items():
+        try:
+            os_ = int(k)
+        except ValueError:
+            continue
+        dd = _data(d.get(OS_DATA))
+        if dd is not None:
+            datas[os_] = dd
+        if not _vazio(d.get(OS_LIB)):
+            lib.add(os_)
+    rec = {k: d.get(REC_MARCA) for k, d in man["Recebimento"].items() if not _vazio(d.get(REC_MARCA))}
+    return {"datas_os": datas, "liberadas": lib, "recebimento": rec}
 
 
 # ------------------------------------------------------------------ abas
-def aba_parametros(wb, prm, B, R, hoje, data_fixa, info_ant):
+def aba_parametros(wb, prm, B, R, data_fixa, info_ant):
     ws = wb.create_sheet("Parâmetros")
     ws.sheet_properties.tabColor = "808080"
     titulo(ws, "Parâmetros e legenda",
            "Células amarelas são editáveis e são reaproveitadas na próxima atualização "
            "(exceto a data de referência, que volta para =HOJE()).")
-    cabecalho(ws, LIN_CAB, ["Parâmetro", "Valor", "Descrição", "id"], [52, 26, 95, 12])
-    pos = {}
+    for j, (t, w) in enumerate([("Parâmetro", 52), ("Valor", 26), ("Descrição", 95), ("id", 12)], 1):
+        cel(ws, (LIN_CAB, j), t, F_CAB, preench=P_CAB, alin=AL_CAB)
+        ws.column_dimensions[get_column_letter(j)].width = w
     for k, (pid, nome, rotulo, padrao, desc) in enumerate(PARAMETROS):
         lin = LIN_1 + k
         valor = padrao
@@ -268,15 +428,11 @@ def aba_parametros(wb, prm, B, R, hoje, data_fixa, info_ant):
         elif pid in prm:
             valor = prm[pid]
         cel(ws, (lin, 1), rotulo, F_NEGRITO)
-        c = cel(ws, (lin, 2), valor, F_NORMAL, preench=P_EDITAVEL,
-                fmt=FMT_DATA if pid == "data_ref" else None,
-                alin=Alignment(horizontal="left"))
-        if pid == "data_ref" and data_fixa is not None:
-            c.value = data_fixa
+        cel(ws, (lin, 2), valor, F_NORMAL, preench=P_EDITAVEL, fmt=FMT_DATA if pid == "data_ref" else None,
+            alin=Alignment(horizontal="left"))
         cel(ws, (lin, 3), desc, F_NOTA)
         cel(ws, (lin, 4), pid, F_NOTA)
         nome_definido(wb, nome, f"'Parâmetros'!$B${lin}")
-        pos[pid] = lin
     ws.column_dimensions["D"].hidden = True
     lin = LIN_1 + len(PARAMETROS) + 1
 
@@ -286,29 +442,60 @@ def aba_parametros(wb, prm, B, R, hoje, data_fixa, info_ant):
         cel(ws, (lin, 1), t, F_SECAO)
         lin += 1
 
+    def linhas_texto(pares):
+        nonlocal lin
+        for a, b in pares:
+            cel(ws, (lin, 1), a, F_NEGRITO)
+            cel(ws, (lin, 2), b, F_NORMAL)
+            lin += 1
+
+    secao("Gestão dos materiais – o que você preenche")
+    linhas_texto([
+        ("Aba Recebimento → Recebido?", "SIM = o material chegou e está separado para a OS. PARCIAL = chegou só "
+         "parte (não libera a OS). NÃO = não chegou, mesmo que o TracOS mostre entrada. Em branco = vale a "
+         "entrada registrada no TracOS."),
+        ("Aba Por OS → Data de necessidade (manual)", "Data em que a OS precisa das peças (ex.: data programada). "
+         "Vale para todos os itens da OS e manda sobre a data do TracOS. Use quando a OS não tem data."),
+        ("Aba Por OS → Liberada para a equipe em", "Data em que você passou a OS para os colaboradores. Se "
+         "faltar item, a OS aparece em vermelho: ⚠ LIBERADA FALTANDO."),
+        ("APTA PARA PROGRAMAR", "Só quando TODOS os itens da OS estão disponíveis. Item disponível = marcado SIM "
+         "no Recebimento ou com entrada no TracOS (sem marca PARCIAL/NÃO)."),
+    ])
+
     secao("Regras fixas (no script)")
-    for a, b in [
+    linhas_texto([
         ("Preventiva", "OS com 'PREV' na descrição OU com nº de plano de manutenção."),
+        ("Data de necessidade", "1º a data manual da OS (aba Por OS); 2º a do item no fluxo do TracOS; 3º a de "
+         "outro item da mesma OS no fluxo. A base de requisição não traz data."),
         ("Preço do item", "Entrada > negociado > estimado (R$ 1,00 do TracOS é ignorado como 'sem preço') > "
-                          "preço do mesmo material em outra linha do fluxo ('ref.')."),
+         "preço do mesmo material em outra linha do fluxo ('ref.')."),
         ("Valor do item", "Quantidade × preço unitário. A requisição e o pedido não trazem preço por item: "
-                          "itens sem preço ficam sem valor."),
+         "itens sem preço ficam sem valor."),
         ("Dias na etapa", "Etapas 1/2: 'Criado em' da requisição (no nível 02, a partir da 1ª vez que o script "
-                          "viu o item no nível 02). Etapa 3: 1ª vez que o script viu o item autorizado. "
-                          "Etapa 4: 'Criado em' do pedido. Etapa 5: data da entrada."),
-        ("Chave das observações", "Material | requisição | OS (+ sequencial quando o mesmo trio se repete)."),
-    ]:
-        cel(ws, (lin, 1), a, F_NEGRITO)
-        cel(ws, (lin, 2), b, F_NORMAL)
-        lin += 1
+         "viu o item no nível 02). Etapa 3: 1ª vez que o script viu o item autorizado. "
+         "Etapa 4: 'Criado em' do pedido. Etapa 5: data da entrada."),
+        ("Chave das anotações", "Item: material | requisição | OS (+ sequencial quando o trio se repete). "
+         "OS: nº da OS no TracOS. Se o item sumir das bases, a anotação vai para Divergências e volta "
+         "quando ele reaparecer."),
+    ])
 
     secao("Legenda – status de risco (em ordem de prioridade)")
     for p_, txt in cz.STATUS.items():
         fundo, letra = next((f, l) for w, f, l in CORES_STATUS if w in txt)
-        cel(ws, (lin, 1), txt, Font(name=FONTE, bold=True, color=letra),
-            preench=PatternFill("solid", fgColor=fundo))
+        cel(ws, (lin, 1), txt, Font(name=FONTE, bold=True, color=letra), preench=PatternFill("solid", fgColor=fundo))
         cel(ws, (lin, 2), f"Prioridade {p_}", F_NORMAL)
         cel(ws, (lin, 3), DESCR_STATUS[p_], F_NORMAL)
+        lin += 1
+
+    secao("Legenda – situação no Recebimento")
+    descr_rec = {0: "Tem pedido, não chegou e a data de necessidade já passou.",
+                 1: "Tem pedido e ainda não chegou.", 2: "Você marcou PARCIAL: não libera a OS.",
+                 3: "Você marcou NÃO.", 4: "Você marcou SIM.",
+                 5: "Entrada registrada no TracOS (sem marca sua)."}
+    for k, txt in cz.SITUACAO_REC.items():
+        fundo, letra = next((f, l) for w, f, l in CORES_REC if w in txt)
+        cel(ws, (lin, 1), txt, Font(name=FONTE, bold=True, color=letra), preench=PatternFill("solid", fgColor=fundo))
+        cel(ws, (lin, 2), descr_rec[k], F_NORMAL)
         lin += 1
 
     secao("Legenda – etapas do funil")
@@ -331,17 +518,14 @@ def aba_parametros(wb, prm, B, R, hoje, data_fixa, info_ant):
         "SO_FLX": "Compra autorizada que ainda não virou pedido.",
         "FLX_SEM_PED": "Fluxo diz que há pedido, mas ele não veio na exportação de pedidos.",
     }
-    for k, txt in cz.CONFIANCA.items():
-        cel(ws, (lin, 1), txt, F_NEGRITO)
-        cel(ws, (lin, 2), expl[k], F_NORMAL)
-        lin += 1
+    linhas_texto([(txt, expl[k]) for k, txt in cz.CONFIANCA.items()])
 
     secao("Esta atualização")
     cel(ws, (lin, 1), "Gerado em", F_NEGRITO)
     cel(ws, (lin, 2), dt.datetime.now().replace(microsecond=0), F_NORMAL, fmt=FMT_DATAHORA,
         alin=Alignment(horizontal="left"))
     lin += 1
-    cel(ws, (lin, 1), "Observações reaproveitadas de", F_NEGRITO)
+    cel(ws, (lin, 1), "Anotações reaproveitadas de", F_NEGRITO)
     cel(ws, (lin, 2), os.path.basename(info_ant["arquivo"]) if info_ant["arquivo"] else "(primeira versão)")
     lin += 1
     for nome in ("requisicao", "fluxo", "pedido"):
@@ -366,205 +550,271 @@ def aba_parametros(wb, prm, B, R, hoje, data_fixa, info_ant):
     for a in R["alertas"]:
         lin += 1
         cel(ws, (lin, 1), "⚠ " + a, F_ALERTA)
-    return pos
 
 
-def aba_followup(wb, L, obs):
+def escrever_tabela(ws, colunas, registros, valor_de, fmts, centro, negrito=()):
+    """Escreve as linhas de uma tabela. valor_de(k, registro, linha) devolve o valor/fórmula da célula."""
+    for i, reg in enumerate(registros):
+        r = LIN_1 + i
+        for j, (_, _, k) in enumerate(colunas, 1):
+            cel(ws, (r, j), valor_de(k, reg, r), F_NEGRITO if k in negrito else F_NORMAL, fmt=fmts.get(k),
+                preench=P_EDITAVEL if k.startswith("m_") else None,
+                alin=AL_CENTRO if k in centro else AL_TOPO)
+    ult = max(LIN_1 + len(registros) - 1, LIN_1)
+    ws.auto_filter.ref = f"A{LIN_CAB}:{get_column_letter(len(colunas))}{ult}"
+    return ult
+
+
+def aba_followup(wb, L, man, FU, REC, POS):
     ws = wb.create_sheet("Follow-up")
     ws.sheet_properties.tabColor = "548235"
     titulo(ws, "Follow-up de peças por OS",
-           "Ordenado por prioridade de risco e data de necessidade no momento da geração. "
-           "Status, dias e valores recalculam com a data de referência (Parâmetros). "
-           "Coluna amarela = sua observação (preservada nas próximas atualizações).")
-    colunas = [
-        ("Prioridade", 8, "f_prio"), ("Status de risco", 28, "f_status"), ("Etapa nº", 7, "etapa"),
-        ("Etapa do funil", 38, "etapa_txt"), ("Quem cobrar", 44, "f_quem"), (COL_OBS, 42, "obs"),
-        ("Preventiva", 9, "prev"), ("OS TracOS", 9, "os_tracos"), ("OS SAP", 12, "os_sap"),
-        ("Descrição da OS", 42, "descricao_os"), ("Ativo", 36, "ativo"),
-        ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
-        ("Qtd", 7, "qtd"), ("Qtd pendente", 9, "qtd_pendente"), ("Un", 5, "unidade"),
-        ("Data de necessidade", 12, "data_necessidade"), ("Dias até a necessidade", 11, "f_dias_nec"),
-        ("Dias de atraso", 9, "f_atraso"), ("Início da etapa", 12, "inicio_etapa"),
-        ("Base do início da etapa", 30, "base_inicio"), ("Dias na etapa atual", 10, "f_dias_etapa"),
-        ("Requisição", 10, "requisicao_txt"), ("Req. SAP", 12, "req_sap"),
-        ("Nível de liberação", 22, "nivel_liberacao"), ("Pedido", 8, "pedido"),
-        ("Pedido SAP", 12, "pedido_sap"), ("Status do pedido", 15, "status_pedido"),
-        ("Fornecedor", 36, "fornecedor"), ("Preço unitário (R$)", 13, "preco"),
-        ("Origem do preço", 17, "origem_preco"), ("Valor do item (R$)", 14, "f_valor"),
-        ("Entrada", 8, "entrada"), ("Data da entrada", 12, "entrada_em"), ("Nota fiscal", 11, "nota_fiscal"),
-        ("Local de estoque", 20, "local_estoque"), ("Centro de custo", 28, "centro_custo"),
-        ("Grupo de compradores", 30, "grupo_compradores"), ("Plano", 8, "plano"),
-        ("Confiança do vínculo", 44, "confianca"), ("Linhas de origem", 24, "origens"),
-        (COL_CHAVE, 24, "chave"),
-    ]
-    cabecalho(ws, LIN_CAB, [c[0] for c in colunas], [c[1] for c in colunas])
-    L_ = {c[2]: get_column_letter(j) for j, c in enumerate(colunas, 1)}
-    E, N, DN, DE, I, Q, PR, FO, PS, P = (L_[k] for k in (
-        "etapa", "data_necessidade", "f_dias_nec", "f_dias_etapa", "inicio_etapa", "qtd", "preco",
-        "fornecedor", "pedido_sap", "f_prio"))
+           "Ordenado por prioridade de risco e data de necessidade no momento da geração. Status, dias e "
+           "disponibilidade recalculam com a data de referência e com o que você marca nas abas Recebimento e "
+           "Por OS. Coluna amarela = sua observação.")
+    cabecalho(ws, LIN_CAB, COLS_FU)
+    c = letras(COLS_FU)
+    E, N, DN, DE, I, Q, PR, FO, PS, P, D, RC, NM, NT, OS, CH = (c[k] for k in (
+        "etapa", "f_nec", "f_dias_nec", "f_dias_etapa", "inicio_etapa", "qtd", "preco", "fornecedor",
+        "pedido_sap", "f_prio", "f_disp", "f_rec", "f_nec_manual", "data_nec_tracos", "os_tracos", "chave"))
     status_txt = ",".join(f'"{cz.STATUS[i]}"' for i in range(1, 8))
-    formulas = {
-        "f_prio": (f'=IF({E}{{r}}=5,6,IF(AND({N}{{r}}<>"",N({DN}{{r}})<0),1,'
+    f = {
+        "f_prio": (f'=IF({D}{{r}}="SIM",6,IF(AND({N}{{r}}<>"",N({DN}{{r}})<0),1,'
                    f'IF(AND({E}{{r}}<=2,N({DE}{{r}})>IF({E}{{r}}=1,X_NIVEL01,X_NIVEL02)),2,'
                    f'IF(AND({E}{{r}}=3,N({DE}{{r}})>Y_SEM_PEDIDO),3,'
                    f'IF(AND({E}{{r}}=4,{N}{{r}}<>"",N({DN}{{r}})<=Z_ENTREGA),4,'
                    f'IF({N}{{r}}="",7,5))))))'),
         "f_status": f"=CHOOSE({P}{{r}},{status_txt})",
-        "f_quem": (f'=CHOOSE({E}{{r}},"Gestor da unidade"&IF(NOME_GESTOR="",""," – "&NOME_GESTOR),'
+        "f_rec": (f'=IFERROR(IF(INDEX({REC["m_rec"]},MATCH({CH}{{r}},{REC["chave"]},0))="","",'
+                  f'UPPER(TRIM(INDEX({REC["m_rec"]},MATCH({CH}{{r}},{REC["chave"]},0))))),"")'),
+        "f_disp": (f'=IF({RC}{{r}}="SIM","SIM",IF(OR({RC}{{r}}="PARCIAL",{RC}{{r}}="NÃO"),"NÃO",'
+                   f'IF({E}{{r}}=5,"SIM","NÃO")))'),
+        "f_quem": (f'=IF({D}{{r}}="SIM","Ninguém – material disponível",CHOOSE({E}{{r}},'
+                   f'"Gestor da unidade"&IF(NOME_GESTOR="",""," – "&NOME_GESTOR),'
                    f'"Almox corporativo"&IF(NOME_ALMOX="",""," – "&NOME_ALMOX),'
                    f'"Comprador"&IF(NOME_COMPRADOR="",""," – "&NOME_COMPRADOR)&" (emitir o pedido)",'
                    f'IF({FO}{{r}}="","Comprador (pedido sem fornecedor)","Fornecedor: "&{FO}{{r}}'
                    f'&IF({PS}{{r}}="",""," – pedido SAP "&{PS}{{r}})),'
-                   f'"Ninguém – material entregue")'),
+                   f'"Almoxarifado – TracOS tem entrada, conferir o físico"))'),
+        "f_nec_manual": (f'=IFERROR(IF(INDEX({POS["m_data"]},MATCH({OS}{{r}},{POS["os_tracos"]},0))="","",'
+                         f'INDEX({POS["m_data"]},MATCH({OS}{{r}},{POS["os_tracos"]},0))),"")'),
+        "f_nec": f'=IF(ISNUMBER({NM}{{r}}),{NM}{{r}},IF({NT}{{r}}="","",{NT}{{r}}))',
         "f_dias_nec": f'=IF({N}{{r}}="","",{N}{{r}}-INT(DATA_REF))',
-        "f_atraso": f'=IF(AND({E}{{r}}<5,{N}{{r}}<>""),MAX(0,INT(DATA_REF)-{N}{{r}}),0)',
+        "f_atraso": f'=IF(AND({D}{{r}}<>"SIM",{N}{{r}}<>""),MAX(0,INT(DATA_REF)-{N}{{r}}),0)',
         "f_dias_etapa": f'=IF({I}{{r}}="","",INT(DATA_REF)-INT({I}{{r}}))',
         "f_valor": f'=IF(OR({Q}{{r}}="",{PR}{{r}}=""),"",{Q}{{r}}*{PR}{{r}})',
     }
-    fmts = {"data_necessidade": FMT_DATA, "inicio_etapa": FMT_DATA, "entrada_em": FMT_DATA,
-            "preco": FMT_RS, "f_valor": FMT_RS, "f_dias_nec": FMT_DIAS, "f_dias_etapa": "0",
-            "f_atraso": FMT_ATRASO, "qtd": "General", "qtd_pendente": "General"}
-    centro = {"f_prio", "etapa", "prev", "os_tracos", "codigo", "qtd", "qtd_pendente", "unidade",
-              "f_dias_nec", "f_atraso", "f_dias_etapa", "requisicao_txt", "pedido", "entrada"}
-    for i, (_, l) in enumerate(L.iterrows()):
-        r = LIN_1 + i
-        for j, (_, _, k) in enumerate(colunas, 1):
-            if k in formulas:
-                v = formulas[k].format(r=r)
-            elif k == "obs":
-                v = obs.get(l["chave"])
-            elif k == "prev":
-                v = "SIM" if l["eh_preventiva"] else "NÃO"
-            else:
-                v = l[k]
-            cel(ws, (r, j), v, F_NORMAL, fmt=fmts.get(k),
-                preench=P_EDITAVEL if k == "obs" else None,
-                alin=AL_CENTRO if k in centro else AL_TOPO)
-    ult = max(LIN_1 + len(L) - 1, LIN_1)
-    ultcol = get_column_letter(len(colunas))
-    ws.auto_filter.ref = f"A{LIN_CAB}:{ultcol}{ult}"
-    ws.freeze_panes = f"C{LIN_1}"
-    cf_status(ws, f"{L_['f_status']}{LIN_1}:{L_['f_status']}{ult}", f"${L_['f_status']}{LIN_1}")
-    ws.conditional_formatting.add(f"{DN}{LIN_1}:{DN}{ult}", CellIsRule(
-        operator="lessThan", formula=["0"], font=Font(name=FONTE, color="9C0006", bold=True)))
-    ws.conditional_formatting.add(f"{L_['f_atraso']}{LIN_1}:{L_['f_atraso']}{ult}", CellIsRule(
-        operator="greaterThan", formula=["0"], font=Font(name=FONTE, color="9C0006", bold=True)))
+    obs = man["Follow-up"]
+
+    def valor_de(k, l, r):
+        if k in f:
+            return f[k].format(r=r)
+        if k == "f_origem":
+            orig = l["origem_data_tracos"] if isinstance(l["origem_data_tracos"], str) else ""
+            return f'=IF(ISNUMBER({NM}{r}),"Manual (Por OS)","{orig}")'
+        if k == "m_obs":
+            return obs.get(l["chave"], {}).get(COL_OBS)
+        if k == "prev":
+            return "SIM" if l["eh_preventiva"] else "NÃO"
+        return l[k]
+
+    fmts = {"f_nec": FMT_DATA, "data_nec_tracos": FMT_DATA, "f_nec_manual": FMT_DATA, "inicio_etapa": FMT_DATA,
+            "entrada_em": FMT_DATA, "preco": FMT_RS, "f_valor": FMT_RS, "f_dias_nec": FMT_DIAS,
+            "f_dias_etapa": "0", "f_atraso": FMT_ATRASO}
+    centro = {"f_prio", "f_disp", "f_rec", "etapa", "prev", "os_tracos", "codigo", "qtd", "qtd_pendente",
+              "unidade", "f_dias_nec", "f_atraso", "f_dias_etapa", "requisicao_txt", "pedido", "entrada"}
+    ult = escrever_tabela(ws, COLS_FU, [l for _, l in L.iterrows()], valor_de, fmts, centro)
+    ws.freeze_panes = f"D{LIN_1}"
+    cf_palavras(ws, f"{c['f_status']}{LIN_1}:{c['f_status']}{ult}", f"${c['f_status']}{LIN_1}", CORES_STATUS)
+    ws.conditional_formatting.add(f"{D}{LIN_1}:{D}{ult}", FormulaRule(
+        formula=[f'{D}{LIN_1}="SIM"'], fill=PatternFill("solid", fgColor="C6EFCE", bgColor="C6EFCE"),
+        font=Font(name=FONTE, bold=True, color="006100")))
+    for col in (DN, c["f_atraso"]):
+        ws.conditional_formatting.add(f"{col}{LIN_1}:{col}{ult}", CellIsRule(
+            operator="lessThan" if col == DN else "greaterThan", formula=["0"],
+            font=Font(name=FONTE, color="9C0006", bold=True)))
     paisagem(ws, caber_largura=False)
-    rng = {k: f"'Follow-up'!${c}${LIN_1}:${c}${ult}" for k, c in L_.items()}
-    return rng
 
 
-def aba_por_os(wb, por_os, fu, obs):
+def aba_recebimento(wb, rec, man, FU, POS):
+    ws = wb.create_sheet("Recebimento")
+    ws.sheet_properties.tabColor = "70AD47"
+    titulo(ws, "Recebimento de materiais – controle dos itens que estão chegando",
+           "Todos os itens com pedido (inclusive pedidos sem OS). Marque 'Recebido?' quando o material chegar e "
+           "for separado para a OS: SIM / PARCIAL / NÃO. Em branco = vale a entrada do TracOS. "
+           "As colunas amarelas são preservadas nas próximas atualizações.")
+    cabecalho(ws, LIN_CAB, COLS_REC)
+    c = letras(COLS_REC)
+    B_, P_, Q_, H_, V_ = c["m_rec"], c["f_nec"], c["f_dias"], c["os_tracos"], c["rec_tracos"]
+    m = f"UPPER(TRIM({B_}{{r}}))"
+    f = {
+        "f_sit": (f'=IF({m}="SIM","{cz.SITUACAO_REC[4]}",IF({m}="PARCIAL","{cz.SITUACAO_REC[2]}",'
+                  f'IF({m}="NÃO","{cz.SITUACAO_REC[3]}",IF({V_}{{r}}="SIM","{cz.SITUACAO_REC[5]}",'
+                  f'IF(AND({P_}{{r}}<>"",N({Q_}{{r}})<0),"{cz.SITUACAO_REC[0]}","{cz.SITUACAO_REC[1]}")))))'),
+        "f_dias": f'=IF({P_}{{r}}="","",{P_}{{r}}-INT(DATA_REF))',
+        "f_falta_os": f'=IF({H_}{{r}}="","",IFERROR(INDEX({POS["f_falt"]},MATCH({H_}{{r}},{POS["os_tracos"]},0)),""))',
+    }
+    mm = man["Recebimento"]
+
+    def valor_de(k, x, r):
+        if k in f:
+            return f[k].format(r=r)
+        if k == "f_nec":
+            if not x["no_followup"]:
+                return None
+            ch = f"{c['chave']}{r}"
+            return (f'=IFERROR(IF(INDEX({FU["f_nec"]},MATCH({ch},{FU["chave"]},0))="","",'
+                    f'INDEX({FU["f_nec"]},MATCH({ch},{FU["chave"]},0))),"")')
+        if k.startswith("m_"):
+            col = {"m_rec": REC_MARCA, "m_qtd": REC_QTD, "m_data": REC_DATA, "m_local": REC_LOCAL,
+                   "m_obs": REC_OBS}[k]
+            return mm.get(x["chave"], {}).get(col)
+        if k == "prev":
+            return "SIM" if x["eh_preventiva"] else "NÃO"
+        if k == "rec_tracos":
+            return "SIM" if x["recebido_tracos"] else "NÃO"
+        return x[k]
+
+    fmts = {"f_nec": FMT_DATA, "m_data": FMT_DATA, "entrada_em": FMT_DATA, "f_dias": FMT_DIAS}
+    centro = {"m_rec", "m_qtd", "m_data", "f_falta_os", "os_tracos", "prev", "codigo", "qtd", "unidade",
+              "f_dias", "pedido", "rec_tracos", "entrada"}
+    ult = escrever_tabela(ws, COLS_REC, [x for _, x in rec.iterrows()], valor_de, fmts, centro, negrito={"f_sit"})
+    dv = DataValidation(type="list", formula1='"SIM,PARCIAL,NÃO"', allow_blank=True,
+                        errorTitle="Recebido?", error="Use SIM, PARCIAL ou NÃO (ou deixe em branco).",
+                        promptTitle="Recebido?", prompt="SIM = chegou e está separado para a OS")
+    dv.add(f"{B_}{LIN_1}:{B_}{ult}")
+    ws.add_data_validation(dv)
+    validar_data(ws, f"{c['m_data']}{LIN_1}:{c['m_data']}{ult}")
+    ws.freeze_panes = f"C{LIN_1}"
+    cf_palavras(ws, f"A{LIN_1}:A{ult}", f"$A{LIN_1}", CORES_REC)
+    ws.conditional_formatting.add(f"{c['f_falta_os']}{LIN_1}:{c['f_falta_os']}{ult}", CellIsRule(
+        operator="equal", formula=["0"], fill=PatternFill("solid", fgColor="C6EFCE", bgColor="C6EFCE"),
+        font=Font(name=FONTE, bold=True, color="006100")))
+    paisagem(ws)
+
+
+def aba_por_os(wb, por_os, man, FU):
     ws = wb.create_sheet("Por OS")
     ws.sheet_properties.tabColor = "2F75B5"
-    titulo(ws, "Peças por OS (preventivas em destaque)",
-           "Peças = itens do Follow-up. Se a exportação do fluxo estiver incompleta, a OS pode ter mais "
-           "peças do que aparece aqui.")
-    cols = ["OS TracOS", "OS SAP", "Descrição da OS", "Preventiva", "Ativo", "PRONTA PARA EXECUTAR?",
-            "Data de necessidade", "Dias até a necessidade", "Total de peças", "Peças entregues",
-            "Peças pendentes", "Peças em risco 🔴", "Valor pendente (R$)", "Situação das peças",
-            "Plano", "Centro de custo", COL_OBS]
-    cabecalho(ws, LIN_CAB, cols, [9, 12, 42, 10, 38, 13, 12, 11, 9, 9, 9, 10, 14, 34, 8, 28, 40])
-    for i, (_, o) in enumerate(por_os.iterrows()):
-        r = LIN_1 + i
-        a = f"$A{r}"
-        vals = [
-            o["os_tracos"], o["os_sap"], o["descricao_os"], "SIM" if o["preventiva"] else "NÃO", o["ativo"],
-            f'=IF(K{r}=0,"SIM","NÃO")', o["data_necessidade"],
-            f'=IF(G{r}="","",G{r}-INT(DATA_REF))',
-            f"=COUNTIFS({fu['os_tracos']},{a})",
-            f"=COUNTIFS({fu['os_tracos']},{a},{fu['etapa']},5)",
-            f"=I{r}-J{r}",
-            f'=COUNTIFS({fu["os_tracos"]},{a},{fu["f_prio"]},"<=2")',
-            f'=SUMIFS({fu["f_valor"]},{fu["os_tracos"]},{a},{fu["etapa"]},"<5")',
-            o["situacao"], o["plano"], o["centro_custo"], obs.get(str(int(o["os_tracos"]))),
-        ]
-        fm = {7: FMT_DATA, 8: FMT_DIAS, 13: FMT_RS}
-        for j, v in enumerate(vals, 1):
-            cel(ws, (r, j), v, F_NEGRITO if j == 6 else F_NORMAL, fmt=fm.get(j),
-                preench=P_EDITAVEL if j == len(cols) else None,
-                alin=AL_CENTRO if j in (1, 4, 6, 8, 9, 10, 11, 12, 15) else AL_TOPO)
-    ult = max(LIN_1 + len(por_os) - 1, LIN_1)
-    ws.auto_filter.ref = f"A{LIN_CAB}:{get_column_letter(len(cols))}{ult}"
+    titulo(ws, "OS – prontas para programar só com todos os itens disponíveis",
+           "Preventivas primeiro; dentro delas, as aptas e depois as que faltam menos itens. Digite a data de "
+           "necessidade quando a OS não tiver (vale para todos os itens dela) e a data em que liberou para a equipe.")
+    cabecalho(ws, LIN_CAB, COLS_OS)
+    c = letras(COLS_OS)
+    A, TOT, DSP, FAL, LIB, MD, FD, DT_ = (c[k] for k in (
+        "os_tracos", "f_total", "f_disp", "f_falt", "m_lib", "m_data", "f_data", "data_tracos"))
+    a = f"${A}{{r}}"
+    f = {
+        "f_apta": (f'=IF({LIB}{{r}}<>"",IF({FAL}{{r}}=0,"▶ LIBERADA PARA A EQUIPE",'
+                   f'"⚠ LIBERADA FALTANDO "&{FAL}{{r}}&IF({FAL}{{r}}=1," ITEM"," ITENS")),'
+                   f'IF(AND({TOT}{{r}}>0,{FAL}{{r}}=0),'
+                   f'"✅ APTA PARA PROGRAMAR","⛔ AGUARDANDO "&{FAL}{{r}}&IF({FAL}{{r}}=1," ITEM"," ITENS")))'),
+        "f_data": f'=IF(ISNUMBER({MD}{{r}}),{MD}{{r}},IF({DT_}{{r}}="","",{DT_}{{r}}))',
+        "f_dias": f'=IF({FD}{{r}}="","",{FD}{{r}}-INT(DATA_REF))',
+        "f_total": f"=COUNTIFS({FU['os_tracos']},{a})",
+        "f_disp": f'=COUNTIFS({FU["os_tracos"]},{a},{FU["f_disp"]},"SIM")',
+        "f_falt": f"={TOT}{{r}}-{DSP}{{r}}",
+        "f_caminho": f'=COUNTIFS({FU["os_tracos"]},{a},{FU["etapa"]},">=4",{FU["f_disp"]},"NÃO")',
+        "f_compra": f'=COUNTIFS({FU["os_tracos"]},{a},{FU["etapa"]},"<=3")',
+        "f_risco": f'=COUNTIFS({FU["os_tracos"]},{a},{FU["f_prio"]},"<=2")',
+        "f_valor": f'=SUMIFS({FU["f_valor"]},{FU["os_tracos"]},{a},{FU["f_disp"]},"NÃO")',
+    }
+    mm = man["Por OS"]
+
+    def valor_de(k, o, r):
+        if k in f:
+            return f[k].format(r=r)
+        if k == "f_lista":
+            ref = f"{c['f_lista']}{r}"
+            return ArrayFormula(ref, (
+                f'=IFERROR(_xlfn.TEXTJOIN("; ",TRUE,IF(({FU["os_tracos"]}={A}{r})*({FU["f_disp"]}="NÃO"),'
+                f'{FU["codigo"]}&" "&{FU["descricao"]},"")),"ver aba Follow-up")'))
+        if k.startswith("m_"):
+            col = {"m_data": OS_DATA, "m_lib": OS_LIB, "m_obs": COL_OBS}[k]
+            v = mm.get(_k(o["os_tracos"]), {}).get(col)
+            return (_data(v) or v) if k in ("m_data", "m_lib") and v is not None else v
+        if k == "prev":
+            return "SIM" if o["preventiva"] else "NÃO"
+        if k == "lista_ok":
+            return LISTA_INCOMPLETA if o["fluxo_incompleto"] else "OK"
+        return o[k]
+
+    fmts = {"m_data": FMT_DATA, "f_data": FMT_DATA, "f_dias": FMT_DIAS, "f_valor": FMT_RS,
+            "data_tracos": FMT_DATA, "m_lib": FMT_DATA}
+    centro = {"os_tracos", "prev", "m_data", "f_data", "f_dias", "f_total", "f_disp", "f_falt", "f_caminho",
+              "f_compra", "f_risco", "data_tracos", "m_lib", "plano"}
+    ult = escrever_tabela(ws, COLS_OS, [o for _, o in por_os.iterrows()], valor_de, fmts, centro,
+                          negrito={"f_apta"})
     ws.freeze_panes = f"D{LIN_1}"
+    for k in ("m_data", "m_lib"):
+        validar_data(ws, f"{c[k]}{LIN_1}:{c[k]}{ult}")
     ws.conditional_formatting.add(f"A{LIN_1}:E{ult}", FormulaRule(
         formula=[f'$D{LIN_1}="SIM"'], fill=P_PREV, font=Font(name=FONTE, bold=True)))
-    ws.conditional_formatting.add(f"F{LIN_1}:F{ult}", FormulaRule(
-        formula=[f'F{LIN_1}="SIM"'], fill=PatternFill("solid", fgColor="C6EFCE", bgColor="C6EFCE"),
-        font=Font(name=FONTE, bold=True, color="006100")))
-    ws.conditional_formatting.add(f"F{LIN_1}:F{ult}", FormulaRule(
-        formula=[f'F{LIN_1}="NÃO"'], fill=PatternFill("solid", fgColor="FFC7CE", bgColor="FFC7CE"),
-        font=Font(name=FONTE, bold=True, color="9C0006")))
-    ws.conditional_formatting.add(f"H{LIN_1}:H{ult}", CellIsRule(
+    cf_palavras(ws, f"{c['f_apta']}{LIN_1}:{c['f_apta']}{ult}", f"${c['f_apta']}{LIN_1}", CORES_APTA)
+    ws.conditional_formatting.add(f"{c['f_dias']}{LIN_1}:{c['f_dias']}{ult}", CellIsRule(
         operator="lessThan", formula=["0"], font=Font(name=FONTE, color="9C0006", bold=True)))
+    ws.conditional_formatting.add(f"{c['lista_ok']}{LIN_1}:{c['lista_ok']}{ult}", FormulaRule(
+        formula=[f'LEFT(${c["lista_ok"]}{LIN_1},1)="⚠"'], font=Font(name=FONTE, color="9C0006", bold=True)))
     paisagem(ws)
-    return {"os": f"'Por OS'!$A${LIN_1}:$A${ult}", "prev": f"'Por OS'!$D${LIN_1}:$D${ult}",
-            "data": f"'Por OS'!$G${LIN_1}:$G${ult}", "dias": f"'Por OS'!$H${LIN_1}:$H${ult}",
-            "pend": f"'Por OS'!$K${LIN_1}:$K${ult}"}
 
 
-def aba_por_fornecedor(wb, pf, fu, obs):
+def aba_por_fornecedor(wb, pf, man, FU):
     ws = wb.create_sheet("Por Fornecedor")
     ws.sheet_properties.tabColor = "BF8F00"
     titulo(ws, "Pedidos abertos por fornecedor (para cobrança)",
-           "Pedidos e valor vêm da base de pedidos (inclui itens sem OS). Itens vencidos e atraso vêm do "
-           "Follow-up (data de necessidade já passou e o pedido não entrou).")
-    cols = ["Fornecedor", "Pedidos abertos", "Pedidos (TracOS / SAP)", "Itens em aberto",
-            "Itens no follow-up (etapa 4)", "Itens com necessidade vencida", "Atraso mais antigo (dias)",
-            "Valor em aberto (R$)", "Pedido mais antigo (emissão)", "Dias desde a emissão", "OS afetadas",
-            "Itens sem OS identificada", COL_OBS]
-    cabecalho(ws, LIN_CAB, cols, [38, 9, 48, 9, 11, 11, 10, 14, 13, 10, 22, 10, 40])
-    for i, (_, x) in enumerate(pf.iterrows()):
-        r = LIN_1 + i
-        a = f"$A{r}"
-        vals = [
-            x["fornecedor"], x["n_pedidos"], x["pedidos"], x["itens_abertos"],
-            f"=COUNTIFS({fu['fornecedor']},{a},{fu['etapa']},4)",
-            f"=COUNTIFS({fu['fornecedor']},{a},{fu['etapa']},4,{fu['f_prio']},1)",
-            f"=SUMPRODUCT(MAX(({fu['fornecedor']}={a})*({fu['etapa']}=4)*{fu['f_atraso']}))",
-            x["valor_aberto"], x["pedido_mais_antigo"],
-            f'=IF(I{r}="","",INT(DATA_REF)-INT(I{r}))', x["os_afetadas"], x["itens_sem_os"],
-            obs.get(str(x["fornecedor"])),
-        ]
-        fm = {7: FMT_ATRASO, 8: FMT_RS, 9: FMT_DATA}
-        for j, v in enumerate(vals, 1):
-            cel(ws, (r, j), v, F_NEGRITO if j == 1 else F_NORMAL, fmt=fm.get(j),
-                preench=P_EDITAVEL if j == len(cols) else None,
-                alin=AL_TOPO if j in (1, 3, 11, 13) else AL_CENTRO)
-    ult = max(LIN_1 + len(pf) - 1, LIN_1)
-    ws.auto_filter.ref = f"A{LIN_CAB}:{get_column_letter(len(cols))}{ult}"
+           "Pedidos e valor vêm da base de pedidos (inclui itens sem OS). Itens a receber, vencidos e atraso vêm "
+           "do Follow-up e já descontam o que você marcou como recebido.")
+    cabecalho(ws, LIN_CAB, COLS_FORN)
+    c = letras(COLS_FORN)
+    f = {
+        "f_receber": f'=COUNTIFS({FU["fornecedor"]},$A{{r}},{FU["etapa"]},4,{FU["f_disp"]},"NÃO")',
+        "f_vencidos": f"=COUNTIFS({FU['fornecedor']},$A{{r}},{FU['etapa']},4,{FU['f_prio']},1)",
+        "f_atraso": f"=SUMPRODUCT(MAX(({FU['fornecedor']}=$A{{r}})*({FU['etapa']}=4)*{FU['f_atraso']}))",
+        "f_dias": f'=IF({c["pedido_mais_antigo"]}{{r}}="","",INT(DATA_REF)-INT({c["pedido_mais_antigo"]}{{r}}))',
+    }
+    mm = man["Por Fornecedor"]
+
+    def valor_de(k, x, r):
+        if k in f:
+            return f[k].format(r=r)
+        if k == "m_obs":
+            return mm.get(str(x["fornecedor"]), {}).get(COL_OBS)
+        return x[k]
+
+    fmts = {"f_atraso": FMT_ATRASO, "valor_aberto": FMT_RS, "pedido_mais_antigo": FMT_DATA}
+    centro = {"n_pedidos", "itens_abertos", "f_receber", "f_vencidos", "f_atraso", "f_dias", "itens_sem_os",
+              "pedido_mais_antigo", "valor_aberto"}
+    ult = escrever_tabela(ws, COLS_FORN, [x for _, x in pf.iterrows()], valor_de, fmts, centro,
+                          negrito={"fornecedor"})
     ws.freeze_panes = f"B{LIN_1}"
-    ws.conditional_formatting.add(f"F{LIN_1}:G{ult}", CellIsRule(
+    ws.conditional_formatting.add(f"{c['f_vencidos']}{LIN_1}:{c['f_atraso']}{ult}", CellIsRule(
         operator="greaterThan", formula=["0"], fill=PatternFill("solid", fgColor="FFC7CE", bgColor="FFC7CE"),
         font=Font(name=FONTE, color="9C0006", bold=True)))
     paisagem(ws)
-    return ult
 
 
-def aba_divergencias(wb, D, obs_dv, orfas):
+def aba_divergencias(wb, D, man, orfas):
     ws = wb.create_sheet("Divergências")
     ws.sheet_properties.tabColor = "C00000"
     titulo(ws, "Divergências e registros não casados",
-           "As linhas 'NÃO CASADO' são as únicas que NÃO estão no Follow-up (contam na conciliação). "
-           "As demais apontam para uma linha do Follow-up pela Chave.")
-    cols = ["Tipo", "Gravidade", "Base", "Linha de origem", COL_CHAVE, "Está no Follow-up?",
-            "Código material", "Descrição do material", "Requisição", "Pedido", "OS TracOS", "Fornecedor",
-            "Detalhe", COL_OBS]
-    cabecalho(ws, LIN_CAB, cols, [40, 9, 11, 9, 24, 10, 10, 34, 10, 8, 9, 34, 90, 40])
-    regs = [] if D is None or not len(D) else D.to_dict("records")
-    regs += orfas
-    for i, d in enumerate(regs):
-        r = LIN_1 + i
-        k = f"{d['tipo']}|{d.get('chave')}"
-        vals = [d["tipo"], d["gravidade"], d["base"], d.get("linha"), d.get("chave"), d.get("no_followup"),
-                d.get("codigo"), d.get("descricao"), d.get("requisicao"), d.get("pedido"), d.get("os"),
-                d.get("fornecedor"), d.get("detalhe"),
-                d.get("obs") if d["tipo"] == TIPO_OBS_ORFA else obs_dv.get(k)]
-        for j, v in enumerate(vals, 1):
-            cel(ws, (r, j), v, F_NORMAL, preench=P_EDITAVEL if j == len(cols) else None,
-                alin=AL_CENTRO if j in (2, 4, 6, 7, 9, 10, 11) else AL_TOPO)
-    ult = max(LIN_1 + len(regs) - 1, LIN_1)
-    ws.auto_filter.ref = f"A{LIN_CAB}:{get_column_letter(len(cols))}{ult}"
+           "As linhas 'NÃO CASADO' são as únicas que NÃO estão no Follow-up (contam na conciliação; elas aparecem "
+           "na aba Recebimento). As demais apontam para uma linha do Follow-up pela Chave.")
+    cols = [("Tipo", 40, "tipo"), ("Gravidade", 9, "gravidade"), ("Base", 11, "base"),
+            ("Linha de origem", 9, "linha"), (COL_CHAVE, 24, "chave"), ("Está no Follow-up?", 10, "no_followup"),
+            ("Código material", 10, "codigo"), ("Descrição do material", 34, "descricao"),
+            ("Requisição", 10, "requisicao"), ("Pedido", 8, "pedido"), ("OS TracOS", 9, "os"),
+            ("Fornecedor", 34, "fornecedor"), ("Detalhe", 90, "detalhe"), (COL_OBS, 40, "m_obs")]
+    cabecalho(ws, LIN_CAB, cols)
+    regs = ([] if D is None or not len(D) else D.to_dict("records")) + orfas
+    mm = man["Divergências"]
+
+    def valor_de(k, d, r):
+        if k == "m_obs":
+            return mm.get(f"{d['tipo']}|{d.get('chave')}", {}).get(COL_OBS)
+        return d.get(k)
+
+    ult = escrever_tabela(ws, cols, regs, valor_de, {},
+                          {"gravidade", "linha", "no_followup", "codigo", "requisicao", "pedido", "os"})
     ws.freeze_panes = f"B{LIN_1}"
     for g, fundo, letra in (("Alta", "FFC7CE", "9C0006"), ("Média", "FFE699", "7F6000"),
                             ("Info", "E7E6E6", "404040")):
@@ -576,10 +826,10 @@ def aba_divergencias(wb, D, obs_dv, orfas):
     paisagem(ws)
 
 
-def aba_painel(wb, R, fu, po, ult_forn):
+def aba_painel(wb, R, FU, REC, POS):
     ws = wb.create_sheet("Painel", 0)
     ws.sheet_properties.tabColor = "1F3864"
-    L, pf, reqs = R["linhas"], R["por_fornecedor"], R["requisicoes"]
+    pf, reqs = R["por_fornecedor"], R["requisicoes"]
     titulo(ws, "Follow-up de peças – manutenção preventiva")
     for col, w in zip("ABCDEFGHIJ", [46, 13, 16, 14, 16, 13, 12, 40, 10, 12]):
         ws.column_dimensions[col].width = w
@@ -608,89 +858,129 @@ def aba_painel(wb, R, fu, po, ult_forn):
         ws.row_dimensions[lin].height = 30
         lin += 1
 
-    # 1. funil
-    secao("1. Funil de compras por etapa", "Valor só dos itens com preço conhecido (ver 'Itens sem preço').")
+    def total(cols, fmt_cols=()):
+        nonlocal lin, ini
+        for j, v in enumerate(["Total"] + [f"=SUM({c}{ini}:{c}{lin - 1})" for c in cols], 1):
+            cel(ws, (lin, j), v, F_NEGRITO, fmt=FMT_RS if j in fmt_cols else None, preench=P_TOTAL)
+        lin += 1
+
+    def colorido(txt, cores):
+        fundo, letra = next((f, l) for w, f, l in cores if w in txt)
+        cel(ws, (lin, 1), txt, Font(name=FONTE, bold=True, color=letra), preench=PatternFill("solid", fgColor=fundo))
+
+    # 1. OS prontas para programar
+    secao("1. OS prontas para programar (todos os itens disponíveis)",
+          "Detalhe e 'Itens que faltam' na aba Por OS.")
+    cab(["Situação da OS", "OS preventivas", "Todas as OS"])
+    sem_lib = f'{POS["m_lib"]},"<>"'
+    prev = f'{POS["prev"]},"SIM"'
+    grupos = [
+        ("✅ APTA PARA PROGRAMAR", f'{POS["f_total"]},">0",{POS["f_falt"]},0'),
+        ("⛔ AGUARDANDO 1 ITEM", f'{POS["f_falt"]},1'),
+        ("⛔ AGUARDANDO 2 A 3 ITENS", f'{POS["f_falt"]},">=2",{POS["f_falt"]},"<=3"'),
+        ("⛔ AGUARDANDO 4 OU MAIS ITENS", f'{POS["f_falt"]},">=4"'),
+    ]
+    for rot, crit in grupos:
+        colorido(rot, CORES_APTA)
+        cel(ws, (lin, 2), f"=COUNTIFS({prev},{crit})-COUNTIFS({prev},{crit},{sem_lib})")
+        cel(ws, (lin, 3), f"=COUNTIFS({crit})-COUNTIFS({crit},{sem_lib})")
+        lin += 1
+    colorido("▶ LIBERADA PARA A EQUIPE", CORES_APTA)
+    cel(ws, (lin, 2), f'=COUNTIFS({prev},{sem_lib},{POS["f_falt"]},0)')
+    cel(ws, (lin, 3), f'=COUNTIFS({sem_lib},{POS["f_falt"]},0)')
+    lin += 1
+    colorido("⚠ LIBERADA FALTANDO ITENS", CORES_APTA)
+    cel(ws, (lin, 2), f'=COUNTIFS({prev},{sem_lib},{POS["f_falt"]},">0")')
+    cel(ws, (lin, 3), f'=COUNTIFS({sem_lib},{POS["f_falt"]},">0")')
+    lin += 1
+    cel(ws, (lin, 1), "⚠ OS com lista de itens possivelmente incompleta", F_ALERTA)
+    cel(ws, (lin, 2), f'=COUNTIFS({prev},{POS["lista_ok"]},"{LISTA_INCOMPLETA}")')
+    cel(ws, (lin, 3), f'=COUNTIFS({POS["lista_ok"]},"{LISTA_INCOMPLETA}")')
+    lin += 1
+
+    # 2. recebimento
+    secao("2. Recebimento de materiais", "Marque o que chegou na aba Recebimento.")
+    cab(["Situação do item", "Itens"])
+    ini = lin
+    for txt in cz.SITUACAO_REC.values():
+        colorido(txt, CORES_REC)
+        cel(ws, (lin, 2), f'=COUNTIFS({REC["f_sit"]},"{txt}")')
+        lin += 1
+    total("B")
+
+    # 3. funil
+    secao("3. Funil de compras por etapa", "Valor só dos itens com preço conhecido (ver 'Itens sem preço').")
     cab(["Etapa", "Itens", "Valor (R$)", "Itens preventiva", "Valor preventiva (R$)", "Itens sem preço"])
     ini = lin
     for e, txt in cz.ETAPAS.items():
-        vals = [txt,
-                f"=COUNTIFS({fu['etapa']},{e})",
-                f"=SUMIFS({fu['f_valor']},{fu['etapa']},{e})",
-                f'=COUNTIFS({fu["etapa"]},{e},{fu["prev"]},"SIM")',
-                f'=SUMIFS({fu["f_valor"]},{fu["etapa"]},{e},{fu["prev"]},"SIM")',
-                f'=B{lin}-COUNTIFS({fu["etapa"]},{e},{fu["preco"]},"<>")']
+        vals = [txt, f"=COUNTIFS({FU['etapa']},{e})", f"=SUMIFS({FU['f_valor']},{FU['etapa']},{e})",
+                f'=COUNTIFS({FU["etapa"]},{e},{FU["prev"]},"SIM")',
+                f'=SUMIFS({FU["f_valor"]},{FU["etapa"]},{e},{FU["prev"]},"SIM")',
+                f'=B{lin}-COUNTIFS({FU["etapa"]},{e},{FU["preco"]},"<>")']
         for j, v in enumerate(vals, 1):
             cel(ws, (lin, j), v, fmt=FMT_RS if j in (3, 5) else None)
         lin += 1
-    for j, v in enumerate(["Total"] + [f"=SUM({c}{ini}:{c}{lin - 1})" for c in "BCDEF"], 1):
-        cel(ws, (lin, j), v, F_NEGRITO, fmt=FMT_RS if j in (3, 5) else None, preench=P_TOTAL)
-    lin += 1
+    total("BCDEF", (3, 5))
 
-    # 2. status
-    secao("2. Itens por status de risco")
+    # 4. status
+    secao("4. Itens por status de risco")
     cab(["Status de risco", "Itens", "Itens preventiva", "Valor (R$)"])
     ini = lin
     for p_, txt in cz.STATUS.items():
-        fundo, letra = next((f, l) for w, f, l in CORES_STATUS if w in txt)
-        cel(ws, (lin, 1), txt, Font(name=FONTE, bold=True, color=letra), preench=PatternFill("solid", fgColor=fundo))
-        cel(ws, (lin, 2), f"=COUNTIFS({fu['f_prio']},{p_})")
-        cel(ws, (lin, 3), f'=COUNTIFS({fu["f_prio"]},{p_},{fu["prev"]},"SIM")')
-        cel(ws, (lin, 4), f"=SUMIFS({fu['f_valor']},{fu['f_prio']},{p_})", fmt=FMT_RS)
+        colorido(txt, CORES_STATUS)
+        cel(ws, (lin, 2), f"=COUNTIFS({FU['f_prio']},{p_})")
+        cel(ws, (lin, 3), f'=COUNTIFS({FU["f_prio"]},{p_},{FU["prev"]},"SIM")')
+        cel(ws, (lin, 4), f"=SUMIFS({FU['f_valor']},{FU['f_prio']},{p_})", fmt=FMT_RS)
         lin += 1
-    for j, v in enumerate(["Total"] + [f"=SUM({c}{ini}:{c}{lin - 1})" for c in "BCD"], 1):
-        cel(ws, (lin, j), v, F_NEGRITO, fmt=FMT_RS if j == 4 else None, preench=P_TOTAL)
-    lin += 1
+    total("BCD", (4,))
 
-    # 3. OS preventivas
-    secao("3. OS preventivas com peças pendentes", "Janela pela data de necessidade (contagem acumulada).")
-    cab(["Janela", "OS", "Peças pendentes"])
-    base = f'{po["prev"]},"SIM",{po["pend"]},">0"'
-    janelas = [
-        ("Necessidade já vencida", f'{po["dias"]},"<0"'),
-        ("Próximos 7 dias", f'{po["dias"]},">=0",{po["dias"]},"<=7"'),
-        ("Próximos 15 dias", f'{po["dias"]},">=0",{po["dias"]},"<=15"'),
-        ("Próximos 30 dias", f'{po["dias"]},">=0",{po["dias"]},"<=30"'),
-    ]
-    for rot, crit in janelas:
+    # 5. OS preventivas por janela de necessidade
+    secao("5. OS preventivas com itens faltando", "Janela pela data de necessidade usada (contagem acumulada).")
+    cab(["Janela", "OS", "Itens faltando"])
+    base = f'{prev},{POS["f_falt"]},">0"'
+    for rot, crit in [("Necessidade já vencida", f'{POS["f_dias"]},"<0"'),
+                      ("Próximos 7 dias", f'{POS["f_dias"]},">=0",{POS["f_dias"]},"<=7"'),
+                      ("Próximos 15 dias", f'{POS["f_dias"]},">=0",{POS["f_dias"]},"<=15"'),
+                      ("Próximos 30 dias", f'{POS["f_dias"]},">=0",{POS["f_dias"]},"<=30"')]:
         cel(ws, (lin, 1), rot)
         cel(ws, (lin, 2), f"=COUNTIFS({base},{crit})")
-        cel(ws, (lin, 3), f"=SUMIFS({po['pend']},{base},{crit})")
+        cel(ws, (lin, 3), f"=SUMIFS({POS['f_falt']},{base},{crit})")
         lin += 1
-    cel(ws, (lin, 1), "Sem data de necessidade (só requisição)")
-    cel(ws, (lin, 2), f'=COUNTIFS({base})-COUNTIFS({base},{po["data"]},"<>")')
-    cel(ws, (lin, 3), f'=SUMIFS({po["pend"]},{base})-SUMIFS({po["pend"]},{base},{po["data"]},"<>")')
+    cel(ws, (lin, 1), "Sem data de necessidade (preencha na aba Por OS)")
+    cel(ws, (lin, 2), f'=COUNTIFS({base})-COUNTIFS({base},{POS["f_dias"]},">=-100000")')
+    cel(ws, (lin, 3), f'=SUMIFS({POS["f_falt"]},{base})-SUMIFS({POS["f_falt"]},{base},{POS["f_dias"]},">=-100000")')
     lin += 1
-    cel(ws, (lin, 1), "Total de OS preventivas com peças pendentes", F_NEGRITO, preench=P_TOTAL)
+    cel(ws, (lin, 1), "Total de OS preventivas com itens faltando", F_NEGRITO, preench=P_TOTAL)
     cel(ws, (lin, 2), f"=COUNTIFS({base})", F_NEGRITO, preench=P_TOTAL)
-    cel(ws, (lin, 3), f"=SUMIFS({po['pend']},{base})", F_NEGRITO, preench=P_TOTAL)
+    cel(ws, (lin, 3), f"=SUMIFS({POS['f_falt']},{base})", F_NEGRITO, preench=P_TOTAL)
     lin += 1
 
-    # 4. fornecedores
-    secao("4. Ranking de fornecedores com pedidos atrasados",
+    # 6. fornecedores
+    secao("6. Ranking de fornecedores com pedidos atrasados",
           "Ordem calculada na geração; números recalculam com a data de referência.")
     cab(["Fornecedor", "Pedidos abertos", "Itens com necessidade vencida", "Atraso mais antigo (dias)",
          "Valor em aberto (R$)"])
+    cf = letras(COLS_FORN)
     atrasados = [i for i, (_, x) in enumerate(pf.iterrows()) if x["_atraso"] > 0] if len(pf) else []
     if not atrasados:
         cel(ws, (lin, 1), "Nenhum fornecedor com itens atrasados.", F_NOTA)
         lin += 1
     for i in atrasados[:10]:
         rf = LIN_1 + i
-        for j, c in enumerate("ABFGH", 1):
-            cel(ws, (lin, j), f"='Por Fornecedor'!{c}{rf}", F_NEGRITO if j == 1 else F_NORMAL,
+        for j, k in enumerate(["fornecedor", "n_pedidos", "f_vencidos", "f_atraso", "valor_aberto"], 1):
+            cel(ws, (lin, j), f"='Por Fornecedor'!{cf[k]}{rf}", F_NEGRITO if j == 1 else F_NORMAL,
                 fmt={4: FMT_ATRASO, 5: FMT_RS}.get(j))
         lin += 1
 
-    # 5. requisições paradas
-    secao("5. Requisições paradas por nível de aprovação")
+    # 7. requisições paradas
+    secao("7. Requisições paradas por nível de aprovação")
     cab(["Nível", "Requisições pendentes", "Itens", "Itens parados (> X dias)", "Dias da mais antiga"])
     for e, rot in ((1, "01 - Gestor da unidade"), (2, "02 - Almox corporativo")):
-        n_req = int((reqs["etapa"] == e).sum()) if len(reqs) else 0
         cel(ws, (lin, 1), rot, F_NEGRITO)
-        cel(ws, (lin, 2), n_req)
-        cel(ws, (lin, 3), f"=COUNTIFS({fu['etapa']},{e})")
-        cel(ws, (lin, 4), f"=COUNTIFS({fu['etapa']},{e},{fu['f_prio']},2)")
-        cel(ws, (lin, 5), f"=SUMPRODUCT(MAX(({fu['etapa']}={e})*{fu['f_dias_etapa']}))")
+        cel(ws, (lin, 2), int((reqs["etapa"] == e).sum()) if len(reqs) else 0)
+        cel(ws, (lin, 3), f"=COUNTIFS({FU['etapa']},{e})")
+        cel(ws, (lin, 4), f"=COUNTIFS({FU['etapa']},{e},{FU['f_prio']},2)")
+        cel(ws, (lin, 5), f"=SUMPRODUCT(MAX(({FU['etapa']}={e})*{FU['f_dias_etapa']}))")
         lin += 1
     lin += 1
     cab(["OS / ativo", "Requisição", "Req. SAP", "Nível", "Itens", "Início", "Dias parada", "Situação",
@@ -705,8 +995,7 @@ def aba_painel(wb, R, fu, po, ult_forn):
                     q["inicio"], f"=INT(DATA_REF)-INT(F{lin})",
                     f'=IF(G{lin}>{lim},"🔴 PARADA","dentro do prazo")', "SIM" if q["preventiva"] else "NÃO"]
             for j, v in enumerate(vals, 1):
-                cel(ws, (lin, j), v, fmt=FMT_DATA if j == 6 else None,
-                    alin=AL_TOPO if j == 1 else AL_CENTRO)
+                cel(ws, (lin, j), v, fmt=FMT_DATA if j == 6 else None, alin=AL_TOPO if j == 1 else AL_CENTRO)
             lin += 1
     ws.conditional_formatting.add(f"H1:H{lin}", FormulaRule(
         formula=['ISNUMBER(SEARCH("PARADA",H1))'], font=Font(name=FONTE, color="9C0006", bold=True)))
@@ -745,13 +1034,14 @@ def aba_bases(wb, B):
         ws.column_dimensions[get_column_letter(j)].width = w
 
 
-def aba_historico(wb, hist):
-    ws = wb.create_sheet("_historico")
-    ws.append(["Chave", "Etapa", "Desde"])
-    for k, (e, d) in sorted(hist.items()):
-        ws.append([k, e, val(d)])
-    for c in ws["C"][1:]:
-        c.number_format = FMT_DATAHORA
+def aba_oculta(wb, nome, cabec, linhas, fmt_col=None):
+    ws = wb.create_sheet(nome)
+    ws.append(cabec)
+    for l in linhas:
+        ws.append([val(v) for v in l])
+    if fmt_col:
+        for c in ws[fmt_col][1:]:
+            c.number_format = FMT_DATAHORA
     ws.sheet_state = "hidden"
 
 
@@ -761,38 +1051,51 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
     os.makedirs(pasta_saida, exist_ok=True)
     B = tb.carregar_bases(pasta_bases)
     ant = ler_versao_anterior(pasta_saida)
-    prm = {k: v for k, v in ant["prm"].items()}
-    R = cz.cruzar(B, hoje, ant["historico"], {k: v for k, v in prm.items() if not k.startswith("nome_")})
+    man = ant["manuais"]
+    prm = dict(ant["prm"])
+    R = cz.cruzar(B, hoje, ant["historico"], {k: v for k, v in prm.items() if not k.startswith("nome_")},
+                  manuais=manuais_para_cruzamento(man))
 
-    # observações cujo item sumiu: não se perdem, vão para Divergências
-    obs = ant["obs"]
-    orfas = []
-    chaves_atuais = {
+    # anotações cujo item/OS sumiu: não se perdem (aba oculta _anotacoes + aviso em Divergências)
+    Dv = R["divergencias"]
+    atuais = {
         "Follow-up": set(R["linhas"]["chave"]),
-        "Por OS": {str(int(x)) for x in R["por_os"]["os_tracos"]} if len(R["por_os"]) else set(),
+        "Recebimento": set(R["recebimento"]["chave"]),
+        "Por OS": {_k(int(x)) for x in R["por_os"]["os_tracos"]} if len(R["por_os"]) else set(),
         "Por Fornecedor": set(R["por_fornecedor"]["fornecedor"]) if len(R["por_fornecedor"]) else set(),
-        "Divergências": ({f"{t}|{c}" for t, c in zip(R["divergencias"]["tipo"], R["divergencias"]["chave"])}
-                         if len(R["divergencias"]) else set()),
+        "Divergências": {f"{t}|{c}" for t, c in zip(Dv["tipo"], Dv["chave"])} if len(Dv) else set(),
     }
-    for aba, d in obs.items():
-        for k, texto in d.items():
-            if k not in chaves_atuais[aba]:
-                orfas.append(dict(tipo=TIPO_OBS_ORFA, gravidade="Info", base=aba, linha=None,
-                                  chave=k if aba != "Divergências" else None, no_followup="NÃO",
-                                  detalhe=k, obs=texto))
+    orfas, orfas_reg = [], []
+    for aba, d in man.items():
+        for k, cols in d.items():
+            if k in atuais[aba] or (aba == "Divergências" and k.startswith(TIPO_ORFA + "|")):
+                continue
+            for col, v in cols.items():
+                orfas_reg.append([aba, k, col, v])
+            orfas.append(dict(tipo=TIPO_ORFA, gravidade="Info", base=aba, linha=None, chave=f"{aba}:{k}",
+                              no_followup="NÃO",
+                              detalhe=" | ".join(f"{col}: {v:%d/%m/%Y}" if isinstance(v, dt.datetime) else
+                                                 f"{col}: {v}" for col, v in cols.items())))
+
+    FU = faixas("Follow-up", COLS_FU, len(R["linhas"]))
+    REC = faixas("Recebimento", COLS_REC, len(R["recebimento"]))
+    POS = faixas("Por OS", COLS_OS, len(R["por_os"]))
 
     wb = Workbook()
     wb.remove(wb.active)
-    pos = aba_parametros(wb, {**cz.PARAMETROS_PADRAO, **prm}, B, R, hoje, data_fixa, ant)
-    fu = aba_followup(wb, R["linhas"], obs["Follow-up"])
-    po = aba_por_os(wb, R["por_os"], fu, obs["Por OS"])
-    ult_forn = aba_por_fornecedor(wb, R["por_fornecedor"], fu, obs["Por Fornecedor"])
-    aba_divergencias(wb, R["divergencias"], obs["Divergências"], orfas)
-    aba_painel(wb, R, fu, po, ult_forn)
+    aba_parametros(wb, {**cz.PARAMETROS_PADRAO, **prm}, B, R, data_fixa, ant)
+    aba_followup(wb, R["linhas"], man, FU, REC, POS)
+    aba_recebimento(wb, R["recebimento"], man, FU, POS)
+    aba_por_os(wb, R["por_os"], man, FU)
+    aba_por_fornecedor(wb, R["por_fornecedor"], man, FU)
+    aba_divergencias(wb, Dv, man, orfas)
+    aba_painel(wb, R, FU, REC, POS)
     aba_bases(wb, B)
-    aba_historico(wb, R["historico"])
-    ordem = ["Painel", "Follow-up", "Por OS", "Por Fornecedor", "Divergências", "Parâmetros",
-             "Bases tratadas", "_historico"]
+    aba_oculta(wb, "_historico", ["Chave", "Etapa", "Desde"],
+               [[k, e, d] for k, (e, d) in sorted(R["historico"].items())], fmt_col="C")
+    aba_oculta(wb, "_anotacoes", ["Aba", "Chave", "Coluna", "Valor"], orfas_reg)
+    ordem = ["Painel", "Por OS", "Recebimento", "Follow-up", "Por Fornecedor", "Divergências", "Parâmetros",
+             "Bases tratadas", "_historico", "_anotacoes"]
     wb._sheets = [wb[n] for n in ordem]
     wb.active = 0
     wb.calculation.fullCalcOnLoad = True
@@ -811,20 +1114,27 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
 
 
 def resumo(R, destino, ant, orfas):
-    L = R["linhas"]
+    L, po, rc = R["linhas"], R["por_os"], R["recebimento"]
     print("=" * 78)
     print("FOLLOW-UP DE PEÇAS – atualização concluída")
     print("=" * 78)
     print(f"Arquivo gerado: {destino}")
-    print(f"Observações reaproveitadas de: {os.path.basename(ant['arquivo']) if ant['arquivo'] else '(primeira versão)'}"
-          f"  |  {sum(len(v) for v in ant['obs'].values())} observações lidas, {len(orfas)} sem item atual")
+    n_anot = sum(len(v) for v in ant["manuais"].values())
+    print(f"Anotações reaproveitadas de: {os.path.basename(ant['arquivo']) if ant['arquivo'] else '(primeira versão)'}"
+          f"  |  {n_anot} itens/OS com anotação, {len(orfas)} sem item atual")
     print("\nConciliação (entrada = Follow-up + Divergências não casadas):")
     for _, c in R["conciliacao"].iterrows():
         print(f"  {c['base']:<11} entrada {c['entrada']:>4} | follow-up {c['follow_up']:>4} | "
               f"divergências {c['divergencias']:>3} | {'OK' if c['ok'] else 'DIFERENÇA!'}")
-    print("\nItens por etapa:")
-    for e, n in L["etapa"].value_counts().sort_index().items():
-        print(f"  {cz.ETAPAS[e]:<46} {n:>4}")
+    if len(po):
+        aptas = po[po["apta"] & ~po["liberada"]]
+        print(f"\nOS: {len(po)} | aptas para programar: {len(aptas)} | liberadas: {int(po['liberada'].sum())} | "
+              f"aguardando itens: {int((~po['apta'] & ~po['liberada']).sum())}")
+        for _, o in aptas.head(10).iterrows():
+            print(f"  ✅ OS #{int(o['os_tracos'])} {o['descricao_os']} ({int(o['itens'])} itens)")
+    print("\nRecebimento:")
+    for s, n in rc["situacao"].value_counts().reindex(list(cz.SITUACAO_REC.values())).dropna().items():
+        print(f"  {s:<28} {int(n):>4}")
     print("\nItens por status de risco (na data de hoje):")
     for p_, n in L["prioridade"].value_counts().sort_index().items():
         print(f"  {cz.STATUS[p_]:<30} {n:>4}")

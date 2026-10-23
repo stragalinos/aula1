@@ -26,6 +26,17 @@ STATUS = {
     7: "⚪ SEM DATA DE NECESSIDADE",
 }
 
+# situação na aba Recebimento (a ordem é a ordem de exibição)
+SITUACAO_REC = {
+    0: "🚚 A CAMINHO – ATRASADO",
+    1: "🚚 A CAMINHO",
+    2: "🟡 RECEBIDO PARCIAL",
+    3: "⛔ NÃO RECEBIDO",
+    4: "✅ RECEBIDO (manual)",
+    5: "✅ RECEBIDO (TracOS)",
+}
+RECEBIMENTO_OPCOES = ("SIM", "PARCIAL", "NÃO")
+
 PARAMETROS_PADRAO = {"x_nivel01": 3, "x_nivel02": 5, "y_sem_pedido": 2, "z_entrega": 5}
 
 # o TracOS preenche o preço estimado com R$ 1,00 quando ninguém informou o preço
@@ -120,11 +131,13 @@ def dias(d1, d0):
     return (pd.Timestamp(d1).normalize() - pd.Timestamp(d0).normalize()).days
 
 
-def prioridade(etapa, data_nec, inicio, hoje, prm):
+def prioridade(etapa, data_nec, inicio, hoje, prm, disponivel=None):
     """Espelho em Python da fórmula de risco da planilha (usado para ordenar e validar)."""
     d_etapa = dias(hoje, inicio)
     d_nec = dias(data_nec, hoje)
-    if etapa == 5:
+    if disponivel is None:
+        disponivel = etapa == 5
+    if disponivel:
         return 6
     if d_nec is not None and d_nec < 0:
         return 1
@@ -139,11 +152,53 @@ def prioridade(etapa, data_nec, inicio, hoje, prm):
     return 5
 
 
-def cruzar(B, hoje, historico=None, prm=None):
-    """Cruza as bases. Retorna dict com linhas (Follow-up), divergencias, por_os, por_fornecedor,
-    requisicoes, historico novo, alertas e conciliacao."""
+def marca_recebimento(v):
+    """Normaliza o que foi digitado em 'Recebido?' (SIM / PARCIAL / NÃO); outro texto = vazio."""
+    if _na(v):
+        return None
+    t = str(v).strip().upper()
+    return t if t in RECEBIMENTO_OPCOES else None
+
+
+def disponivel(marca, etapa):
+    """Item está aqui? Marca manual manda; sem marca vale a entrada registrada no TracOS."""
+    if marca == "SIM":
+        return True
+    if marca in ("PARCIAL", "NÃO"):
+        return False
+    return etapa == 5
+
+
+def situacao_recebimento(marca, recebido_tracos, data_nec, hoje):
+    """Espelho da fórmula 'Situação' da aba Recebimento."""
+    if marca == "SIM":
+        return SITUACAO_REC[4]
+    if marca == "PARCIAL":
+        return SITUACAO_REC[2]
+    if marca == "NÃO":
+        return SITUACAO_REC[3]
+    if recebido_tracos:
+        return SITUACAO_REC[5]
+    d = dias(data_nec, hoje)
+    return SITUACAO_REC[0] if d is not None and d < 0 else SITUACAO_REC[1]
+
+
+def cruzar(B, hoje, historico=None, prm=None, manuais=None):
+    """Cruza as bases. Retorna dict com linhas (Follow-up), recebimento, divergencias, por_os,
+    por_fornecedor, requisicoes, historico novo, alertas e conciliacao.
+
+    manuais = anotações da versão anterior da planilha:
+      datas_os    {OS TracOS: data de necessidade digitada na aba Por OS}
+      recebimento {chave: SIM / PARCIAL / NÃO digitado na aba Recebimento}
+      liberadas   {OS TracOS já liberadas para a equipe}
+    """
     hoje = pd.Timestamp(hoje).normalize()
     historico = historico or {}
+    manuais = manuais or {}
+    datas_os = {int(k): pd.Timestamp(v).normalize() for k, v in manuais.get("datas_os", {}).items()
+                if not _na(v)}
+    marcas = {k: marca_recebimento(v) for k, v in manuais.get("recebimento", {}).items()}
+    liberadas = {int(k) for k in manuais.get("liberadas", set())}
     prm = {**PARAMETROS_PADRAO, **(prm or {})}
     r = B["requisicao"]["norm"]
     f = B["fluxo"]["norm"]
@@ -181,7 +236,6 @@ def cruzar(B, hoje, historico=None, prm=None):
     for df in (f, r):
         for _, row in df.dropna(subset=["os_tracos"]).iterrows():
             os_info.setdefault(int(row["os_tracos"]), row)
-    nec_os = f.dropna(subset=["os_tracos"]).groupby("os_tracos")["data_necessidade"].min()
 
     # preço de referência por material (para linhas sem preço próprio)
     preco_ref = {}
@@ -192,7 +246,7 @@ def cruzar(B, hoje, historico=None, prm=None):
 
     linhas, divs = [], []
 
-    def nova(rq=None, fx=None, pd_=None, conf=None, os_row=None, nec_herdada=None):
+    def nova(rq=None, fx=None, pd_=None, conf=None, os_row=None):
         L = {}
         base_os = fx if fx is not None else (rq if rq is not None else os_row)
         ref = fx if fx is not None else (rq if rq is not None else pd_)
@@ -211,7 +265,7 @@ def cruzar(B, hoje, historico=None, prm=None):
             L["qtd"], L["unidade"], L["qtd_pendente"] = rq["qtd"], rq["unidade"], rq["qtd"]
         else:
             L["qtd"] = L["unidade"] = L["qtd_pendente"] = None
-        L["data_necessidade"] = fx["data_necessidade"] if fx is not None else nec_herdada
+        L["data_nec_tracos"] = fx["data_necessidade"] if fx is not None else None
         if fx is not None:
             L["requisicao"], L["req_item"] = fx["requisicao"], fx["req_item"]
         else:
@@ -341,9 +395,7 @@ def cruzar(B, hoje, historico=None, prm=None):
         oss = req_os.get(_int(pd_["requisicao"]), set())
         if len(oss) == 1:
             os_ = next(iter(oss))
-            nec = nec_os.get(os_, None)
-            L = nova(pd_=pd_, conf=f"{CONFIANCA['R5']} #{_int(pd_['requisicao'])}",
-                     os_row=os_info[os_], nec_herdada=None if _na(nec) else nec)
+            L = nova(pd_=pd_, conf=f"{CONFIANCA['R5']} #{_int(pd_['requisicao'])}", os_row=os_info[os_])
             linhas.append(L)
             divs.append(dict(tipo="BAIXA CONFIANÇA – OS inferida pela requisição", gravidade="Média",
                              base="pedido", linha=_int(pd_["linha_origem"]), codigo=pd_["codigo"],
@@ -374,6 +426,14 @@ def cruzar(B, hoje, historico=None, prm=None):
                 .agg(lambda s: s.value_counts().index[0]))
     falta = L["ativo"].isna() & L["os_tracos"].notna()
     L.loc[falta, "ativo"] = L.loc[falta, "os_tracos"].map(ativo_os)
+
+    # data de necessidade: do fluxo; sem ela, herda a data dos outros itens da mesma OS
+    L["data_nec_tracos"] = pd.to_datetime(L["data_nec_tracos"])
+    L["origem_data_tracos"] = np.where(L["data_nec_tracos"].notna(), "TracOS (fluxo)", None)
+    nec_os = L.dropna(subset=["os_tracos", "data_nec_tracos"]).groupby("os_tracos")["data_nec_tracos"].min()
+    falta = L["data_nec_tracos"].isna() & L["os_tracos"].notna() & L["os_tracos"].isin(nec_os.index)
+    L.loc[falta, "data_nec_tracos"] = L.loc[falta, "os_tracos"].map(nec_os)
+    L.loc[falta, "origem_data_tracos"] = "Herdada de outro item da OS"
 
     # chave = material | requisição | OS (+ sequencial quando o trio se repete)
     L["_ord"] = L["req_item"].fillna(0).astype(float) * 1e6 + L["orig_req"].fillna(0) + \
@@ -416,8 +476,17 @@ def cruzar(B, hoje, historico=None, prm=None):
     L["inicio_etapa"] = inicios
     L["base_inicio"] = bases_ini
     L["etapa_txt"] = L["etapa"].map(ETAPAS)
-    L["prioridade"] = [prioridade(e, n, i, hoje, prm) for e, n, i in
-                       zip(L["etapa"], L["data_necessidade"], L["inicio_etapa"])]
+
+    # anotações manuais: data de necessidade da OS (manda sobre a do TracOS) e recebimento
+    L["data_nec_manual"] = pd.to_datetime(
+        L["os_tracos"].map(lambda o: None if _na(o) else datas_os.get(int(o))))
+    L["data_necessidade"] = L["data_nec_manual"].fillna(L["data_nec_tracos"])
+    L["origem_data"] = np.where(L["data_nec_manual"].notna(), "Manual (Por OS)", L["origem_data_tracos"])
+    L["rec_manual"] = L["chave"].map(marcas)
+    L["disponivel"] = [disponivel(m if isinstance(m, str) else None, e)
+                       for m, e in zip(L["rec_manual"], L["etapa"])]
+    L["prioridade"] = [prioridade(e, n, i, hoje, prm, d) for e, n, i, d in
+                       zip(L["etapa"], L["data_necessidade"], L["inicio_etapa"], L["disponivel"])]
     L["status"] = L["prioridade"].map(STATUS)
     L["valor"] = L["qtd"] * L["preco"]
     L["requisicao_txt"] = [
@@ -544,7 +613,8 @@ def cruzar(B, hoje, historico=None, prm=None):
             .drop(columns="_g").reset_index(drop=True)
 
     # ------------------------------------------------ agregações
-    por_os = _por_os(L)
+    receb = _recebimento(L, p.loc[orfaos_ped], marcas, hoje)
+    por_os = _por_os(L, datas_os, liberadas)
     por_forn = _por_fornecedor(L, p, up, hoje)
     reqs = _requisicoes(L, hoje, prm)
 
@@ -557,14 +627,18 @@ def cruzar(B, hoje, historico=None, prm=None):
         conc.append(dict(base=nome, entrada=len(df), follow_up=len(em_fu), divergencias=len(em_dv),
                          total_saida=len(em_fu) + len(em_dv),
                          ok=(sorted(em_fu + em_dv) == sorted(todas))))
-    return dict(linhas=L, divergencias=D, por_os=por_os, por_fornecedor=por_forn, requisicoes=reqs,
+    return dict(linhas=L, recebimento=receb, divergencias=D, por_os=por_os, por_fornecedor=por_forn, requisicoes=reqs,
                 historico=novo_hist, alertas=alertas, conciliacao=pd.DataFrame(conc), prm=prm, hoje=hoje)
 
 
-def _por_os(L):
+def _por_os(L, datas_os, liberadas):
     g = L.dropna(subset=["os_tracos"]).copy()
     if not len(g):
         return pd.DataFrame()
+    g["_falta"] = ~g["disponivel"]
+    g["_caminho"] = (g["etapa"] >= 4) & ~g["disponivel"]
+    g["_compra"] = g["etapa"] <= 3
+    g["_r5"] = g["confianca"].str.startswith(CONFIANCA["R5"])
 
     def resumo(s):
         c = s.value_counts().sort_index()
@@ -575,19 +649,58 @@ def _por_os(L):
         os_sap=("os_sap", "first"), plano=("plano", "first"), descricao_os=("descricao_os", "first"),
         preventiva=("eh_preventiva", "max"),
         ativo=("ativo", lambda s: s.dropna().value_counts().index[0] if s.notna().any() else None),
-        centro_custo=("centro_custo", "first"), data_necessidade=("data_necessidade", "min"),
-        itens=("codigo", "size"), situacao=("etapa", resumo),
-        pior_etapa=("etapa", lambda s: int(s[s < 5].min()) if (s < 5).any() else 5),
-        pior_prio=("prioridade", "min"),
+        centro_custo=("centro_custo", "first"), data_tracos=("data_nec_tracos", "min"),
+        itens=("codigo", "size"), disponiveis=("disponivel", "sum"), faltando=("_falta", "sum"),
+        a_caminho=("_caminho", "sum"), em_compra=("_compra", "sum"), fluxo_incompleto=("_r5", "any"),
+        situacao=("etapa", resumo), pior_prio=("prioridade", "min"),
     ).reset_index()
-    out = out.sort_values(["preventiva", "pior_prio", "data_necessidade", "os_tracos"],
-                          ascending=[False, True, True, True], na_position="last").reset_index(drop=True)
-    return out
+    out["data_manual"] = pd.to_datetime(out["os_tracos"].map(lambda o: datas_os.get(int(o))))
+    out["data_usada"] = out["data_manual"].fillna(out["data_tracos"])
+    out["liberada"] = out["os_tracos"].map(lambda o: int(o) in liberadas)
+    out["apta"] = (out["itens"] > 0) & (out["faltando"] == 0)
+    # preventivas primeiro; dentro delas: aptas ainda não liberadas, depois as que faltam menos itens
+    out["_ordem"] = np.where(out["liberada"], 2, np.where(out["apta"], 0, 1))
+    out = out.sort_values(["preventiva", "_ordem", "faltando", "data_usada", "os_tracos"],
+                          ascending=[False, True, True, True, True], na_position="last")
+    return out.drop(columns="_ordem").reset_index(drop=True)
+
+
+def _recebimento(L, ped_sem_os, marcas, hoje):
+    """Itens que podem chegar: tudo que já tem pedido (inclusive pedidos sem OS identificada)."""
+    cols = ["chave", "os_tracos", "eh_preventiva", "descricao_os", "ativo", "codigo", "descricao", "qtd",
+            "unidade", "fornecedor", "pedido", "pedido_sap", "status_pedido", "entrada", "entrada_em",
+            "nota_fiscal", "data_necessidade", "etapa"]
+    a = L[L["etapa"] >= 4][cols].copy()
+    a["no_followup"] = True
+    b = pd.DataFrame({
+        "chave": [f"{x['codigo']}|R{_int(x['requisicao'])}|PED{_int(x['pedido'])}" for _, x in ped_sem_os.iterrows()],
+        "os_tracos": None, "eh_preventiva": False, "descricao_os": "(pedido sem OS identificada)",
+        "ativo": [_ativo_txt(t, n) for t, n in zip(ped_sem_os["ativo_tag"], ped_sem_os["ativo_nome"])],
+        "codigo": ped_sem_os["codigo"].values, "descricao": ped_sem_os["descricao"].values, "qtd": None,
+        "unidade": None, "fornecedor": ped_sem_os["fornecedor"].values, "pedido": ped_sem_os["pedido"].values,
+        "pedido_sap": ped_sem_os["pedido_sap"].values, "status_pedido": ped_sem_os["status_pedido"].values,
+        "entrada": ped_sem_os["entrada"].values, "entrada_em": ped_sem_os["entrada_em"].values,
+        "nota_fiscal": ped_sem_os["nota_fiscal"].values, "data_necessidade": pd.NaT,
+        "etapa": [5 if (_etapa_pedido(s) == 5 or not _na(e)) else 4
+                  for s, e in zip(ped_sem_os["status_pedido"], ped_sem_os["entrada"])],
+        "no_followup": False,
+    })
+    out = pd.concat([a, b], ignore_index=True) if len(b) else a.reset_index(drop=True)
+    out["recebido_tracos"] = out["etapa"] == 5
+    out["marca"] = out["chave"].map(marcas)
+    out["situacao"] = [situacao_recebimento(m if isinstance(m, str) else None, t, d, hoje)
+                       for m, t, d in zip(out["marca"], out["recebido_tracos"], out["data_necessidade"])]
+    rank = {v: k for k, v in SITUACAO_REC.items()}
+    out["_r"] = out["situacao"].map(rank)
+    out["_sem_os"] = out["os_tracos"].isna()
+    out = out.sort_values(["_r", "_sem_os", "data_necessidade", "os_tracos", "fornecedor", "pedido"],
+                          na_position="last")
+    return out.drop(columns=["_r", "_sem_os"]).reset_index(drop=True)
 
 
 def _por_fornecedor(L, p, usados_p, hoje):
     abertos_p = p[p["status_pedido"].map(_etapa_pedido) == 4]
-    l4 = L[(L["etapa"] == 4) & L["fornecedor"].notna()]
+    l4 = L[(L["etapa"] == 4) & L["fornecedor"].notna() & ~L["disponivel"]]
     forns = sorted(set(abertos_p["fornecedor"].dropna()) | set(l4["fornecedor"]))
     linhas = []
     for fo in forns:
