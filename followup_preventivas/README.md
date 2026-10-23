@@ -41,49 +41,73 @@ Outros efeitos da IWBK:
 - **OS com todo o material retirado:** aparece no Painel como **✔ MATERIAL JÁ RETIRADO (SAP)**, com link para o histórico.
 - **Reservas antigas:** reservas com necessidade de mais de 180 dias vão para Divergências e ficam no fim de cada grupo no Follow-up.
 
-## Rotina de gestão dos materiais
+## Rotina de gestão dos materiais: tudo na aba Follow-up
 
-| Quando | Onde | O que fazer |
+Você só preenche a aba **Follow-up**, nas colunas amarelas do fim da parte visível. As outras abas e o Painel só mostram o resultado e se atualizam na hora.
+
+| Quando | Coluna do Follow-up | O que fazer |
 |---|---|---|
-| Item de estoque em falta (📦) | Aba **Recebimento** | Cobre a reposição do almoxarifado. Quando o material chegar e for separado, marque **SIM**. |
-| Material chegou e foi separado para a OS | Aba **Recebimento** | Em `Recebido?`, escolha **SIM**. Preencha data e local/kit se quiser. Use **PARCIAL** se chegou só parte e **NÃO** se o TracOS mostra entrada mas o material não está aqui. |
-| A OS não tem data de necessidade (só está em requisição) | Aba **Por OS** | Preencha `Data de necessidade (manual)`. A data vale para todos os itens da OS e manda sobre a do TracOS. |
-| A OS ficou ✅ APTA PARA PROGRAMAR | Aba **Por OS** | Programe a OS e preencha `Liberada para a equipe em`. Se faltar item, a OS fica em vermelho: ⚠ LIBERADA FALTANDO. |
+| O material chegou e foi separado para a OS | `Recebido?` | Escolha **SIM**. Use **PARCIAL** se chegou só parte e **NÃO** se o TracOS mostra entrada mas o material não está aqui. `Data do recebimento` e `Local / kit de separação` são opcionais. |
+| Cobrança, previsão, combinado com o fornecedor | `Observação / Follow-up` | Texto livre, por item. |
+| A OS não tem data de necessidade, ou a data é outra | `Data de necessidade da OS` | Digite na **1ª linha da OS**, a célula amarela. A data vale para todos os itens da OS e manda sobre a do TracOS/SAP. |
+| A OS ficou ✅ APTA PARA PROGRAMAR e você passou para a equipe | `OS liberada para a equipe em` | Digite a data na 1ª linha da OS. Se faltar item, a OS fica em vermelho: ⚠ LIBERADA FALTANDO. |
 
-A OS só fica **APTA** quando **todos** os itens estão disponíveis. Um item está disponível quando você marcou SIM no Recebimento, ou quando o TracOS mostra entrada e não há marca PARCIAL ou NÃO. A coluna `Itens que faltam` lista o que ainda falta em cada OS.
+- **Campos da OS em outra linha:** digitar `Data de necessidade da OS` ou `OS liberada` em outra linha da mesma OS também funciona; vale a maior data. Na próxima atualização o valor volta para a 1ª linha da OS.
+- **Atalhos para a linha certa:**
+  - Recebimento: `✎ marcar` leva ao `Recebido?` do item no Follow-up.
+  - Por OS: `✎ Preencher` leva à 1ª linha da OS no Follow-up.
+- **E-mails dos fornecedores:** são cadastro, não acompanhamento. Ficam na aba **Parâmetros**, junto com os do gestor e do almox. Digite uma vez e o e-mail fica salvo. O link `✎ cadastrar e-mail` leva à linha do fornecedor.
+
+A OS só fica **APTA** quando **todos** os itens estão disponíveis. Um item está disponível quando você marcou SIM, ou quando o TracOS/SAP mostra entrada e não há marca PARCIAL ou NÃO. A coluna `Itens que faltam`, na aba Por OS, lista o que ainda falta em cada OS.
 
 Tudo recalcula na hora no Excel. Não é preciso rodar o script de novo depois de marcar.
 
 ## Como as tabelas estão organizadas
 
-- **Por OS, Recebimento e Follow-up mostram 13 colunas cada.** As colunas técnicas (chaves, linhas de origem, dados do SAP, preço etc.) ficam recolhidas: clique no **+** acima das colunas para abrir.
+- **Follow-up:** 11 colunas de consulta e as 6 colunas amarelas, que são as únicas que você preenche. As colunas técnicas (chaves, linhas de origem, dados do SAP, preço etc.) ficam recolhidas: clique no **+** acima das colunas para abrir.
 - **Follow-up em blocos por OS:** os itens de cada OS ficam juntos, com faixas de cor alternadas. As OS mais urgentes vêm primeiro.
 - **Recebimento por situação, fornecedor e pedido,** que é como o material chega. Os itens em falta no estoque vêm agrupados por OS.
 - **Só OS preventivas nas abas de trabalho.** Corretivas, compras e giro de estoque ficam na aba **Outras OS**.
   - Para ver todas, mude o parâmetro "Abas de trabalho só com OS preventivas?" para **NÃO** na aba Parâmetros e atualize.
 
-## Painel clicável
+## Painel
 
-- **Menu no topo:** os botões azuis abrem cada aba. Em todas as abas, a célula A1 tem **⬅ Voltar ao Painel**.
-- **Textos e números sublinhados:** levam direto ao primeiro item do grupo.
-  - Exemplo: "🚚 A CAMINHO – ATRASADO 22" abre o Recebimento nessa linha, já na coluna `Recebido?`.
-  - Grupo vazio leva ao início da aba.
-- **OS aptas para programar agora:** a lista se atualiza conforme você marca o recebimento. Clique na OS para abri-la.
+- **Faixa de título:** data de referência, hora da geração e, se houver, o link para os avisos sobre as bases.
+- **Menu:** o botão azul **✎ Follow-up (preencher)** abre as colunas amarelas. Os outros botões abrem as demais abas. Em todas as abas, a célula A1 tem **⬅ Voltar ao Painel**.
+- **Indicadores no topo:**
+  - OS aptas para programar (o número em destaque);
+  - OS aguardando itens;
+  - itens atrasados;
+  - itens em falta no estoque;
+  - itens parados na aprovação.
+
+  Cada número leva ao primeiro item do grupo.
+- **Cartões:**
+  - situação das OS;
+  - recebimento;
+  - OS aptas agora (lista);
+  - OS com itens faltando por janela de necessidade;
+  - status de risco;
+  - funil de compras;
+  - fornecedores atrasados;
+  - requisições paradas.
+
+  As cores seguem o estado: verde = ok, amarelo = atenção, laranja = sério, vermelho = crítico, azul = em andamento, cinza = encerrado. Cada linha também tem ícone e texto, e as barras mostram o tamanho de cada grupo.
 - **✉ Cobrar:** abre o e-mail pronto no Outlook.
-  - Fornecedor: já com os pedidos SAP. Cadastre o e-mail na aba Por Fornecedor.
-  - Requisição parada: já com o nº SAP, a OS e desde quando está pendente. Cadastre os e-mails do gestor e do almox na aba Parâmetros.
+  - Fornecedor: já com os pedidos SAP.
+  - Requisição parada: já com o nº SAP, a OS e desde quando está pendente.
   - O texto do e-mail vai sem acentos, por causa do limite de 255 caracteres dos links no Excel.
-- **Dentro das abas:**
-  - Por OS: `Ir para os itens` abre o Recebimento (ou o Follow-up) daquela OS.
-  - Recebimento: `Itens que faltam na OS` abre a OS na aba Por OS.
 
 Não há macros: o arquivo é um `.xlsx` comum e abre sem aviso de segurança. Filtrar a tabela automaticamente ao clicar exigiria macro (`.xlsm`). Para ver todos os itens de um grupo, use o filtro do cabeçalho.
 
 ## O que é preservado entre atualizações
 
-- **Células amarelas:** Recebimento, datas e liberação das OS, observações e parâmetros voltam na próxima versão.
-  - No Recebimento e no Follow-up, a chave é *material | requisição | OS*. Na aba Por OS, é o nº da OS.
-  - Se o item sumir das bases, a anotação vai para Divergências (`ANOTAÇÃO SEM ITEM ATUAL`) e volta sozinha quando ele reaparecer.
+- **Células amarelas:** o que você digitou no Follow-up, os parâmetros e os e-mails voltam na próxima versão.
+  - Itens: a chave é *material | requisição | OS*. Campos da OS: a chave é o nº SAP da OS.
+  - Se o item ou a OS sumir das bases, a anotação vai para Divergências (`ANOTAÇÃO SEM ITEM ATUAL`) e volta sozinha quando ele reaparecer.
+- **Planilhas da versão anterior:** na primeira atualização, o que estava digitado nas abas Recebimento, Por OS, Por Fornecedor e Divergências é levado sozinho para o Follow-up e para Parâmetros.
+  - As observações da OS e das divergências entram na observação do item, com o prefixo "OS:" ou "Divergência".
+  - A qtd e a observação do recebimento também entram na observação do item.
 - **Histórico de etapas** (aba oculta `_historico`): guarda desde quando cada item está em cada etapa, porque o TracOS não informa a data de autorização.
 
 O script sempre lê a planilha mais recente da pasta `saida`. **Faça as marcações na versão mais nova** antes de atualizar.
@@ -92,15 +116,15 @@ O script sempre lê a planilha mais recente da pasta `saida`. **Faça as marcaç
 
 | Aba | Conteúdo |
 |---|---|
-| Painel | Menu de navegação e, em seções clicáveis: OS aptas para programar (com lista), recebimento, funil por etapa, status de risco, OS preventivas com itens faltando, fornecedores atrasados e requisições paradas (com ✉ Cobrar) |
-| Por OS | APTA PARA PROGRAMAR?, itens que faltam, data de necessidade manual e liberação para a equipe |
-| Recebimento | Itens com pedido (inclusive pedidos sem OS), para marcar o que chegou |
-| Follow-up | Uma linha por material × requisição × OS, ordenada por risco e data de necessidade |
+| Painel | Indicadores e cartões clicáveis (ver acima) |
+| Follow-up | **Onde você preenche.** Uma linha por material × requisição × OS, em blocos por OS, as mais urgentes primeiro |
+| Por OS | APTA PARA PROGRAMAR?, itens que faltam, data de necessidade usada e liberação (consulta) |
+| Recebimento | Itens com pedido e em falta no estoque, por situação e fornecedor (consulta, com `✎ marcar`) |
 | Por Fornecedor | Pedidos abertos, valor e atraso mais antigo, para a cobrança |
 | Divergências | Itens não casados, vínculos de baixa confiança, duplicidades, reservas antigas do SAP, alertas e anotações sem item |
 | Histórico SAP | Itens da IWBK já retirados ou baixados para a ordem (sem ação pendente) |
 | Outras OS | Itens de OS não preventivas (quando o parâmetro "só preventivas" está SIM) |
-| Parâmetros | Limites editáveis, legenda e conciliação de linhas |
+| Parâmetros | Limites editáveis, e-mails (gestor, almox e fornecedores), legenda e conciliação de linhas |
 | Bases tratadas | As 3 bases já normalizadas, para auditoria |
 
 ## Arquivos
