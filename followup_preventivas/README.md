@@ -13,6 +13,7 @@ Cruza as 3 exportações do TracOS (requisição, fluxo e pedido de compra) e ge
    - `pedido de compra *.csv`
 
    - **Opcional:** a IWBK do SAP (`*IWBK*.xlsx`, exportada com o layout completo de colunas).
+   - **Opcional:** a ME2N do SAP (`*ME2N*.xlsx`), para ter o fornecedor dos pedidos que só existem no SAP.
 
    O número no fim do nome pode mudar. Se o arquivo for salvo com outro nome (ex.: `EXPORT.XLSX` do SAP), o script o reconhece pelas colunas.
 
@@ -46,6 +47,22 @@ Outros efeitos da IWBK:
 - **Material já retirado:** itens já retirados ou baixados para a ordem vão para a aba **Histórico SAP**. Saem do Follow-up, do Recebimento e da Por OS, mas contam como disponíveis no total da OS.
 - **OS com todo o material retirado:** aparece no Painel como **✔ MATERIAL JÁ RETIRADO (SAP)**, com link para o histórico.
 - **Reservas antigas:** reservas com necessidade de mais de 180 dias vão para Divergências e ficam no fim de cada grupo no Follow-up.
+
+## ME2N do SAP (fornecedor dos pedidos só do SAP)
+
+**Por que alguns pedidos não têm fornecedor:**
+- O fornecedor vem da base de pedidos do TracOS.
+- Os pedidos que só existem no SAP vêm da IWBK, que não tem o campo fornecedor.
+- Sem a ME2N, esses itens aparecem sem fornecedor e "Quem cobrar" indica o comprador.
+
+**O que a ME2N preenche:** com a ME2N na pasta `bases`, cada item com pedido SAP é casado pelo **pedido + material**, ou só pelo pedido quando o material não bate. Com isso o item recebe:
+- **o fornecedor:** aparece em "Quem cobrar", no Recebimento, na aba Por Fornecedor (com ✉ Cobrar) e no Painel;
+- **a data do pedido:** passa a ser o início da etapa 4, que é a base de "Dias na etapa";
+- **o preço:** só se o item não tiver preço e o pedido estiver em reais.
+
+**Como exportar:** a mesma seleção da IWBK (as OS em aberto), com as colunas `Documento de compras`, `Item`, `Material`, `Fornecedor/centro fornecedor`, `Data do documento`, `Qtd.do pedido`, `Preço líquido` e `Moeda`.
+
+Quando o fornecedor vem com outro espaçamento no nome, o script usa o nome do TracOS, para não duplicar o fornecedor nem o cadastro de e-mail.
 
 ## Itens cancelados, excluídos ou encerrados
 

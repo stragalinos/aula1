@@ -477,6 +477,8 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None, so_preventivas=False
     for c in CAMPOS_SAP:
         L[c] = np.nan
     L, info_sap = _integrar_iwbk(L, B.get("iwbk"), preco_ref, hoje)
+    L["data_pedido_sap"] = pd.NaT
+    info_me2n = _integrar_me2n(L, B.get("me2n"))
 
     # data de necessidade: do fluxo/IWBK; sem ela, herda a data dos outros itens da mesma OS
     nec_os = L.dropna(subset=["os_sap", "data_nec_tracos"]).groupby("os_sap")["data_nec_tracos"].min()
@@ -514,6 +516,8 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None, so_preventivas=False
                 ini, b = l["criado_req"], "Criado em (requisição) – inclui nível 01"
         elif e == 4 and not _na(l["criado_ped"]):
             ini, b = l["criado_ped"], "Criado em (pedido)"
+        elif e == 4 and not _na(l["data_pedido_sap"]):
+            ini, b = l["data_pedido_sap"], "Data do pedido (ME2N)"
         elif e == 5 and not _na(l["entrada_em"]):
             ini, b = l["entrada_em"], "Entrada registrada em"
         elif e == 5 and not _na(l["atualizado_ped"]):
@@ -676,7 +680,8 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None, so_preventivas=False
     if n_fora:
         alertas.append(f"{n_fora} de {len(p)} itens da base de pedidos não estão no fluxo "
                        f"({n_inf} com OS inferida pela requisição, {len(orfaos_ped)} sem OS → Divergências).")
-    for nome, rot in (("requisicao", "requisição"), ("fluxo", "fluxo"), ("pedido", "pedido"), ("iwbk", "IWBK")):
+    for nome, rot in (("requisicao", "requisição"), ("fluxo", "fluxo"), ("pedido", "pedido"), ("iwbk", "IWBK"),
+                      ("me2n", "ME2N")):
         b = B.get(nome)
         if not b or len(b["candidatos"]) < 2:
             continue
@@ -701,6 +706,12 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None, so_preventivas=False
         if info_sap["antigos"]:
             alertas.append(f"IWBK (SAP): {info_sap['antigos']} componentes em aberto com necessidade há mais de "
                            f"180 dias (reservas antigas): confira se ainda valem.")
+    if info_me2n:
+        alertas.append(
+            f"ME2N (SAP): {info_me2n['linhas']} itens de {info_me2n['pedidos']} pedidos. Fornecedor preenchido em "
+            f"{info_me2n['preenchidos']} itens que só existem no SAP"
+            + (f"; {info_me2n['sem']} itens com pedido SAP continuam sem fornecedor (pedido fora da ME2N)."
+               if info_me2n["sem"] else "."))
     for a in alertas:
         divs.append(dict(tipo="ALERTA DE CARGA", gravidade="Alta", base="-", linha=None, codigo=None,
                          descricao=None, requisicao=None, pedido=None, os=None, fornecedor=None,
@@ -775,6 +786,36 @@ def _etapa_sap(x):
     if not _na(x["rc_sap"]):
         return 3, "3 - RC SAP liberada, sem pedido", False
     return 3, "3 - Componente sem RC no SAP", False
+
+
+def _integrar_me2n(L, me2n):
+    """Completa com a ME2N do SAP os itens que têm pedido SAP mas não têm fornecedor (os que só existem no
+    SAP: a IWBK não traz o fornecedor). Casa por pedido + material; sem o material, pelo pedido (um pedido
+    tem um fornecedor só). Também traz a data do pedido e, se faltar, o preço."""
+    if not me2n:
+        return None
+    me = me2n["norm"]
+    por_item = me.drop_duplicates(["pedido_sap", "codigo"]).set_index(["pedido_sap", "codigo"])
+    por_ped = me.drop_duplicates("pedido_sap").set_index("pedido_sap")
+    # mesmo fornecedor já escrito no TracOS (nome com espaços diferentes): usa o nome do TracOS
+    nomes = {" ".join(str(f).split()).upper(): f for f in L["fornecedor"].dropna().unique()}
+    preenchidos = 0
+    for j in L.index[L["pedido_sap"].notna()]:
+        ped, cod = str(L.at[j, "pedido_sap"]), str(L.at[j, "codigo"])
+        x = por_item.loc[(ped, cod)] if (ped, cod) in por_item.index else \
+            (por_ped.loc[ped] if ped in por_ped.index else None)
+        if x is None:
+            continue
+        if _na(L.at[j, "fornecedor"]) and not _na(x["fornecedor"]):
+            L.at[j, "fornecedor"] = nomes.get(str(x["fornecedor"]).upper(), x["fornecedor"])
+            preenchidos += 1
+        L.at[j, "data_pedido_sap"] = x["data_pedido"]
+        if _na(L.at[j, "preco"]) and x["moeda"] == "BRL" and not _na(x["preco"]) and x["preco"] > 0 \
+                and (ped, cod) in por_item.index:
+            L.at[j, "preco"] = float(x["preco"])
+            L.at[j, "origem_preco"] = "pedido SAP (ME2N)"
+    sem = int((L["pedido_sap"].notna() & L["fornecedor"].isna() & ~L["sap_consumido"]).sum())
+    return dict(linhas=len(me), pedidos=me["pedido_sap"].nunique(), preenchidos=preenchidos, sem=sem)
 
 
 def _integrar_iwbk(L, iwbk, preco_ref, hoje):
@@ -951,22 +992,31 @@ def _por_fornecedor(L, p, usados_p, hoje):
     for fo in forns:
         ap = abertos_p[abertos_p["fornecedor"] == fo]
         lf = l4[l4["fornecedor"] == fo]
+        # pedido = ("T", nº TracOS) ou, se o pedido só existe no SAP, ("S", nº SAP)
+        def chave(x):
+            if not _na(x["pedido"]):
+                return ("T", int(x["pedido"]))
+            return ("S", str(x["pedido_sap"])) if not _na(x["pedido_sap"]) else None
+
         peds = {}
         for _, x in ap.iterrows():
-            peds[int(x["pedido"])] = dict(sap=x["pedido_sap"], total=x["custo_total_pedido"], criado=x["criado_em"])
+            peds[chave(x)] = dict(sap=x["pedido_sap"], total=x["custo_total_pedido"], criado=x["criado_em"])
         for _, x in lf.iterrows():
-            if not _na(x["pedido"]) and int(x["pedido"]) not in peds:
-                peds[int(x["pedido"])] = dict(sap=x["pedido_sap"], total=None, criado=x["inicio_etapa"])
+            k = chave(x)
+            if k is not None and k not in peds:
+                peds[k] = dict(sap=x["pedido_sap"], total=None, criado=x["inicio_etapa"])
         valor = sum(v["total"] for v in peds.values() if not _na(v["total"]))
-        sem_total = lf["pedido"].map(lambda v: not _na(v) and _na(peds[int(v)]["total"])).astype(bool)
+        sem_total = pd.Series([chave(x) is not None and _na(peds[chave(x)]["total"]) for _, x in lf.iterrows()],
+                              index=lf.index, dtype=bool)
         valor += float(lf.loc[sem_total, "valor"].fillna(0).sum())
         criados = [v["criado"] for v in peds.values() if not _na(v["criado"])]
-        sem_os = ap[[j not in usados_p for j in ap.index]]
+        sem_os = ap.loc[[j not in usados_p for j in ap.index]]
         sem_os = sem_os[~sem_os["linha_origem"].isin(L["orig_ped"].dropna().astype(int))]
         atrasos = [(hoje - d).days for d in lf["data_necessidade"].dropna() if d < hoje]
         linhas.append(dict(
             fornecedor=fo, n_pedidos=len(peds),
-            pedidos="; ".join((f"{v['sap']} (TracOS #{k})" if not _na(v["sap"]) else f"TracOS #{k} (sem nº SAP)")
+            pedidos="; ".join(str(v["sap"]) if k[0] == "S" else
+                              (f"{v['sap']} (TracOS #{k[1]})" if not _na(v["sap"]) else f"TracOS #{k[1]} (sem nº SAP)")
                               for k, v in sorted(peds.items())),
             itens_abertos=len(ap) + int(lf["orig_ped"].isna().sum()),
             valor_aberto=valor, pedido_mais_antigo=min(criados) if criados else None,

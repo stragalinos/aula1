@@ -764,6 +764,10 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
          "OS + material + pedido, OS + material, material + RC e material + pedido. O que não casar entra como "
          "item 'SAP': estoque (L) em falta = etapa 0; RC não liberada = 1; RC liberada sem pedido = 3; com pedido = 4; "
          "entrada, retirada ou disponível em estoque = 5. A IWBK não traz fornecedor."),
+        ("ME2N (SAP) – opcional", "Arquivo '*ME2N*.xlsx' na pasta bases (lista de pedidos do SAP com o fornecedor). "
+         "Preenche o fornecedor dos itens que só existem no SAP (a IWBK não traz fornecedor), casando por pedido + "
+         "material; traz também a data do pedido (início da etapa 4) e o preço, se faltar. Exporte com os pedidos "
+         "em aberto das OS (a mesma seleção da IWBK)."),
         ("Material já retirado (SAP)", "Itens já retirados/baixados para a ordem vão para a aba Histórico SAP e saem "
          "do Follow-up, do Recebimento e da Por OS (contam como disponíveis no total da OS). OS com todo o material "
          "retirado aparecem no Painel como ✔ MATERIAL JÁ RETIRADO (SAP)."),
@@ -838,7 +842,7 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
     cel(ws, (lin, 2), os.path.basename(info_ant["arquivo"]) if info_ant["arquivo"] else "(primeira versão)")
     lin += 1
     lin_arquivos = lin
-    for nome in ("requisicao", "fluxo", "pedido", "iwbk"):
+    for nome in ("requisicao", "fluxo", "pedido", "iwbk", "me2n"):
         if not B.get(nome):
             continue
         arq = B[nome]["arquivo"]
@@ -1284,7 +1288,7 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
     ws.row_dimensions[4].height = 20
     ws.row_dimensions[5].height = 10
     # arquivos usados: para conferir de relance se a atualização pegou as exportações novas
-    rot = {"requisicao": "Requisição", "fluxo": "Fluxo", "pedido": "Pedido", "iwbk": "IWBK"}
+    rot = {"requisicao": "Requisição", "fluxo": "Fluxo", "pedido": "Pedido", "iwbk": "IWBK", "me2n": "ME2N"}
     usados = "   ·   ".join(
         f"{rot[n]}: {os.path.basename(b['arquivo'])} ({dt.datetime.fromtimestamp(os.path.getmtime(b['arquivo'])):%d/%m %H:%M})"
         for n, b in B.items() if b)
@@ -1655,12 +1659,12 @@ def aba_bases(wb, B):
     ws = wb.create_sheet("Bases tratadas")
     ws.sheet_properties.tabColor = "A6A6A6"
     titulo(ws, "Bases tratadas (auditoria)",
-           "As exportações (TracOS e IWBK do SAP) já normalizadas. 'linha_origem' = linha no CSV (1 = cabeçalho); é a "
+           "As exportações (TracOS, IWBK e ME2N do SAP) já normalizadas. 'linha_origem' = linha no CSV (1 = cabeçalho); é a "
            "referência usada em 'Linhas de origem' no Follow-up e em Divergências.")
     lin = LIN_CAB + 1
     larg = {}
     for nome, tab in (("requisicao", "tbRequisicao"), ("fluxo", "tbFluxo"), ("pedido", "tbPedido"),
-                      ("iwbk", "tbIWBK")):
+                      ("iwbk", "tbIWBK"), ("me2n", "tbME2N")):
         if not B.get(nome):
             continue
         df = B[nome]["norm"]

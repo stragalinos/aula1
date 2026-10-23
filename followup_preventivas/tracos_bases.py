@@ -17,13 +17,16 @@ PADROES = {
     "fluxo": "fluxo*compras*.csv",
     "pedido": "pedido*compra*.csv",
     "iwbk": "*iwbk*.xls*",
+    "me2n": "*me2n*.xls*",
 }
+OPCIONAIS = ("iwbk", "me2n")  # bases do SAP: o follow-up funciona sem elas
 # colunas que identificam cada exportação: o arquivo é achado mesmo quando foi salvo com outro nome
 ASSINATURAS = {
     "requisicao": ["Nº Requisição de Compra SAP", "Nível de Liberação Atual"],
     "fluxo": ["Quant. Pendente", "Código Identificador"],
     "pedido": ["Código Externo", "Custo Total"],
     "iwbk": ["Ordem", "Material", "Nº reserva", "Disponibilidade"],
+    "me2n": ["Documento de compras", "Fornecedor/centro fornecedor", "Qtd.do pedido"],
 }
 
 RE_ITEM = re.compile(r"^#?(\d+)\s+(\d+)\s*-\s*(.*)$", re.S)
@@ -56,7 +59,7 @@ def _cabecalho(caminho):
 def candidatos(pasta, nome):
     """Arquivos da pasta que são a exportação 'nome': pelo nome do arquivo ou, se o nome for outro,
     pelas colunas do cabeçalho. A comparação do nome ignora maiúsculas/minúsculas e a forma Unicode."""
-    exts = (".xlsx", ".xls", ".xlsm") if nome == "iwbk" else (".csv",)
+    exts = (".xlsx", ".xls", ".xlsm") if nome in OPCIONAIS else (".csv",)
     out = []
     for n in sorted(os.listdir(pasta)):
         c = os.path.join(pasta, n)
@@ -395,22 +398,61 @@ def normalizar_iwbk(df):
     return norm
 
 
+# ---------------------------------------------------------------- SAP ME2N (opcional): pedidos com fornecedor
+COLUNAS_ME2N = ["Documento de compras", "Item", "Material", "Fornecedor/centro fornecedor", "Data do documento",
+                "Qtd.do pedido", "Preço líquido", "Moeda"]
+
+
+def ler_me2n(caminho):
+    df = pd.read_excel(caminho, dtype=object)
+    df.columns = [str(c).strip() for c in df.columns]
+    falta = [c for c in COLUNAS_ME2N if c not in df.columns]
+    if falta:
+        raise ValueError(f"A ME2N não tem as colunas {falta}.")
+    return df
+
+
+def normalizar_me2n(df):
+    """Uma linha por item de pedido do SAP. 'Fornecedor/centro fornecedor' vem como '5935   NOME'."""
+    out = pd.DataFrame(index=df.index)
+    out["linha_origem"] = df.index + 2
+    out["pedido_sap"] = df["Documento de compras"].map(_id_sap)
+    out["item_pedido"] = df["Item"].map(_id_sap)
+    out["codigo"] = df["Material"].map(lambda v: _id_sap(v, tirar_zeros=True))
+    out["os_sap"] = df["Ordem"].map(_id_sap) if "Ordem" in df else np.nan
+    forn = df["Fornecedor/centro fornecedor"].map(lambda v: "" if pd.isna(v) else " ".join(str(v).split()))
+    partes = forn.str.extract(r"^(\d+)\s+(.*)$")
+    out["fornecedor_cod"] = partes[0]
+    out["fornecedor"] = partes[1].fillna(forn).replace("", np.nan)
+    out["data_pedido"] = pd.to_datetime(df["Data do documento"].map(_data_sap))
+    out["qtd_pedido"] = df["Qtd.do pedido"].map(_num_sap)
+    col_afor = next((c for c in df.columns if c.lower().startswith("a ser fornecida")), None)
+    out["a_fornecer"] = df[col_afor].map(_num_sap) if col_afor else np.nan
+    out["moeda"] = df["Moeda"].map(lambda v: np.nan if pd.isna(v) else str(v).strip())
+    out["preco"] = df["Preço líquido"].map(_num_sap)
+    validas = out["pedido_sap"].notna()
+    return out[validas].copy()
+
+
 def carregar_bases(pasta="bases", anteriores=None):
-    """Localiza, lê e normaliza as 3 bases do TracOS e, se existir, a IWBK do SAP.
+    """Localiza, lê e normaliza as 3 bases do TracOS e, se existirem, a IWBK e a ME2N do SAP.
     anteriores = {base: arquivos que estavam na pasta na última atualização} (ver escolher)."""
     anteriores = anteriores or {}
     res = {}
     for nome in PADROES:
         cands = candidatos(pasta, nome)
         if not cands:
-            if nome == "iwbk":
-                res["iwbk"] = None
+            if nome in OPCIONAIS:
+                res[nome] = None
                 continue
             raise FileNotFoundError(f"Nenhum arquivo '{PADROES[nome]}' em {os.path.abspath(pasta)}")
         caminho, motivo, subst, hs = escolher(cands, anteriores.get(nome))
         if nome == "iwbk":
             bruto = ler_iwbk(caminho)
             norm = normalizar_iwbk(bruto)
+        elif nome == "me2n":
+            bruto = ler_me2n(caminho)
+            norm = normalizar_me2n(bruto)
         else:
             bruto = ler_csv_tracos(caminho)
             norm = {"requisicao": normalizar_requisicao,
