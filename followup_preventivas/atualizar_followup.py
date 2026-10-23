@@ -167,7 +167,7 @@ DESCR_STATUS = {
 # (cabeçalho, largura, chave interna). Chaves 'f_' = fórmula; 'm_' = digitada por você.
 COLS_FU = [
     ("Status de risco", 26, "f_status"), ("Item disponível?", 10, "f_disp"), ("OS SAP", 12, "os_sap"),
-    ("Descrição da OS", 34, "descricao_os"), ("Código material", 10, "codigo"),
+    ("Pedido SAP", 12, "pedido_sap"), ("Descrição da OS", 34, "descricao_os"), ("Código material", 10, "codigo"),
     ("Descrição do material", 34, "descricao"), ("Qtd", 6, "qtd"),
     ("Data de necessidade", 12, "f_nec"), ("Dias até a necessidade", 12, "f_dias_nec"),
     ("Etapa do funil", 30, "etapa_txt"), ("Quem cobrar", 38, "f_quem"),
@@ -178,7 +178,7 @@ COLS_FU = [
     # detalhes (recolhidos: clique no + acima das colunas para abrir)
     ("Prioridade", 8, "f_prio"), ("Un", 5, "unidade"), ("Preventiva", 9, "prev"), ("Origem da OS", 11, "origem_os"),
     ("Ativo", 36, "ativo"), ("Dias de atraso", 9, "f_atraso"), ("Dias na etapa atual", 10, "f_dias_etapa"),
-    ("Req. SAP", 12, "req_sap"), ("Pedido SAP", 12, "pedido_sap"), ("Fornecedor", 36, "fornecedor"),
+    ("Req. SAP", 12, "req_sap"), ("Fornecedor", 36, "fornecedor"),
     ("Valor do item (R$)", 14, "f_valor"), ("Etapa nº", 7, "etapa"), ("OS TracOS", 9, "os_tracos"),
     ("Qtd pendente", 9, "qtd_pendente"), ("Origem da data de necessidade", 26, "f_origem"),
     ("Data de necessidade (TracOS/SAP)", 12, "data_nec_tracos"), ("Data digitada para a OS", 12, "f_nec_manual"),
@@ -198,11 +198,11 @@ COLS_FU = [
 DETALHE_FU = {k for _, _, k in COLS_FU[COLS_FU.index(("Prioridade", 8, "f_prio")):]}
 # as outras abas só mostram o que foi digitado no Follow-up (cabeçalhos diferentes dos do Follow-up de propósito)
 COLS_REC = [
-    ("Situação", 28, "f_sit"), ("Recebido? (Follow-up)", 12, "f_marcar"),
-    ("Data receb. (Follow-up)", 12, "f_data_rec"), ("Local / kit (Follow-up)", 16, "f_local"),
-    ("Fornecedor", 32, "fornecedor"), ("Pedido SAP", 12, "pedido_sap"), ("OS SAP", 12, "os_sap"),
-    ("Descrição do material", 34, "descricao"), ("Qtd pedida", 8, "qtd"), ("Data de necessidade", 12, "f_nec"),
-    ("Dias até a necessidade", 12, "f_dias"), ("Itens que faltam na OS", 10, "f_falta_os"),
+    ("Situação", 28, "f_sit"), ("Recebido? (Follow-up)", 12, "f_marcar"), ("Pedido SAP", 12, "pedido_sap"),
+    ("OS SAP", 12, "os_sap"), ("Fornecedor", 32, "fornecedor"), ("Descrição do material", 34, "descricao"),
+    ("Qtd pedida", 8, "qtd"), ("Data de necessidade", 12, "f_nec"), ("Dias até a necessidade", 12, "f_dias"),
+    ("Itens que faltam na OS", 10, "f_falta_os"), ("Data receb. (Follow-up)", 12, "f_data_rec"),
+    ("Local / kit (Follow-up)", 16, "f_local"),
     # detalhes (recolhidos)
     ("Código material", 10, "codigo"), ("Un", 5, "unidade"), ("Preventiva", 9, "prev"),
     ("Descrição da OS", 40, "descricao_os"), ("Data da entrada (TracOS)", 12, "entrada_em"),
@@ -215,7 +215,7 @@ COLS_REC = [
 DETALHE_REC = {k for _, _, k in COLS_REC[COLS_REC.index(("Código material", 10, "codigo")):]}
 COLS_OS = [
     ("OS SAP", 12, "os_sap"), ("Descrição da OS", 38, "descricao_os"), ("Ativo", 28, "ativo"),
-    ("APTA PARA PROGRAMAR?", 27, "f_apta"), ("Itens que faltam", 50, "f_lista"),
+    ("APTA PARA PROGRAMAR?", 27, "f_apta"), ("Itens que faltam", 50, "f_lista"), ("Pedidos SAP da OS", 24, "pedidos_sap"),
     ("Data de necessidade (usada)", 12, "f_data"), ("Dias até a necessidade", 12, "f_dias"),
     ("Total de itens", 8, "f_total"), ("Itens faltando", 9, "f_falt"), ("✎ Preencher", 14, "f_ir"),
     ("Liberada em (Follow-up)", 12, "f_lib"), ("Observações dos itens (Follow-up)", 40, "f_obs"),
@@ -250,13 +250,13 @@ COLS_OUTRAS = [
     (COL_CHAVE, 24, "chave"),
 ]
 COLS_FORN = [
-    ("Fornecedor", 38, "fornecedor"), ("✉ Cobrar", 20, "f_mail"), ("E-mail (cadastro em Parâmetros)", 30, "f_email"),
-    ("Pedidos abertos", 9, "n_pedidos"),
-    ("Pedidos (TracOS / SAP)", 48, "pedidos"), ("Itens em aberto no TracOS", 9, "itens_abertos"),
+    ("Fornecedor", 38, "fornecedor"), ("✉ Cobrar", 20, "f_mail"), ("Pedidos SAP (TracOS)", 48, "pedidos"),
+    ("OS SAP afetadas", 26, "os_afetadas"), ("Pedidos abertos", 9, "n_pedidos"),
+    ("Itens em aberto no TracOS", 9, "itens_abertos"),
     ("Itens a receber (follow-up)", 10, "f_receber"), ("Itens com necessidade vencida", 11, "f_vencidos"),
     ("Atraso mais antigo (dias)", 10, "f_atraso"), ("Valor em aberto (R$)", 14, "valor_aberto"),
     ("Pedido mais antigo (emissão)", 13, "pedido_mais_antigo"), ("Dias desde a emissão", 10, "f_dias"),
-    ("OS afetadas", 22, "os_afetadas"), ("Itens sem OS identificada", 10, "itens_sem_os"),
+    ("E-mail (cadastro em Parâmetros)", 30, "f_email"), ("Itens sem OS identificada", 10, "itens_sem_os"),
     ("Link do e-mail (auxiliar)", 10, "f_url"),
 ]
 OCULTAS = {"f_grupo", "f_janela", "f_seq", "f_url", "f_marca", "faixa"}
@@ -976,7 +976,7 @@ def aba_followup(wb, L, man, FU, POS):
         for i in range(len(regs)):
             if i not in primeira:
                 ws[f"{c[k]}{LIN_1 + i}"].fill = PatternFill()
-    ws.freeze_panes = f"D{LIN_1}"
+    ws.freeze_panes = f"{get_column_letter(COLS_FU.index(('Pedido SAP', 12, 'pedido_sap')) + 2)}{LIN_1}"
     cf_palavras(ws, f"{c['f_status']}{LIN_1}:{c['f_status']}{ult}", f"${c['f_status']}{LIN_1}", CORES_STATUS)
     faixas_alternadas(ws, COLS_FU, ult)
     ws.conditional_formatting.add(f"{D}{LIN_1}:{D}{ult}", FormulaRule(
@@ -1000,7 +1000,7 @@ def aba_recebimento(wb, rec, FU, POS):
     ws = wb.create_sheet("Recebimento")
     ws.sheet_properties.tabColor = "70AD47"
     titulo(ws, "Recebimento de materiais – o que está chegando",
-           "Agrupado por situação, fornecedor e pedido (como o material chega). Só para consulta: marque o que "
+           "Agrupado por situação, fornecedor e pedido SAP (como o material chega). Só para consulta: marque o que "
            "chegou na coluna 'Recebido?' do Follow-up – clique em '✎ marcar' para ir direto à linha do item.")
     cabecalho(ws, LIN_CAB, COLS_REC)
     c = letras(COLS_REC)
@@ -1045,7 +1045,7 @@ def aba_recebimento(wb, rec, FU, POS):
               "qtd", "unidade", "f_dias", "pedido", "rec_tracos", "entrada"}
     ult = escrever_tabela(ws, COLS_REC, [x for _, x in rec.iterrows()], valor_de, fmts, centro, negrito={"f_sit"},
                           links={"f_falta_os", "f_marcar"}, detalhe=DETALHE_REC)
-    ws.freeze_panes = f"C{LIN_1}"
+    ws.freeze_panes = f"{get_column_letter(COLS_REC.index(('OS SAP', 12, 'os_sap')) + 2)}{LIN_1}"
     cf_palavras(ws, f"A{LIN_1}:A{ult}", f"$A{LIN_1}", CORES_REC)
     faixas_alternadas(ws, COLS_REC, ult)
     sem_link(ws, f"{c['f_marcar']}{LIN_1}:{c['f_marcar']}{ult}", f"{c['f_marcar']}{LIN_1}")
@@ -1166,7 +1166,7 @@ def aba_por_fornecedor(wb, pf, FU, ini_forn):
             return (f'=IF({EM}{r}="",HYPERLINK({cad},"✎ cadastrar e-mail"),'
                     f'HYPERLINK({URL}{r},"✉ Cobrar por e-mail"))')
         if k == "f_url":
-            saps = re.findall(r"SAP (\d+)", str(x["pedidos"]))
+            saps = [v for v in str(x["pedidos_sap"]).split(", ") if v]
             lista = ", ".join(saps)
             venc = " Os itens ja estao com a data de necessidade vencida." if x["_atraso"] > 0 else ""
             completo, curto = mailto_partes(
@@ -1518,9 +1518,12 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
         rf = LIN_1 + i
         pfr = lambda k: f"'Por Fornecedor'!{cf[k]}{rf}"
         cad = f'"#\'Parâmetros\'!B"&IFERROR(MATCH({pfr("fornecedor")},FORN_NOMES,0)+{ini_forn - 1},{ini_forn})'
+        saps = [v for v in str(pf.iloc[i]["pedidos_sap"]).split(", ") if v]
+        peds = ", ".join(saps[:3]) + (f" +{len(saps) - 3}" if len(saps) > 3 else "") if saps else \
+            f"{pf.iloc[i]['n_pedidos']} sem nº SAP"
         linhas.append([
             dict(v=f"=HYPERLINK(\"#'Por Fornecedor'!A{rf}\",{pfr('fornecedor')})", f=_fonte(10, COR_LINK, True)),
-            dict(v=f"={pfr('n_pedidos')}", f=_fonte(10, TINTA)),
+            dict(v=peds, f=_fonte(10, TINTA)),
             dict(v=f"={pfr('f_vencidos')}", f=_fonte(10, TINTA, True), zero=True),
             dict(v=f"={pfr('f_atraso')}", f=_fonte(10, TINTA), fmt='0" dias";-0;"–"'),
             dict(v=f"={pfr('valor_aberto')}", f=_fonte(10, TINTA), fmt='"R$" #,##0'),
@@ -1529,8 +1532,8 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
     nota = "clique no fornecedor para ver os pedidos" if len(atrasados) <= 10 else \
         f"10 de {len(atrasados)} – todos na aba Por Fornecedor"
     fim = cartao(lin, ESQ, "Fornecedores com pedidos atrasados", nota,
-                 [("FORNECEDOR", 4, "l"), ("PEDIDOS", 1, "c"), ("VENCIDOS", 1, "c"),
-                  ("MAIOR ATRASO", 2, "c"), ("VALOR EM ABERTO", 2, "r"), ("COBRAR", 3, "c")], linhas,
+                 [("FORNECEDOR", 3, "l"), ("PEDIDOS SAP", 3, "l"), ("VENCIDOS", 2, "c"),
+                  ("MAIOR ATRASO", 1, "c"), ("VALOR EM ABERTO", 2, "r"), ("COBRAR", 2, "c")], linhas,
                  vazio="Nenhum fornecedor com itens atrasados.")
     cartoes.append((lin, fim + 1, ESQ, FIM))
     ws.row_dimensions[fim + 1].height = 8

@@ -886,6 +886,7 @@ def _por_os(L, datas_os, liberadas, H=None):
         itens=("codigo", "size"), disponiveis=("disponivel", "sum"), faltando=("_falta", "sum"),
         a_caminho=("_caminho", "sum"), em_compra=("_compra", "sum"), falta_estoque=("_estoque", "sum"),
         fluxo_incompleto=("_r5", "any"), situacao=("etapa", resumo), origem_itens=("origem_os", "first"),
+        pedidos_sap=("pedido_sap", lambda s: ", ".join(sorted({str(x) for x in s.dropna()}))),
         pior_prio=("prioridade", "min"),
     ).reset_index()
     ret = H.groupby("os_sap").size() if H is not None and len(H) else pd.Series(dtype=int)
@@ -965,11 +966,12 @@ def _por_fornecedor(L, p, usados_p, hoje):
         atrasos = [(hoje - d).days for d in lf["data_necessidade"].dropna() if d < hoje]
         linhas.append(dict(
             fornecedor=fo, n_pedidos=len(peds),
-            pedidos="; ".join(f"#{k}" + (f" (SAP {v['sap']})" if not _na(v["sap"]) else "")
+            pedidos="; ".join((f"{v['sap']} (TracOS #{k})" if not _na(v["sap"]) else f"TracOS #{k} (sem nº SAP)")
                               for k, v in sorted(peds.items())),
             itens_abertos=len(ap) + int(lf["orig_ped"].isna().sum()),
             valor_aberto=valor, pedido_mais_antigo=min(criados) if criados else None,
-            os_afetadas=", ".join(f"#{int(o)}" for o in sorted(lf["os_tracos"].dropna().unique())),
+            pedidos_sap=", ".join(str(v["sap"]) for _, v in sorted(peds.items()) if not _na(v["sap"])),
+            os_afetadas=", ".join(sorted({str(o) for o in lf["os_sap"].dropna()})),
             itens_sem_os=len(sem_os), _atraso=max(atrasos) if atrasos else 0,
         ))
     out = pd.DataFrame(linhas)

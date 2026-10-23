@@ -80,7 +80,13 @@ Tudo recalcula na hora no Excel. Não é preciso rodar o script de novo depois d
 
 ## Como as tabelas estão organizadas
 
-- **Follow-up:** 11 colunas de consulta e as 6 colunas amarelas, que são as únicas que você preenche. As colunas técnicas (chaves, linhas de origem, dados do SAP, preço etc.) ficam recolhidas: clique no **+** acima das colunas para abrir.
+- **Nº da OS e do pedido SAP sempre à vista:** ficam nas colunas fixas da esquerda, que não saem da tela quando um link leva a outra coluna.
+  - Follow-up: `OS SAP` e `Pedido SAP`.
+  - Recebimento: `Pedido SAP` e `OS SAP`.
+  - Por Fornecedor: os pedidos SAP (com o nº TracOS entre parênteses) e as OS SAP afetadas, logo ao lado do fornecedor.
+  - Por OS: `Pedidos SAP da OS`.
+  - Painel: os pedidos SAP de cada fornecedor atrasado.
+- **Follow-up:** 12 colunas de consulta e as 6 colunas amarelas, que são as únicas que você preenche. As colunas técnicas (chaves, linhas de origem, dados do SAP, preço etc.) ficam recolhidas: clique no **+** acima das colunas para abrir.
 - **Follow-up em blocos por OS:** os itens de cada OS ficam juntos, com faixas de cor alternadas. As OS mais urgentes vêm primeiro.
 - **Recebimento por situação, fornecedor e pedido,** que é como o material chega. Os itens em falta no estoque vêm agrupados por OS.
 - **Só OS preventivas nas abas de trabalho.** Corretivas, compras e giro de estoque ficam na aba **Outras OS**.
