@@ -544,6 +544,10 @@ def cruzar(B, hoje, historico=None, prm=None, manuais=None, so_preventivas=False
 
     # itens do SAP já retirados/baixados para a ordem: não há o que fazer com eles; saem das abas de
     # trabalho e vão para o Histórico SAP (continuam contando nos totais da OS e na conciliação)
+    # origem da OS: se a OS existe no TracOS, ela é do TracOS – inclusive os itens que só o SAP mostra
+    # (ex.: componentes de estoque). 'origem' continua dizendo de onde veio cada item (uso técnico).
+    os_do_tracos = set(L.loc[L["origem"] != "SAP", "os_sap"].dropna())
+    L["origem_os"] = np.where(L["os_sap"].isin(os_do_tracos), "TracOS", "SAP")
     so_hist = L["sap_consumido"] & L["origem"].eq("SAP")
     H = L[so_hist].sort_values(["os_sap", "codigo"]).reset_index(drop=True)
     L = L[~so_hist].reset_index(drop=True)
@@ -844,7 +848,7 @@ def _por_os(L, datas_os, liberadas, H=None):
         centro_custo=("centro_custo", "first"), data_tracos=("data_nec_tracos", "min"),
         itens=("codigo", "size"), disponiveis=("disponivel", "sum"), faltando=("_falta", "sum"),
         a_caminho=("_caminho", "sum"), em_compra=("_compra", "sum"), falta_estoque=("_estoque", "sum"),
-        fluxo_incompleto=("_r5", "any"), situacao=("etapa", resumo), origem_itens=("origem", origem),
+        fluxo_incompleto=("_r5", "any"), situacao=("etapa", resumo), origem_itens=("origem_os", "first"),
         pior_prio=("prioridade", "min"),
     ).reset_index()
     ret = H.groupby("os_sap").size() if H is not None and len(H) else pd.Series(dtype=int)
@@ -867,7 +871,7 @@ def _recebimento(L, ped_sem_os, marcas, hoje):
     Componentes do SAP já retirados/baixados pela OS ficam de fora."""
     cols = ["chave", "os_sap", "os_tracos", "eh_preventiva", "descricao_os", "ativo", "codigo", "descricao",
             "qtd", "unidade", "fornecedor", "pedido", "pedido_sap", "status_pedido", "entrada", "entrada_em",
-            "nota_fiscal", "data_necessidade", "etapa", "origem"]
+            "nota_fiscal", "data_necessidade", "etapa", "origem", "origem_os"]
     a = L[((L["etapa"] >= 4) | (L["etapa"] == 0)) & ~L["sap_consumido"]][cols].copy()
     a["no_followup"] = True
     b = pd.DataFrame({
@@ -881,7 +885,7 @@ def _recebimento(L, ped_sem_os, marcas, hoje):
         "nota_fiscal": ped_sem_os["nota_fiscal"].values, "data_necessidade": pd.NaT,
         "etapa": [5 if (_etapa_pedido(s) == 5 or not _na(e)) else 4
                   for s, e in zip(ped_sem_os["status_pedido"], ped_sem_os["entrada"])],
-        "origem": "TracOS", "no_followup": False,
+        "origem": "TracOS", "origem_os": "TracOS", "no_followup": False,
     })
     out = pd.concat([a, b], ignore_index=True) if len(b) else a.reset_index(drop=True)
     out["recebido_tracos"] = out["etapa"] == 5

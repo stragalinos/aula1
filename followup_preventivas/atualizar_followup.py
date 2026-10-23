@@ -164,7 +164,7 @@ COLS_FU = [
     ("Data de necessidade", 12, "f_nec"), ("Dias até a necessidade", 11, "f_dias_nec"),
     ("Etapa do funil", 36, "etapa_txt"), ("Quem cobrar", 44, "f_quem"), (COL_OBS, 42, "m_obs"),
     # detalhes (recolhidos: clique no + acima das colunas para abrir)
-    ("Prioridade", 8, "f_prio"), ("Preventiva", 9, "prev"), ("Origem", 11, "origem"), ("Ativo", 36, "ativo"),
+    ("Prioridade", 8, "f_prio"), ("Preventiva", 9, "prev"), ("Origem da OS", 11, "origem_os"), ("Ativo", 36, "ativo"),
     ("Dias de atraso", 9, "f_atraso"), ("Dias na etapa atual", 10, "f_dias_etapa"),
     ("Req. SAP", 12, "req_sap"), ("Pedido SAP", 12, "pedido_sap"), ("Fornecedor", 36, "fornecedor"),
     ("Valor do item (R$)", 14, "f_valor"),
@@ -181,7 +181,7 @@ COLS_FU = [
     ("Confiança do vínculo", 44, "confianca"), ("Linhas de origem", 24, "origens"),
     ("Categoria SAP (N compra / L estoque)", 10, "categoria"), ("Disponibilidade no SAP (IWBK)", 44, "disponibilidade"),
     ("Qtd retirada (SAP)", 9, "qtd_retirada"), ("Data de remessa do pedido (SAP)", 12, "data_remessa"),
-    ("Reserva SAP", 12, "reserva"), (COL_CHAVE, 24, "chave"),
+    ("Reserva SAP", 12, "reserva"), ("Fonte do item (técnico)", 12, "origem"), (COL_CHAVE, 24, "chave"),
     ("Faixa (auxiliar)", 6, "faixa"),
 ]
 DETALHE_FU = {k for _, _, k in COLS_FU[COLS_FU.index(("Prioridade", 8, "f_prio")):]}
@@ -193,7 +193,7 @@ COLS_REC = [
     # detalhes (recolhidos)
     (REC_QTD, 9, "m_qtd"), ("Código material", 10, "codigo"), ("Un", 5, "unidade"), ("Preventiva", 9, "prev"),
     ("Descrição da OS", 40, "descricao_os"), ("Data da entrada (TracOS)", 12, "entrada_em"),
-    ("OS TracOS", 9, "os_tracos"), ("Origem", 10, "origem"), ("Etapa nº", 7, "etapa"), ("Ativo", 34, "ativo"),
+    ("OS TracOS", 9, "os_tracos"), ("Origem da OS", 10, "origem_os"), ("Etapa nº", 7, "etapa"), ("Ativo", 34, "ativo"),
     ("Pedido (TracOS)", 8, "pedido"), ("Status do pedido (TracOS/SAP)", 15, "status_pedido"),
     ("Entrada registrada (TracOS/SAP)?", 11, "rec_tracos"), ("Entrada", 8, "entrada"),
     ("Nota fiscal", 11, "nota_fiscal"), (COL_CHAVE, 24, "chave"),
@@ -212,7 +212,7 @@ COLS_OS = [
     ("Itens em risco 🔴", 9, "f_risco"), ("Lista de itens", 30, "lista_ok"),
     ("OS TracOS", 9, "os_tracos"), ("Itens já retirados (SAP)", 9, "retirados"),
     ("Valor pendente (R$)", 14, "f_valor"), ("Data de necessidade (TracOS/SAP)", 12, "data_tracos"),
-    ("Origem dos itens", 13, "origem_itens"), ("Situação das peças (na geração)", 34, "situacao"),
+    ("Origem da OS", 13, "origem_itens"), ("Situação das peças (na geração)", 34, "situacao"),
     ("Plano", 8, "plano"), ("Centro de custo", 26, "centro_custo"),
     # auxiliares do Painel (ocultas)
     ("Grupo (painel)", 12, "f_grupo"), ("Janela (painel)", 10, "f_janela"), ("Nº apta (painel)", 8, "f_seq"),
@@ -229,7 +229,7 @@ COLS_HIST = [
 ]
 COLS_OUTRAS = [
     ("OS SAP", 12, "os_sap"), ("OS TracOS", 9, "os_tracos"), ("Descrição da OS", 40, "descricao_os"),
-    ("Origem", 11, "origem"), ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
+    ("Origem da OS", 11, "origem_os"), ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
     ("Qtd", 7, "qtd"), ("Un", 5, "unidade"), ("Data de necessidade", 12, "data_necessidade"),
     ("Status (na geração)", 28, "status"), ("Etapa do funil", 36, "etapa_txt"), ("Req. SAP", 12, "req_sap"),
     ("Pedido SAP", 12, "pedido_sap"), ("Fornecedor", 34, "fornecedor"), ("Linhas de origem", 24, "origens"),
@@ -836,7 +836,7 @@ def aba_recebimento(wb, rec, man, FU, POS):
         return x[k]
 
     fmts = {"f_nec": FMT_DATA, "m_data": FMT_DATA, "entrada_em": FMT_DATA, "f_dias": FMT_DIAS}
-    centro = {"m_rec", "m_qtd", "m_data", "f_falta_os", "os_tracos", "os_sap", "etapa", "origem", "prev", "codigo",
+    centro = {"m_rec", "m_qtd", "m_data", "f_falta_os", "os_tracos", "os_sap", "etapa", "origem_os", "prev", "codigo",
               "qtd", "unidade",
               "f_dias", "pedido", "rec_tracos", "entrada"}
     ult = escrever_tabela(ws, COLS_REC, [x for _, x in rec.iterrows()], valor_de, fmts, centro, negrito={"f_sit"},
