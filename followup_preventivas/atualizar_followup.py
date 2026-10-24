@@ -167,7 +167,8 @@ DESCR_STATUS = {
 # (cabeçalho, largura, chave interna). Chaves 'f_' = fórmula; 'm_' = digitada por você.
 COLS_FU = [
     ("Status de risco", 26, "f_status"), ("Item disponível?", 10, "f_disp"), ("OS SAP", 12, "os_sap"),
-    ("RC SAP", 11, "req_sap"), ("Pedido SAP", 12, "pedido_sap"), ("Fornecedor", 30, "fornecedor"),
+    ("Origem", 9, "origem"), ("RC SAP", 11, "req_sap"), ("Pedido SAP", 12, "pedido_sap"),
+    ("Fornecedor", 30, "fornecedor"),
     ("Descrição da OS", 34, "descricao_os"), ("Código material", 10, "codigo"),
     ("Descrição do material", 34, "descricao"), ("Qtd", 6, "qtd"),
     ("Data de necessidade", 12, "f_nec"), ("Dias até a necessidade", 12, "f_dias_nec"),
@@ -192,7 +193,7 @@ COLS_FU = [
     ("Confiança do vínculo", 44, "confianca"), ("Linhas de origem", 24, "origens"),
     ("Categoria SAP (N compra / L estoque)", 10, "categoria"), ("Disponibilidade no SAP (IWBK)", 44, "disponibilidade"),
     ("Qtd retirada (SAP)", 9, "qtd_retirada"), ("Data de remessa do pedido (SAP)", 12, "data_remessa"),
-    ("Reserva SAP", 12, "reserva"), ("Fonte do item (técnico)", 12, "origem"), (COL_CHAVE, 24, "chave"),
+    ("Reserva SAP", 12, "reserva"), (COL_CHAVE, 24, "chave"),
     ("Faixa (auxiliar)", 6, "faixa"),
 ]
 DETALHE_FU = {k for _, _, k in COLS_FU[COLS_FU.index(("Prioridade", 8, "f_prio")):]}
@@ -1028,7 +1029,7 @@ def aba_followup(wb, L, man, FU, POS):
             "data_remessa": FMT_DATA, "m_data": FMT_DATA, "m_osdata": FMT_DATA, "m_oslib": FMT_DATA,
             "entrada_em": FMT_DATA, "preco": FMT_RS, "f_valor": FMT_RS, "f_dias_nec": FMT_DIAS,
             "f_dias_etapa": "0", "f_atraso": FMT_ATRASO}
-    centro = {"f_prio", "f_disp", "etapa", "prev", "os_tracos", "codigo", "qtd", "qtd_pendente", "m_rec", "m_data",
+    centro = {"f_prio", "f_disp", "etapa", "prev", "os_tracos", "codigo", "qtd", "qtd_pendente", "m_rec", "m_data", "origem",
               "m_osdata", "m_oslib", "unidade", "f_dias_nec", "f_atraso", "f_dias_etapa", "requisicao_txt", "pedido",
               "entrada"}
     ult = escrever_tabela(ws, COLS_FU, regs, valor_de, fmts, centro, detalhe=DETALHE_FU)
@@ -1039,6 +1040,12 @@ def aba_followup(wb, L, man, FU, POS):
                 ws[f"{c[k]}{LIN_1 + i}"].fill = PatternFill()
     ws.freeze_panes = f"{get_column_letter(COLS_FU.index(('Pedido SAP', 12, 'pedido_sap')) + 2)}{LIN_1}"
     cf_palavras(ws, f"{c['f_status']}{LIN_1}:{c['f_status']}{ult}", f"${c['f_status']}{LIN_1}", CORES_STATUS)
+    og = c["origem"]
+    for txt, fundo, letra in (("TracOS + SAP", "E2EFDA", "375623"), ("TracOS", "DDEBF7", "1F4E78"),
+                              ("SAP", "EDEDED", "404040")):
+        ws.conditional_formatting.add(f"{og}{LIN_1}:{og}{ult}", FormulaRule(
+            formula=[f'${og}{LIN_1}="{txt}"'], stopIfTrue=True, fill=PatternFill("solid", fgColor=fundo, bgColor=fundo),
+            font=Font(name=FONTE, bold=True, color=letra)))
     faixas_alternadas(ws, COLS_FU, ult)
     ws.conditional_formatting.add(f"{D}{LIN_1}:{D}{ult}", FormulaRule(
         formula=[f'{D}{LIN_1}="SIM"'], fill=PatternFill("solid", fgColor="C6EFCE", bgColor="C6EFCE"),

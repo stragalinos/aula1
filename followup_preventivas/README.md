@@ -34,7 +34,7 @@ As compras pedidas pelo TracOS não aparecem na IWBK: a IWBK só lista os compon
 - **Linhas do SAP:** os componentes da IWBK. Origem = SAP.
 - **Sem duplicar:** o script tenta casar as duas bases (abaixo). Hoje elas não têm itens em comum, então cada item aparece uma vez só, na base de onde veio.
 - **Onde ver o resultado:**
-  - a coluna recolhida `Fonte do item (técnico)` do Follow-up mostra `TracOS`, `SAP` ou `TracOS + SAP`, quando casou;
+  - a coluna `Origem` do Follow-up, ao lado da OS, mostra `TracOS`, `SAP` ou `TracOS + SAP`, quando casou;
   - o resumo está no aviso "IWBK (SAP)" da aba Divergências.
 
 ## IWBK do SAP (RC e itens que só existem no SAP)
@@ -109,7 +109,7 @@ Tudo recalcula na hora no Excel. Não é preciso rodar o script de novo depois d
 ## Como as tabelas estão organizadas
 
 - **Nº da OS e do pedido SAP sempre à vista:** ficam nas colunas fixas da esquerda, que não saem da tela quando um link leva a outra coluna.
-  - Follow-up: `OS SAP`, `RC SAP` e `Pedido SAP` nas colunas fixas; `Fornecedor` logo depois.
+  - Follow-up: `OS SAP`, `Origem` (TracOS / SAP), `RC SAP` e `Pedido SAP` nas colunas fixas; `Fornecedor` logo depois.
   - Recebimento: `Pedido SAP` e `OS SAP`.
   - Por Fornecedor: os pedidos SAP (com o nº TracOS entre parênteses) e as OS SAP afetadas, logo ao lado do fornecedor.
   - Por OS: `Pedidos SAP da OS`.
