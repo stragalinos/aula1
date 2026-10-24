@@ -138,11 +138,16 @@ Tudo recalcula na hora no Excel. Não é preciso rodar o script de novo depois d
 - **Sem contato cadastrado:** o botão mostra `✎ cadastrar` e leva à linha do fornecedor na carteira.
 
 **Mensagem padrão:**
-- Saudação: "Olá, *Contato*" ou "Prezados".
-- O pedido SAP, com o nº TracOS, a data de emissão e a OS.
-- Cada item em aberto: código, descrição, quantidade e data de necessidade, com "(vencida)" quando já passou.
-- O pedido de confirmar a data de entrega e informar a nota fiscal, se já faturou.
+- Assunto: "Cobrança de entrega – pedido SAP …", com **URGENTE** na frente quando há item com a necessidade vencida.
+- Saudação ("Olá, *Contato*" ou "Prezados") e um aviso de quantos itens já estão vencidos e de que a manutenção está aguardando o material.
+- **Tabela dos itens em aberto:** PEDIDO, ITEM (código e descrição), QTD e NECESSIDADE. No e-mail há também a coluna SITUAÇÃO (VENCIDA / no prazo).
+- Pedido de retorno em até 24 horas com:
+  1. a data de entrega confirmada de cada item;
+  2. a nota fiscal e a transportadora, se já faturou;
+  3. qualquer impedimento, para buscarmos alternativa.
 - A sua assinatura: parâmetro "Assinatura das mensagens de cobrança", na aba Parâmetros.
+- **No WhatsApp:** a tabela vai num bloco de fonte de largura fixa, com as colunas alinhadas. No WhatsApp Web fica certinha; em celular de tela estreita a linha pode quebrar.
+- **No e-mail:** as colunas são separadas por `|`. O link de e-mail do Excel só aceita texto simples, sem tabela formatada.
 
 **Envio:**
 - **E-mail:** abre no Outlook, ou no seu programa de e-mail, pronto para enviar. O texto do e-mail vai sem acentos, porque alguns Outlook trocam os acentos de links de e-mail.

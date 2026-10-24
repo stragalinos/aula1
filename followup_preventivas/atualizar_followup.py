@@ -426,55 +426,66 @@ def pedidos_do_fornecedor(itens):
     return [(k, v["data"], v["os"], v["itens"]) for k, v in grupos.items()]
 
 
+def _tabela_texto(cab, linhas, direita=(), sep=" | "):
+    """Tabela em texto: colunas alinhadas (em fonte de largura fixa) e separadas por sep."""
+    larg = [max(len(str(x)) for x in col) for col in zip(cab, *linhas)]
+
+    def fmt(row):
+        return sep.join(str(v).rjust(w) if j in direita else str(v).ljust(w)
+                        for j, (v, w) in enumerate(zip(row, larg))).rstrip()
+    traco = sep.replace(" ", "-").replace("|", "+")
+    return "\n".join([fmt(cab), traco.join("-" * w for w in larg)] + [fmt(r) for r in linhas])
+
+
 def mensagem_cobranca(pedidos, contato, assinatura, hoje, max_itens=MAX_ITENS_MSG):
-    """Texto padrão de cobrança: (assunto, corpo do e-mail, texto do WhatsApp). max_itens=0: só os números
-    dos pedidos (fornecedor com muitos pedidos, para o link não passar do limite)."""
+    """Texto padrão de cobrança: (assunto, corpo do e-mail, texto do WhatsApp), com os itens em tabela:
+    pedido, item, quantidade e data de necessidade. max_itens=0: só os números dos pedidos (fornecedor com
+    muitos pedidos, para o link não passar do limite)."""
     n_ped = len(pedidos)
-    plural = n_ped > 1
-    saud = f", {contato}" if contato else ""
-    blocos_mail, blocos_wpp, n = [], [], 0
+    itens = [(ped, l) for ped, _, _, its in pedidos for l in its]
+    venc = lambda l: not pd.isna(l["data_necessidade"]) and l["data_necessidade"] < hoje
+    vencidos = [l for _, l in itens if venc(l)]
+    num = lambda ped: ped.split(" (")[0].replace("SAP ", "")  # 'SAP 450... (TracOS #12)' -> '450...'
+    ref = f"pedido SAP {num(pedidos[0][0])}" if n_ped == 1 else f"{n_ped} pedidos em aberto"
+    urgente = "URGENTE – " if vencidos else ""
+    assunto = f"{urgente}Cobrança de entrega – {ref}"
+    aviso = (f"{len(vencidos)} {'item já está' if len(vencidos) == 1 else 'itens já estão'} com a data de "
+             f"necessidade vencida e a manutenção está aguardando o material." if vencidos else
+             "Os materiais são necessários para a manutenção preventiva programada.")
     if max_itens == 0:
-        lista = ", ".join(p.replace("SAP ", "") for p, _, _, _ in pedidos)
-        oss = sorted({o for _, _, os_, _ in pedidos for o in os_})
-        txt = f"Pedidos SAP: {lista}" + (f"\nOS: {', '.join(oss)}" if oss else "")
-        blocos_mail, blocos_wpp = [txt], [txt]
-        pedidos_lista = []
+        lista = ", ".join(num(p) for p, _, _, _ in pedidos)
+        tab_m = tab_w = f"Pedidos: {lista} ({len(itens)} itens)"
+        resto = ""
     else:
-        pedidos_lista = pedidos
-    for ped, data, oss, itens in pedidos_lista:
-        cab = f"Pedido {ped}" + (f" – emitido em {pd.Timestamp(data):%d/%m/%Y}" if data is not None else "") + \
-              (f" – OS {', '.join(oss)}" if oss else "")
-        linhas_m, linhas_w = [cab], [f"*{cab}*"]
-        for l in itens:
-            if n >= max_itens:
-                break
-            nec = l["data_necessidade"]
-            quando = "" if pd.isna(nec) else (f" – necessidade {nec:%d/%m/%Y}" + (" (vencida)" if nec < hoje else ""))
-            desc = f"{l['codigo']} {l['descricao']}".strip()
-            q = _qtd(l["qtd"], l.get("unidade"))
-            linhas_m.append(f"  - {desc}" + (f" – {q}" if q else "") + quando)
-            linhas_w.append(f"• {desc}" + (f" – {q}" if q else "") + quando)
-            n += 1
-        blocos_mail.append("\n".join(linhas_m))
-        blocos_wpp.append("\n".join(linhas_w))
-    total = sum(len(i) for _, _, _, i in pedidos)
-    resto = "" if max_itens == 0 else (f"\n(... e mais {total - n} itens)" if total > n else "")
-    vencido = any(not pd.isna(l["data_necessidade"]) and l["data_necessidade"] < hoje
-                  for _, _, _, i in pedidos for l in i)
-    alerta = (" Alguns itens já estão com a data de necessidade vencida e a manutenção depende deles."
-              if vencido else "")
-    pede = (f"Por favor, confirme a data de entrega de cada item e, se o material já foi faturado, informe o número "
-            f"da nota fiscal.{alerta}")
-    ref = (f"do pedido {pedidos[0][0]}" if not plural else f"dos {n_ped} pedidos abaixo")
-    assunto = (f"Cobrança de entrega – pedido {pedidos[0][0]}" if not plural
-               else f"Cobrança de entrega – {n_ped} pedidos em aberto")
+        mostra = itens[:max_itens]
+        nec = lambda l, fmt: "" if pd.isna(l["data_necessidade"]) else f"{l['data_necessidade']:{fmt}}"
+        qtd = lambda l: _qtd(l["qtd"], str(l.get("unidade") or "").upper() or None)
+        item = lambda l, n, s=" - ": f"{l['codigo']}{s}{l['descricao']}"[:n]
+        tab_m = _tabela_texto(
+            ["PEDIDO", "ITEM", "QTD", "NECESSIDADE", "SITUAÇÃO"],
+            [[num(p), item(l, 45), qtd(l), nec(l, "%d/%m/%Y"), "VENCIDA" if venc(l) else "no prazo"]
+             for p, l in mostra], direita={2})
+        # WhatsApp: bloco ``` (fonte de largura fixa) e colunas estreitas para caber na tela do celular
+        tab_w = "```\n" + _tabela_texto(
+            ["PEDIDO", "ITEM", "QTD", "NECESS."],
+            [[num(p), item(l, 24, " "), qtd(l), nec(l, "%d/%m/%y")] for p, l in mostra], direita={2},
+            sep=" ") + "\n```"
+        resto = f"\n(... e mais {len(itens) - len(mostra)} itens)" if len(itens) > len(mostra) else ""
+    pedido_ret = ("1. A data de entrega confirmada de cada item;\n"
+                  "2. O número da nota fiscal e a transportadora, se o material já foi faturado;\n"
+                  "3. Qualquer impedimento (falta de estoque, pendência comercial), para buscarmos alternativa.")
     corpo = ((f"Olá, {contato}," if contato else "Prezados,")
-             + f"\n\nSolicitamos a previsão de entrega {ref}, para a manutenção preventiva:\n\n"
-             + "\n\n".join(blocos_mail) + resto + f"\n\n{pede}\n\nAtenciosamente,"
+             + f"\n\nSolicitamos a entrega dos itens abaixo ({ref}). {aviso}\n\n"
+             + tab_m + resto
+             + f"\n\nPedimos o retorno em até 24 horas com:\n{pedido_ret}\n\n"
+             + "Sem esse retorno, a manutenção programada fica comprometida.\n\nAtenciosamente,"
              + (f"\n{assinatura}" if assinatura else ""))
-    wpp = (f"Olá{saud}!" + (f" Aqui é {assinatura}." if assinatura else "")
-           + f"\nPoderia nos informar a previsão de entrega {ref}?\n\n" + "\n\n".join(blocos_wpp) + resto
-           + f"\n\n{pede} Obrigado(a)!")
+    wpp = (f"*{assunto.upper()}*\n\n" + (f"Olá, {contato}!" if contato else "Olá!")
+           + (f" Aqui é {assinatura}." if assinatura else "")
+           + f"\nPrecisamos da entrega dos itens abaixo. {('⚠️ ' + aviso) if vencidos else aviso}\n\n"
+           + tab_w + resto
+           + "\n\nPor favor, nos retorne em até 24h com:\n1️⃣ data de entrega confirmada de cada item\n"
+             "2️⃣ nº da nota fiscal, se já faturou\n3️⃣ algum impedimento, para buscarmos alternativa\n\nObrigado(a)!")
     return assunto, corpo, wpp
 
 
@@ -510,16 +521,18 @@ def botoes_cobranca(nome_ref, pedidos, forn, man, prm, hoje):
         bt_m = ("✉ E-mail", url_m)
     else:
         completo, curto = mailto_partes(f"Cobranca de entrega - {ped_txt}",
-                                        [f"Prezados, favor informar a previsao de entrega - {ped_txt}. Obrigado.",
-                                         f"Favor informar a previsao de entrega - {ped_txt}."], limite=200)
+                                        [f"Prezados, solicitamos a data de entrega confirmada - {ped_txt}. "
+                                         f"Retorno em ate 24h, por favor.",
+                                         f"Solicitamos a data de entrega - {ped_txt}."], limite=200)
         e = f"INDEX(FORN_EMAILS,{m})"
         bt_m = (f'=IFERROR(IF({e}="",{cad("D")},HYPERLINK(IF(LEN("mailto:"&{e}&"{completo}")<=255,'
                 f'"mailto:"&{e}&"{completo}","mailto:"&{e}&"{curto}"),"✉ E-mail")),{cad("D")})', None)
     if url_w:
         bt_w = ("💬 WhatsApp", url_w)
     else:
-        txt = next((t for t in (f"Olá! Poderia nos informar a previsão de entrega - {ped_txt}? Obrigado(a)!",
-                                f"Previsão de entrega - {ped_txt}?")
+        txt = next((t for t in (f"COBRANÇA DE ENTREGA – {ped_txt}. Precisamos da data de entrega confirmada "
+                                f"em até 24h. Obrigado(a)!",
+                                f"Cobrança de entrega – {ped_txt}: data de entrega?")
                     if len(urllib.parse.quote(t, safe="")) <= 190), "")
         w = f"INDEX(FORN_WPP,{m})"
         bt_w = (f'=IFERROR(IF({w}="",{cad("E")},HYPERLINK("{WPP_WEB}"&{w}&"&text={urllib.parse.quote(txt, safe="")}",'
