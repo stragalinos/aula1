@@ -52,9 +52,12 @@ CAMPOS_ITEM = [REC_MARCA, REC_DATA, REC_LOCAL, COL_OBS]
 OS_DATA = "Data de necessidade da OS"
 OS_LIB = "OS liberada para a equipe em"
 CAMPOS_OS = [OS_DATA, OS_LIB]
-# cadastro (aba Parâmetros)
+# carteira de fornecedores (aba própria): contatos para os botões de cobrança
+ABA_CART = "Carteira de fornecedores"
+FORN_CONTATO = "Contato"
 FORN_EMAIL = "E-mail do fornecedor"
-ID_FORN = "forn_email"  # marca das linhas do cadastro de e-mails na coluna oculta 'id' de Parâmetros
+FORN_WPP = "WhatsApp (DDD + número)"
+ID_FORN = "forn_email"  # versões anteriores: e-mails no fim da aba Parâmetros (coluna oculta 'id')
 
 # versões anteriores tinham colunas digitadas em outras abas: são lidas só para migrar para o Follow-up
 REC_QTD_V = "Qtd recebida"
@@ -147,6 +150,9 @@ PARAMETROS = [
      "Usado no botão ✉ Cobrar das requisições paradas no nível 01 (Painel). Vários: separe com ';'."),
     ("email_almox", "EMAIL_ALMOX", "E-mail do almox corporativo (nível 02)", "",
      "Usado no botão ✉ Cobrar das requisições paradas no nível 02 (Painel)."),
+    ("assinatura", "ASSINATURA", "Assinatura das mensagens de cobrança", "",
+     "Vai no fim do e-mail e no começo do WhatsApp para o fornecedor. Ex.: João Silva – Planejamento de "
+     "Manutenção – (11) 99999-9999. Vale a partir da próxima atualização."),
     ("so_preventivas", "SO_PREVENTIVAS", "Abas de trabalho só com OS preventivas? (SIM / NÃO)", "SIM",
      "SIM = Por OS, Recebimento e Follow-up mostram só OS preventivas; as demais ficam na aba Outras OS. "
      "Mude para NÃO para ver todas. Vale a partir da próxima atualização."),
@@ -173,6 +179,7 @@ COLS_FU = [
     ("Descrição do material", 34, "descricao"), ("Qtd", 6, "qtd"),
     ("Data de necessidade", 12, "f_nec"), ("Dias até a necessidade", 12, "f_dias_nec"),
     ("Etapa do funil", 30, "etapa_txt"), ("Quem cobrar", 38, "f_quem"),
+    ("✉ Cobrar por e-mail", 12, "f_bt_email"), ("💬 Cobrar no WhatsApp", 13, "f_bt_wpp"),
     # o que você preenche: por item ...
     (REC_MARCA, 10, "m_rec"), (REC_DATA, 12, "m_data"), (REC_LOCAL, 16, "m_local"), (COL_OBS, 36, "m_obs"),
     # ... e por OS (na 1ª linha da OS)
@@ -251,16 +258,22 @@ COLS_OUTRAS = [
     (COL_CHAVE, 24, "chave"),
 ]
 COLS_FORN = [
-    ("Fornecedor", 38, "fornecedor"), ("✉ Cobrar", 20, "f_mail"), ("Pedidos SAP (TracOS)", 48, "pedidos"),
+    ("Fornecedor", 38, "fornecedor"), ("✉ Cobrar por e-mail", 12, "f_bt_email"),
+    ("💬 Cobrar no WhatsApp", 13, "f_bt_wpp"), ("Pedidos SAP (TracOS)", 48, "pedidos"),
     ("OS SAP afetadas", 26, "os_afetadas"), ("Pedidos abertos", 9, "n_pedidos"),
     ("Itens em aberto no TracOS", 9, "itens_abertos"),
     ("Itens a receber (follow-up)", 10, "f_receber"), ("Itens com necessidade vencida", 11, "f_vencidos"),
     ("Atraso mais antigo (dias)", 10, "f_atraso"), ("Valor em aberto (R$)", 14, "valor_aberto"),
     ("Pedido mais antigo (emissão)", 13, "pedido_mais_antigo"), ("Dias desde a emissão", 10, "f_dias"),
-    ("E-mail (cadastro em Parâmetros)", 30, "f_email"), ("Itens sem OS identificada", 10, "itens_sem_os"),
-    ("Link do e-mail (auxiliar)", 10, "f_url"),
+    ("Contato (carteira)", 20, "f_contato"), ("E-mail (carteira)", 28, "f_email"), ("WhatsApp (carteira)", 16, "f_wpp"),
+    ("Itens sem OS identificada", 10, "itens_sem_os"),
 ]
-OCULTAS = {"f_grupo", "f_janela", "f_seq", "f_url", "f_marca", "faixa"}
+COLS_CART = [
+    ("Fornecedor", 42, "fornecedor"), ("Código SAP", 10, "cod"), (FORN_CONTATO, 22, "m_contato"),
+    (FORN_EMAIL, 34, "m_email"), (FORN_WPP, 18, "m_wpp"), ("Pedidos em aberto agora", 11, "n_pedidos"),
+    ("Itens aguardando entrega", 11, "n_itens"), ("WhatsApp – só números (auxiliar)", 14, "f_wpp_num"),
+]
+OCULTAS = {"f_grupo", "f_janela", "f_seq", "f_url", "f_marca", "faixa", "f_wpp_num"}
 P_FAIXA = PatternFill("solid", fgColor="EDF2F9", bgColor="EDF2F9")
 LISTA_INCOMPLETA = "⚠ conferir no TracOS (fluxo incompleto)"
 
@@ -329,7 +342,8 @@ def link(loc, texto):
 
 
 def _ascii(t):
-    return unicodedata.normalize("NFKD", str(t)).encode("ascii", "ignore").decode()
+    t = str(t).replace("–", "-").replace("—", "-").replace("•", "-").replace("…", "...")
+    return unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode()
 
 
 def mailto_partes(assunto, corpos, limite=215):
@@ -353,6 +367,164 @@ def sem_link(ws, rng, canto):
 def formula_mailto(email_ref, completo, curto, texto, vazio):
     return (f'=IF({email_ref}="","{vazio}",HYPERLINK(IF(LEN("mailto:"&{email_ref}&"{completo}")<=255,'
             f'"mailto:"&{email_ref}&"{completo}","mailto:"&{email_ref}&"{curto}"),"{texto}"))')
+
+
+# ------------------------------------------------------------------ cobrança do fornecedor (e-mail / WhatsApp Web)
+WPP_WEB = "https://web.whatsapp.com/send?phone="
+MAX_ITENS_MSG = 20
+
+
+def fone_wpp(v):
+    """WhatsApp digitado (com ou sem DDI, parênteses, traço) -> só números com o 55; inválido -> None."""
+    if _vazio(v):
+        return None
+    d = re.sub(r"\D", "", str(v))
+    if len(d) in (10, 11):
+        d = "55" + d
+    return d if 12 <= len(d) <= 13 else None
+
+
+def emails(v):
+    """'a@x.com; b@y.com' -> 'a@x.com,b@y.com' (vários destinatários no mailto)."""
+    if _vazio(v):
+        return None
+    lista = [e.strip() for e in re.split(r"[;,]", str(v)) if "@" in e]
+    return ",".join(lista) or None
+
+
+def _qtd(q, un):
+    if pd.isna(q):
+        return ""
+    return f"{q:g} {un}" if isinstance(un, str) else f"{q:g}"
+
+
+def texto_pedido(l):
+    """'SAP 4501238253 (TracOS #12)', 'SAP 4501238253' ou 'TracOS #12'."""
+    sap = l["pedido_sap"] if not pd.isna(l["pedido_sap"]) else None
+    tr = None if pd.isna(l.get("pedido")) else int(l["pedido"])
+    if sap:
+        return f"SAP {sap}" + (f" (TracOS #{tr})" if tr else "")
+    return f"TracOS #{tr}" if tr else "sem número"
+
+
+def em_cobranca(L):
+    """Itens que dá para cobrar do fornecedor: pedido emitido, com fornecedor e ainda não disponível."""
+    return L[L["etapa"].eq(4) & L["fornecedor"].notna() & ~L["disponivel"].astype(bool)]
+
+
+def pedidos_do_fornecedor(itens):
+    """Itens em aberto (linhas do Follow-up) -> [(texto do pedido, data do pedido, [OS], [itens])]."""
+    grupos = {}
+    for _, l in itens.iterrows():
+        g = grupos.setdefault(texto_pedido(l), dict(data=None, os=[], itens=[]))
+        dp = l.get("criado_ped") if not pd.isna(l.get("criado_ped")) else l.get("data_pedido_sap")
+        if not pd.isna(dp) and dp is not None:
+            g["data"] = dp
+        if not pd.isna(l["os_sap"]) and str(l["os_sap"]) not in g["os"]:
+            g["os"].append(str(l["os_sap"]))
+        g["itens"].append(l)
+    return [(k, v["data"], v["os"], v["itens"]) for k, v in grupos.items()]
+
+
+def mensagem_cobranca(pedidos, contato, assinatura, hoje, max_itens=MAX_ITENS_MSG):
+    """Texto padrão de cobrança: (assunto, corpo do e-mail, texto do WhatsApp). max_itens=0: só os números
+    dos pedidos (fornecedor com muitos pedidos, para o link não passar do limite)."""
+    n_ped = len(pedidos)
+    plural = n_ped > 1
+    saud = f", {contato}" if contato else ""
+    blocos_mail, blocos_wpp, n = [], [], 0
+    if max_itens == 0:
+        lista = ", ".join(p.replace("SAP ", "") for p, _, _, _ in pedidos)
+        oss = sorted({o for _, _, os_, _ in pedidos for o in os_})
+        txt = f"Pedidos SAP: {lista}" + (f"\nOS: {', '.join(oss)}" if oss else "")
+        blocos_mail, blocos_wpp = [txt], [txt]
+        pedidos_lista = []
+    else:
+        pedidos_lista = pedidos
+    for ped, data, oss, itens in pedidos_lista:
+        cab = f"Pedido {ped}" + (f" – emitido em {pd.Timestamp(data):%d/%m/%Y}" if data is not None else "") + \
+              (f" – OS {', '.join(oss)}" if oss else "")
+        linhas_m, linhas_w = [cab], [f"*{cab}*"]
+        for l in itens:
+            if n >= max_itens:
+                break
+            nec = l["data_necessidade"]
+            quando = "" if pd.isna(nec) else (f" – necessidade {nec:%d/%m/%Y}" + (" (vencida)" if nec < hoje else ""))
+            desc = f"{l['codigo']} {l['descricao']}".strip()
+            q = _qtd(l["qtd"], l.get("unidade"))
+            linhas_m.append(f"  - {desc}" + (f" – {q}" if q else "") + quando)
+            linhas_w.append(f"• {desc}" + (f" – {q}" if q else "") + quando)
+            n += 1
+        blocos_mail.append("\n".join(linhas_m))
+        blocos_wpp.append("\n".join(linhas_w))
+    total = sum(len(i) for _, _, _, i in pedidos)
+    resto = "" if max_itens == 0 else (f"\n(... e mais {total - n} itens)" if total > n else "")
+    vencido = any(not pd.isna(l["data_necessidade"]) and l["data_necessidade"] < hoje
+                  for _, _, _, i in pedidos for l in i)
+    alerta = (" Alguns itens já estão com a data de necessidade vencida e a manutenção depende deles."
+              if vencido else "")
+    pede = (f"Por favor, confirme a data de entrega de cada item e, se o material já foi faturado, informe o número "
+            f"da nota fiscal.{alerta}")
+    ref = (f"do pedido {pedidos[0][0]}" if not plural else f"dos {n_ped} pedidos abaixo")
+    assunto = (f"Cobrança de entrega – pedido {pedidos[0][0]}" if not plural
+               else f"Cobrança de entrega – {n_ped} pedidos em aberto")
+    corpo = ((f"Olá, {contato}," if contato else "Prezados,")
+             + f"\n\nSolicitamos a previsão de entrega {ref}, para a manutenção preventiva:\n\n"
+             + "\n\n".join(blocos_mail) + resto + f"\n\n{pede}\n\nAtenciosamente,"
+             + (f"\n{assinatura}" if assinatura else ""))
+    wpp = (f"Olá{saud}!" + (f" Aqui é {assinatura}." if assinatura else "")
+           + f"\nPoderia nos informar a previsão de entrega {ref}?\n\n" + "\n\n".join(blocos_wpp) + resto
+           + f"\n\n{pede} Obrigado(a)!")
+    return assunto, corpo, wpp
+
+
+def links_cobranca(pedidos, contato, email, fone, assinatura, hoje):
+    """URLs completas (sem o limite de 255 do HIPERLINK: vão como link fixo da célula). O e-mail vai sem
+    acentos (alguns Outlook trocam os acentos do mailto); o WhatsApp vai com acentos."""
+    url_m = url_w = None
+    for max_itens in (MAX_ITENS_MSG, 10, 5, 0):
+        assunto, corpo, wpp = mensagem_cobranca(pedidos, contato, assinatura, hoje, max_itens)
+        if email:
+            url_m = (f"mailto:{email}?subject={urllib.parse.quote(_ascii(assunto), safe='')}"
+                     f"&body={urllib.parse.quote(_ascii(corpo).replace(chr(10), chr(13) + chr(10)), safe='')}")
+        if fone:
+            url_w = f"{WPP_WEB}{fone}&text={urllib.parse.quote(wpp, safe='')}"
+        if max(len(url_m or ""), len(url_w or "")) <= 2000:
+            break
+    return url_m, url_w
+
+
+def botoes_cobranca(nome_ref, pedidos, forn, man, prm, hoje):
+    """Valores das duas células de cobrança (e-mail, WhatsApp): (valor, link fixo ou None).
+    Com o contato já cadastrado: link fixo com a mensagem completa. Sem o contato: fórmula que mostra
+    '✎ cadastrar' (leva à carteira) e, assim que o contato for preenchido, cobra com uma mensagem curta."""
+    assin = str(prm.get("assinatura") or "").strip()
+    contato = man["forn_contato"].get(forn)
+    email, fone = emails(man["forn"].get(forn)), fone_wpp(man["forn_wpp"].get(forn))
+    url_m, url_w = links_cobranca(pedidos, contato, email, fone, assin, hoje)
+    peds = [p for p, _, _, _ in pedidos]
+    ped_txt = peds[0] if len(peds) == 1 else f"{len(peds)} pedidos em aberto"
+    m = f"MATCH({nome_ref},FORN_NOMES,0)"
+    cad = lambda col: f'HYPERLINK("#\'{ABA_CART}\'!{col}"&IFERROR({m}+{LIN_CAB},{LIN_1}),"✎ cadastrar")'
+    if url_m:
+        bt_m = ("✉ E-mail", url_m)
+    else:
+        completo, curto = mailto_partes(f"Cobranca de entrega - {ped_txt}",
+                                        [f"Prezados, favor informar a previsao de entrega - {ped_txt}. Obrigado.",
+                                         f"Favor informar a previsao de entrega - {ped_txt}."], limite=200)
+        e = f"INDEX(FORN_EMAILS,{m})"
+        bt_m = (f'=IFERROR(IF({e}="",{cad("D")},HYPERLINK(IF(LEN("mailto:"&{e}&"{completo}")<=255,'
+                f'"mailto:"&{e}&"{completo}","mailto:"&{e}&"{curto}"),"✉ E-mail")),{cad("D")})', None)
+    if url_w:
+        bt_w = ("💬 WhatsApp", url_w)
+    else:
+        txt = next((t for t in (f"Olá! Poderia nos informar a previsão de entrega - {ped_txt}? Obrigado(a)!",
+                                f"Previsão de entrega - {ped_txt}?")
+                    if len(urllib.parse.quote(t, safe="")) <= 190), "")
+        w = f"INDEX(FORN_WPP,{m})"
+        bt_w = (f'=IFERROR(IF({w}="",{cad("E")},HYPERLINK("{WPP_WEB}"&{w}&"&text={urllib.parse.quote(txt, safe="")}",'
+                f'"💬 WhatsApp")),{cad("E")})', None)
+    return bt_m, bt_w
 
 
 def cf_palavras(ws, rng, col_ref, cores):
@@ -462,7 +634,8 @@ def _anotacoes_vazias():
     nota_os / nota_div / nota_forn: observações das versões antigas (Por OS, Divergências, Por Fornecedor),
     que vão para a observação de um item do Follow-up quando ele existe;
     ident: {chave: (OS SAP, material)} das linhas da versão anterior, para achar o item quando a chave muda."""
-    return dict(item={}, os={}, forn={}, nota_os={}, nota_div={}, nota_forn={}, ident={})
+    return dict(item={}, os={}, forn={}, forn_wpp={}, forn_contato={}, nota_os={}, nota_div={}, nota_forn={},
+                ident={})
 
 
 def _juntar(a, b):
@@ -509,6 +682,10 @@ def guardar(man, aba, chave, col, v):
     elif aba in ("Fornecedor", "Por Fornecedor"):
         if col == FORN_EMAIL:
             man["forn"].setdefault(chave, str(v).strip())
+        elif col == FORN_WPP:
+            man["forn_wpp"].setdefault(chave, _k(v).strip())
+        elif col == FORN_CONTATO:
+            man["forn_contato"].setdefault(chave, str(v).strip())
         elif col == COL_OBS:
             man["nota_forn"][chave] = _juntar(man["nota_forn"].get(chave), v)
     elif aba == "Divergências" and col == COL_OBS:
@@ -564,7 +741,11 @@ def ler_versao_anterior(pasta_saida):
                 man["ident"].setdefault(_k(d.get("Chave")), tuple(str(d["Valor"]).split("|", 1)))
             else:
                 guardar(man, d.get("Aba"), _k(d.get("Chave")), d.get("Coluna"), d.get("Valor"))
-    # 4) cadastro de e-mails dos fornecedores (aba Parâmetros) e parâmetros
+    # 4) carteira de fornecedores; versões anteriores: e-mails no fim da aba Parâmetros
+    if ABA_CART in wb.sheetnames:
+        for d in _tabela(wb[ABA_CART], ["Fornecedor", FORN_EMAIL]):
+            for c in (FORN_EMAIL, FORN_WPP, FORN_CONTATO):
+                guardar(man, "Fornecedor", _k(d.get("Fornecedor")), c, d.get(c))
     prm, nomes_usados = {}, {}
     if "Parâmetros" in wb.sheetnames:
         ids = {p[0] for p in PARAMETROS}
@@ -579,7 +760,7 @@ def ler_versao_anterior(pasta_saida):
                 prm.setdefault("x_nivel01", row[1])
             elif row[3] in ids and row[3] != "data_ref":
                 v = row[1]
-                if row[3].startswith(("nome_", "email_", "so_")):
+                if row[3].startswith(("nome_", "email_", "so_", "assin")):
                     prm[row[3]] = "" if v is None else str(v)
                 elif isinstance(v, (int, float)):
                     prm[row[3]] = v
@@ -727,7 +908,7 @@ def anotacoes_sem_lugar(man, R):
 
 
 # ------------------------------------------------------------------ abas
-def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
+def aba_parametros(wb, prm, B, R, data_fixa, info_ant):
     ws = wb.create_sheet("Parâmetros")
     ws.sheet_properties.tabColor = "808080"
     titulo(ws, "Parâmetros e legenda",
@@ -756,30 +937,6 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
     ws.column_dimensions["D"].hidden = True
     lin = LIN_1 + len(PARAMETROS) + 1
 
-    # cadastro de e-mails dos fornecedores (botão ✉ Cobrar); fica salvo mesmo sem pedido aberto
-    lin += 1
-    cel(ws, (lin, 1), "E-mails dos fornecedores (botão ✉ Cobrar)", F_SECAO)
-    cel(ws, (lin, 3), "Cadastre uma vez: o e-mail fica salvo nas próximas atualizações. Vários e-mails: separe "
-                      "com ';'.", F_NOTA)
-    lin += 1
-    for j, t in enumerate(["Fornecedor", FORN_EMAIL, "Pedidos abertos nesta atualização"], 1):
-        cel(ws, (lin, j), t, F_CAB_ED if j == 2 else F_CAB, preench=P_CAB_ED if j == 2 else P_CAB, alin=AL_CAB)
-    lin += 1
-    pf = R["por_fornecedor"]
-    abertos = dict(zip(pf["fornecedor"], pf["n_pedidos"])) if len(pf) else {}
-    forns = sorted(set(abertos) | set(forn_emails), key=lambda x: _ascii(x).upper())
-    ini_forn = lin
-    for fo in forns or [None]:
-        cel(ws, (lin, 1), fo, F_NORMAL)
-        cel(ws, (lin, 2), forn_emails.get(fo), F_NORMAL, preench=P_EDITAVEL)
-        n = abertos.get(fo, 0)
-        cel(ws, (lin, 3), f"{n} pedido{'s' if n != 1 else ''} aberto{'s' if n != 1 else ''}" if n else
-            "sem pedido aberto agora", F_NOTA)
-        cel(ws, (lin, 4), ID_FORN, F_NOTA)
-        lin += 1
-    nome_definido(wb, "FORN_NOMES", f"'Parâmetros'!$A${ini_forn}:$A${lin - 1}")
-    nome_definido(wb, "FORN_EMAILS", f"'Parâmetros'!$B${ini_forn}:$B${lin - 1}")
-
     def secao(t):
         nonlocal lin
         lin += 1
@@ -805,9 +962,9 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
         (COL_OBS, "Anotação livre do item: cobrança, previsão de entrega, o que foi combinado."),
         ("Outras abas", "Recebimento, Por OS, Por Fornecedor e Divergências só mostram: o que você digita no "
          "Follow-up aparece nelas na hora. '✎ marcar' e '✎ Preencher' levam à linha certa do Follow-up."),
-        ("Links e botões", "Textos e números do Painel levam direto aos itens. ✉ Cobrar abre o e-mail pronto: "
-         "cadastre aqui os e-mails do gestor, do almox e dos fornecedores. Em cada aba, '⬅ Voltar ao Painel' "
-         "fica na célula A1."),
+        ("Links e botões", "Textos e números do Painel levam direto aos itens. ✉ E-mail e 💬 WhatsApp cobram o "
+         "fornecedor com a mensagem pronta: cadastre os contatos na aba Carteira de fornecedores (os e-mails do "
+         "gestor e do almox ficam aqui). Em cada aba, '⬅ Voltar ao Painel' fica na célula A1."),
         ("APTA PARA PROGRAMAR", "Só quando TODOS os itens da OS estão disponíveis. Item disponível = marcado SIM "
          "em Recebido? ou com entrada no TracOS/SAP (sem marca PARCIAL/NÃO)."),
     ])
@@ -932,7 +1089,7 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
     for a in R["alertas"]:
         lin += 1
         cel(ws, (lin, 1), "⚠ " + a, F_ALERTA)
-    return lin_avisos, ini_forn, lin_arquivos
+    return lin_avisos, lin_arquivos
 
 
 def escrever_tabela(ws, colunas, registros, valor_de, fmts, centro, negrito=(), links=(), detalhe=()):
@@ -957,7 +1114,7 @@ def escrever_tabela(ws, colunas, registros, valor_de, fmts, centro, negrito=(), 
     return ult
 
 
-def aba_followup(wb, L, man, FU, POS):
+def aba_followup(wb, L, man, FU, POS, prm, hoje):
     ws = wb.create_sheet("Follow-up")
     ws.sheet_properties.tabColor = "548235"
     titulo(ws, "Follow-up de peças por OS – é aqui que você preenche",
@@ -1003,6 +1160,15 @@ def aba_followup(wb, L, man, FU, POS):
     }
     campo = {"m_rec": REC_MARCA, "m_data": REC_DATA, "m_local": REC_LOCAL, "m_obs": COL_OBS,
              "m_osdata": OS_DATA, "m_oslib": OS_LIB}
+    # cobrança do fornecedor: a mensagem é do pedido inteiro (todos os itens dele ainda em aberto)
+    Lr = L.reset_index(drop=True)
+    cob = em_cobranca(Lr)
+    por_ped = {}
+    for i, l in cob.iterrows():
+        por_ped.setdefault((l["fornecedor"], texto_pedido(l)), []).append(i)
+    ped_linha = {i: k for k, idx in por_ped.items() for i in idx}
+    pedidos_k = {k: pedidos_do_fornecedor(cob.loc[idx]) for k, idx in por_ped.items()}
+    links_fixos = {}
     # campos da OS vão na 1ª linha de cada OS
     primeira = set(L.reset_index(drop=True).dropna(subset=["os_sap"]).drop_duplicates("os_sap").index)
     regs = [l for _, l in L.reset_index(drop=True).iterrows()]
@@ -1010,6 +1176,15 @@ def aba_followup(wb, L, man, FU, POS):
     def valor_de(k, l, r):
         if k in f:
             return f[k].format(r=r)
+        if k in ("f_bt_email", "f_bt_wpp"):
+            pk = ped_linha.get(r - LIN_1)
+            if pk is None:
+                return None
+            bt_m, bt_w = botoes_cobranca(f"{FO}{r}", pedidos_k[pk], pk[0], man, prm, hoje)
+            v, url = bt_m if k == "f_bt_email" else bt_w
+            if url:
+                links_fixos[(r, c[k])] = url
+            return v
         if k == "f_origem":
             orig = l["origem_data_tracos"] if isinstance(l["origem_data_tracos"], str) else ""
             return f'=IF(N({NM}{r})>0,"Digitada para a OS","{orig}")'
@@ -1030,9 +1205,19 @@ def aba_followup(wb, L, man, FU, POS):
             "entrada_em": FMT_DATA, "preco": FMT_RS, "f_valor": FMT_RS, "f_dias_nec": FMT_DIAS,
             "f_dias_etapa": "0", "f_atraso": FMT_ATRASO}
     centro = {"f_prio", "f_disp", "etapa", "prev", "os_tracos", "codigo", "qtd", "qtd_pendente", "m_rec", "m_data", "origem",
+              "f_bt_email", "f_bt_wpp",
               "m_osdata", "m_oslib", "unidade", "f_dias_nec", "f_atraso", "f_dias_etapa", "requisicao_txt", "pedido",
               "entrada"}
-    ult = escrever_tabela(ws, COLS_FU, regs, valor_de, fmts, centro, detalhe=DETALHE_FU)
+    ult = escrever_tabela(ws, COLS_FU, regs, valor_de, fmts, centro, links={"f_bt_email", "f_bt_wpp"},
+                          detalhe=DETALHE_FU)
+    for (r, col), url in links_fixos.items():
+        ws[f"{col}{r}"].hyperlink = url
+        ws[f"{col}{r}"].font = F_LINK_B
+    for k in ("f_bt_email", "f_bt_wpp"):  # item já disponível (marcado SIM): botão apagado
+        ws.conditional_formatting.add(f"{c[k]}{LIN_1}:{c[k]}{ult}", FormulaRule(
+            formula=[f'${D}{LIN_1}="SIM"'], font=Font(name=FONTE, color="A6A6A6", underline="none", bold=False)))
+        ws.conditional_formatting.add(f"{c[k]}{LIN_1}:{c[k]}{ult}", FormulaRule(
+            formula=[f'LEFT({c[k]}{LIN_1},1)="✎"'], font=Font(name=FONTE, color="808080", italic=True, bold=False)))
     # campos da OS: amarelos só na 1ª linha da OS (digitar em outra linha da mesma OS também vale)
     for k in ("m_osdata", "m_oslib"):
         for i in range(len(regs)):
@@ -1208,54 +1393,114 @@ def aba_por_os(wb, por_os, FU):
     paisagem(ws)
 
 
-def aba_por_fornecedor(wb, pf, FU, ini_forn):
+def aba_por_fornecedor(wb, pf, L, FU, man, prm, hoje):
     ws = wb.create_sheet("Por Fornecedor")
     ws.sheet_properties.tabColor = "BF8F00"
     titulo(ws, "Pedidos abertos por fornecedor (para cobrança)",
            "Pedidos e valor vêm da base de pedidos (inclui itens sem OS). Itens a receber, vencidos e atraso vêm "
-           "do Follow-up e já descontam o que você marcou como recebido. O e-mail é cadastrado uma vez na aba "
-           "Parâmetros ('✎ cadastrar e-mail').")
+           "do Follow-up e já descontam o que você marcou como recebido. ✉ / 💬 cobram todos os pedidos em aberto "
+           "do fornecedor; os contatos ficam na aba Carteira de fornecedores.")
     cabecalho(ws, LIN_CAB, COLS_FORN)
     c = letras(COLS_FORN)
+    m = "MATCH($A{r},FORN_NOMES,0)"
     f = {
         "f_receber": f'=COUNTIFS({FU["fornecedor"]},$A{{r}},{FU["etapa"]},4,{FU["f_disp"]},"NÃO")',
         "f_vencidos": f"=COUNTIFS({FU['fornecedor']},$A{{r}},{FU['etapa']},4,{FU['f_prio']},1)",
         "f_atraso": f"=SUMPRODUCT(MAX(({FU['fornecedor']}=$A{{r}})*({FU['etapa']}=4)*{FU['f_atraso']}))",
         "f_dias": f'=IF({c["pedido_mais_antigo"]}{{r}}="","",INT(DATA_REF)-INT({c["pedido_mais_antigo"]}{{r}}))',
+        "f_contato": f'=IFERROR(INDEX(FORN_CONTATOS,{m})&"","")',
+        "f_email": f'=IFERROR(INDEX(FORN_EMAILS,{m})&"","")',
+        "f_wpp": f'=IFERROR(INDEX(FORN_WPP_TXT,{m})&"","")',
     }
-    EM, URL = c["f_email"], c["f_url"]
-    f["f_email"] = '=IFERROR(INDEX(FORN_EMAILS,MATCH($A{r},FORN_NOMES,0))&"","")'
+    cob = em_cobranca(L)
+    links_fixos = {}
 
     def valor_de(k, x, r):
         if k in f:
             return f[k].format(r=r)
-        if k == "f_mail":
-            cad = f'"#\'Parâmetros\'!B"&IFERROR(MATCH($A{r},FORN_NOMES,0)+{ini_forn - 1},{ini_forn})'
-            return (f'=IF({EM}{r}="",HYPERLINK({cad},"✎ cadastrar e-mail"),'
-                    f'HYPERLINK({URL}{r},"✉ Cobrar por e-mail"))')
-        if k == "f_url":
-            saps = [v for v in str(x["pedidos_sap"]).split(", ") if v]
-            lista = ", ".join(saps)
-            venc = " Os itens ja estao com a data de necessidade vencida." if x["_atraso"] > 0 else ""
-            completo, curto = mailto_partes(
-                f"Previsao de entrega - pedidos SAP {lista}" if len(saps) <= 2 else "Previsao de entrega - pedidos em aberto",
-                [f"Prezados, favor informar a previsao de entrega dos pedidos SAP {lista}.{venc} Obrigado.",
-                 f"Prezados, favor informar a previsao de entrega dos pedidos SAP {lista}.",
-                 f"Previsao de entrega dos pedidos SAP {lista}?"])
-            return (f'=IF({EM}{r}="","",IF(LEN("mailto:"&{EM}{r}&"{completo}")<=255,"mailto:"&{EM}{r}&"{completo}",'
-                    f'"mailto:"&{EM}{r}&"{curto}"))')
+        if k in ("f_bt_email", "f_bt_wpp"):
+            itens = cob[cob["fornecedor"] == x["fornecedor"]]
+            if not len(itens):
+                return None
+            bt_m, bt_w = botoes_cobranca(f"$A{r}", pedidos_do_fornecedor(itens), x["fornecedor"], man, prm, hoje)
+            v, url = bt_m if k == "f_bt_email" else bt_w
+            if url:
+                links_fixos[(r, c[k])] = url
+            return v
         return x[k]
 
     fmts = {"f_atraso": FMT_ATRASO, "valor_aberto": FMT_RS, "pedido_mais_antigo": FMT_DATA}
     centro = {"n_pedidos", "itens_abertos", "f_receber", "f_vencidos", "f_atraso", "f_dias", "itens_sem_os",
-              "pedido_mais_antigo", "valor_aberto"}
+              "pedido_mais_antigo", "valor_aberto", "f_bt_email", "f_bt_wpp"}
     ult = escrever_tabela(ws, COLS_FORN, [x for _, x in pf.iterrows()], valor_de, fmts, centro,
-                          negrito={"fornecedor"}, links={"f_mail"})
+                          negrito={"fornecedor"}, links={"f_bt_email", "f_bt_wpp"})
+    for (r, col), url in links_fixos.items():
+        ws[f"{col}{r}"].hyperlink = url
+        ws[f"{col}{r}"].font = F_LINK_B
+    for k in ("f_bt_email", "f_bt_wpp"):
+        ws.conditional_formatting.add(f"{c[k]}{LIN_1}:{c[k]}{ult}", FormulaRule(
+            formula=[f'LEFT({c[k]}{LIN_1},1)="✎"'], font=Font(name=FONTE, color="808080", italic=True, bold=False)))
     ws.freeze_panes = f"B{LIN_1}"
-    sem_link(ws, f"{c['f_mail']}{LIN_1}:{c['f_mail']}{ult}", f"{c['f_mail']}{LIN_1}")
     ws.conditional_formatting.add(f"{c['f_vencidos']}{LIN_1}:{c['f_atraso']}{ult}", CellIsRule(
         operator="greaterThan", formula=["0"], fill=PatternFill("solid", fgColor="FFC7CE", bgColor="FFC7CE"),
         font=Font(name=FONTE, color="9C0006", bold=True)))
+    paisagem(ws)
+
+
+def aba_carteira(wb, R, B, man):
+    """Contatos dos fornecedores para os botões de cobrança. Lista os fornecedores das bases e os que já
+    tinham contato cadastrado; o que você digita volta na próxima atualização."""
+    ws = wb.create_sheet(ABA_CART)
+    ws.sheet_properties.tabColor = "BF8F00"
+    titulo(ws, "Carteira de fornecedores – contatos para a cobrança",
+           "Preencha uma vez as colunas amarelas (fica salvo nas próximas atualizações). Vários e-mails: separe com "
+           "';'. WhatsApp com DDD, ex.: (11) 99999-9999. Os botões ✉ e 💬 do Follow-up, da Por Fornecedor e do "
+           "Painel já cobram assim que o contato é preenchido; na próxima atualização a mensagem sai completa, com "
+           "os itens e as datas.")
+    todas = pd.concat([R["linhas"], R["historico_sap"], R["outras"]], ignore_index=True)
+    pf = R["por_fornecedor"]
+    abertos = dict(zip(pf["fornecedor"], pf["n_pedidos"])) if len(pf) else {}
+    cob = em_cobranca(R["linhas"])
+    n_itens = cob["fornecedor"].value_counts().to_dict()
+    cod = {}
+    if B.get("me2n"):
+        me = B["me2n"]["norm"]
+        cod = dict(zip(me["fornecedor"], me["fornecedor_cod"]))
+    nomes = set(todas["fornecedor"].dropna()) | set(abertos) | set(man["forn"]) | set(man["forn_wpp"]) | \
+        set(man["forn_contato"])
+    regs = [dict(fornecedor=n, cod=cod.get(n), n_pedidos=abertos.get(n, 0), n_itens=n_itens.get(n, 0))
+            for n in sorted(nomes, key=lambda x: _ascii(x).upper())] or [dict(fornecedor=None, cod=None, n_pedidos=0,
+                                                                              n_itens=0)]
+    cabecalho(ws, LIN_CAB, COLS_CART)
+    c = letras(COLS_CART)
+    W = c["m_wpp"]
+    so_num = (f'SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE({W}{{r}}&"","(",""),")",""),'
+              f'"-","")," ",""),"+",""),".","")')
+    f_num = f'=IF({W}{{r}}="","",IF(LEN({so_num})<=11,"55"&{so_num},{so_num}))'
+
+    def valor_de(k, x, r):
+        if k == "f_wpp_num":
+            return f_num.format(r=r)
+        if k.startswith("m_"):
+            fonte = {"m_contato": man["forn_contato"], "m_email": man["forn"], "m_wpp": man["forn_wpp"]}[k]
+            return fonte.get(x["fornecedor"])
+        return x[k]
+
+    ult = escrever_tabela(ws, COLS_CART, regs, valor_de, {}, {"cod", "n_pedidos", "n_itens", "m_wpp"},
+                          negrito={"fornecedor"})
+    for r in range(ult + 1, ult + 201):  # linhas livres para incluir fornecedores
+        ws[f"{c['f_wpp_num']}{r}"] = f_num.format(r=r)
+    for k in ("m_contato", "m_email", "m_wpp"):  # texto: o Excel não transforma o número do WhatsApp
+        for r in range(LIN_1, ult + 1):
+            ws[f"{c[k]}{r}"].number_format = "@"
+    for nome, k in (("FORN_NOMES", "fornecedor"), ("FORN_CONTATOS", "m_contato"), ("FORN_EMAILS", "m_email"),
+                    ("FORN_WPP_TXT", "m_wpp"), ("FORN_WPP", "f_wpp_num")):
+        nome_definido(wb, nome, f"'{ABA_CART}'!${c[k]}${LIN_1}:${c[k]}${ult + 200}")
+    dv = DataValidation(type="custom", formula1=f'ISNUMBER(SEARCH("@",{c["m_email"]}{LIN_1}))', allow_blank=True,
+                        errorTitle="E-mail", error="Digite um e-mail (com @). Vários: separe com ';'.")
+    dv.add(f"{c['m_email']}{LIN_1}:{c['m_email']}{ult + 200}")
+    ws.add_data_validation(dv)
+    ws.freeze_panes = f"B{LIN_1}"
     paisagem(ws)
 
 
@@ -1312,7 +1557,7 @@ def _fonte(tam=10, cor=TINTA, negrito=False, italico=False):
     return Font(name=FONTE, size=tam, color=cor, bold=negrito, italic=italico)
 
 
-def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
+def aba_painel(wb, R, FU, REC, POS, lin_avisos, B, lin_arquivos, man, prm):
     """Painel em cartões: faixa de título, menu, indicadores clicáveis e tabelas curtas lado a lado."""
     ws = wb.create_sheet("Painel", 0)
     ws.sheet_properties.tabColor = FUNDO_TOPO
@@ -1460,7 +1705,9 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
                     escrever(lin, j, j + n - 1, v, _fonte(9, d.get("cor", COR_AZUL)), h="b")
                     continue
                 v = d["v"](lin) if callable(d["v"]) else d["v"]
-                escrever(lin, j, j + n - 1, v, d.get("f", _fonte()), h=d.get("h", h), fmt=d.get("fmt"))
+                cc = escrever(lin, j, j + n - 1, v, d.get("f", _fonte()), h=d.get("h", h), fmt=d.get("fmt"))
+                if d.get("url"):
+                    cc.hyperlink = d["url"]
                 if d.get("acento"):
                     bordas(lin, j, j, left=Side(style="thick", color=d["acento"]))
                 if d.get("zero"):
@@ -1585,7 +1832,10 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
     for i in atrasados[:10]:
         rf = LIN_1 + i
         pfr = lambda k: f"'Por Fornecedor'!{cf[k]}{rf}"
-        cad = f'"#\'Parâmetros\'!B"&IFERROR(MATCH({pfr("fornecedor")},FORN_NOMES,0)+{ini_forn - 1},{ini_forn})'
+        itens = em_cobranca(R["linhas"])
+        itens = itens[itens["fornecedor"] == pf.iloc[i]["fornecedor"]]
+        bts = botoes_cobranca(pfr("fornecedor"), pedidos_do_fornecedor(itens), pf.iloc[i]["fornecedor"], man, prm,
+                              R["hoje"]) if len(itens) else ((None, None), (None, None))
         saps = [v for v in str(pf.iloc[i]["pedidos_sap"]).split(", ") if v]
         peds = ", ".join(saps[:3]) + (f" +{len(saps) - 3}" if len(saps) > 3 else "") if saps else \
             f"{pf.iloc[i]['n_pedidos']} sem nº SAP"
@@ -1595,13 +1845,13 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
             dict(v=f"={pfr('f_vencidos')}", f=_fonte(10, TINTA, True), zero=True),
             dict(v=f"={pfr('f_atraso')}", f=_fonte(10, TINTA), fmt='0" dias";-0;"–"'),
             dict(v=f"={pfr('valor_aberto')}", f=_fonte(10, TINTA), fmt='"R$" #,##0'),
-            dict(v=f'=IF({pfr("f_email")}="",HYPERLINK({cad},"✎ cadastrar e-mail"),'
-                   f'HYPERLINK({pfr("f_url")},"✉ Cobrar"))', f=_fonte(10, COR_LINK, True))])
-    nota = "clique no fornecedor para ver os pedidos" if len(atrasados) <= 10 else \
-        f"10 de {len(atrasados)} – todos na aba Por Fornecedor"
+            dict(v=bts[0][0], url=bts[0][1], f=_fonte(10, COR_LINK, True)),
+            dict(v=bts[1][0], url=bts[1][1], f=_fonte(10, COR_LINK, True))])
+    nota = link(local(ABA_CART, "C"), '"✎ contatos na Carteira de fornecedores"')
     fim = cartao(lin, ESQ, "Fornecedores com pedidos atrasados", nota,
                  [("FORNECEDOR", 3, "l"), ("PEDIDOS SAP", 3, "l"), ("VENCIDOS", 2, "c"),
-                  ("MAIOR ATRASO", 1, "c"), ("VALOR EM ABERTO", 2, "r"), ("COBRAR", 2, "c")], linhas,
+                  ("MAIOR ATRASO", 1, "c"), ("VALOR EM ABERTO", 2, "r"), ("E-MAIL", 1, "c"), ("WHATSAPP", 1, "c")],
+                 linhas,
                  vazio="Nenhum fornecedor com itens atrasados.")
     cartoes.append((lin, fim + 1, ESQ, FIM))
     ws.row_dimensions[fim + 1].height = 8
@@ -1777,7 +2027,7 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
 
     def cruzar():
         return cz.cruzar(B, hoje, ant["historico"],
-                         {k: v for k, v in prm.items() if not k.startswith(("nome_", "email_", "so_"))},
+                         {k: v for k, v in prm.items() if not k.startswith(("nome_", "email_", "so_", "assin"))},
                          manuais=manuais_para_cruzamento(man), so_preventivas=so_prev)
 
     R = cruzar()
@@ -1795,13 +2045,14 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
 
     wb = Workbook()
     wb.remove(wb.active)
-    lin_avisos, ini_forn, lin_arquivos = aba_parametros(wb, {**cz.PARAMETROS_PADRAO, **prm}, B, R, data_fixa, ant, man["forn"])
-    aba_followup(wb, R["linhas"], man, FU, POS)
+    lin_avisos, lin_arquivos = aba_parametros(wb, {**cz.PARAMETROS_PADRAO, **prm}, B, R, data_fixa, ant)
+    aba_followup(wb, R["linhas"], man, FU, POS, prm, R["hoje"])
     aba_recebimento(wb, R["recebimento"], FU, POS)
     aba_por_os(wb, R["por_os"], FU)
-    aba_por_fornecedor(wb, R["por_fornecedor"], FU, ini_forn)
+    aba_por_fornecedor(wb, R["por_fornecedor"], R["linhas"], FU, man, prm, R["hoje"])
+    aba_carteira(wb, R, B, man)
     aba_divergencias(wb, R["divergencias"], orfas)
-    aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos)
+    aba_painel(wb, R, FU, REC, POS, lin_avisos, B, lin_arquivos, man, prm)
     aba_historico_sap(wb, R["historico_sap"])
     aba_outras_os(wb, R["outras"], so_prev)
     aba_bases(wb, B)
@@ -1812,7 +2063,7 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
                [[nome, os.path.basename(c), b["md5"][c], dt.datetime.fromtimestamp(os.path.getmtime(c)),
                  "SIM" if c == b["arquivo"] else "NÃO"]
                 for nome, b in B.items() if b for c in b["candidatos"]], fmt_col="D")
-    ordem = ["Painel", "Follow-up", "Por OS", "Recebimento", "Por Fornecedor", "Divergências", "Histórico SAP",
+    ordem = ["Painel", "Follow-up", "Por OS", "Recebimento", "Por Fornecedor", ABA_CART, "Divergências", "Histórico SAP",
              "Outras OS", "Parâmetros", "Bases tratadas", "_historico", "_anotacoes", "_arquivos"]
     wb._sheets = [wb[n] for n in ordem]
     wb.active = 0
@@ -1867,7 +2118,7 @@ def resumo(R, destino, ant, orfas, B, movidos):
         print(f"  exportações antigas movidas para bases/antigos: {', '.join(movidos)}")
     m = ant["manuais"]
     print(f"Anotações reaproveitadas de: {os.path.basename(ant['arquivo']) if ant['arquivo'] else '(primeira versão)'}"
-          f"  |  {len(m['item'])} itens e {len(m['os'])} OS com anotação, {len(m['forn'])} e-mails de fornecedor, "
+          f"  |  {len(m['item'])} itens e {len(m['os'])} OS com anotação, {len(m['forn'])} e-mails e {len(m['forn_wpp'])} WhatsApp de fornecedor, "
           f"{len(orfas)} sem item atual")
     if ant.get("migrou") and (m["item"] or m["os"] or m["forn"]):
         print("  (versão anterior no formato antigo: o que estava digitado em Recebimento / Por OS / Por Fornecedor "

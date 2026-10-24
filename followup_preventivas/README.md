@@ -66,7 +66,7 @@ Outros efeitos da IWBK:
 - Sem a ME2N, esses itens aparecem sem fornecedor e "Quem cobrar" indica o comprador.
 
 **O que a ME2N preenche:** com a ME2N na pasta `bases`, cada item com pedido SAP é casado pelo **pedido + material**, ou só pelo pedido quando o material não bate. Com isso o item recebe:
-- **o fornecedor:** aparece em "Quem cobrar", no Recebimento, na aba Por Fornecedor (com ✉ Cobrar) e no Painel;
+- **o fornecedor:** aparece em "Quem cobrar", no Recebimento, na aba Por Fornecedor e no Painel, com os botões de cobrança;
 - **a data do pedido:** passa a ser o início da etapa 4, que é a base de "Dias na etapa";
 - **o preço:** só se o item não tiver preço e o pedido estiver em reais;
 - **a RC SAP dos pedidos do TracOS:** se o layout tiver a coluna `Requisição de compra`. O TracOS só informa a RC enquanto a requisição está pendente.
@@ -100,7 +100,7 @@ Você só preenche a aba **Follow-up**, nas colunas amarelas do fim da parte vis
 - **Atalhos para a linha certa:**
   - Recebimento: `✎ marcar` leva ao `Recebido?` do item no Follow-up.
   - Por OS: `✎ Preencher` leva à 1ª linha da OS no Follow-up.
-- **E-mails dos fornecedores:** são cadastro, não acompanhamento. Ficam na aba **Parâmetros**, junto com os do gestor e do almox. Digite uma vez e o e-mail fica salvo. O link `✎ cadastrar e-mail` leva à linha do fornecedor.
+- **Contatos dos fornecedores:** são cadastro, não acompanhamento. Ficam na aba **Carteira de fornecedores** (veja abaixo). Os e-mails do gestor e do almox ficam na aba Parâmetros.
 
 A OS só fica **APTA** quando **todos** os itens estão disponíveis. Um item está disponível quando você marcou SIM, ou quando o TracOS/SAP mostra entrada e não há marca PARCIAL ou NÃO. A coluna `Itens que faltam`, na aba Por OS, lista o que ainda falta em cada OS.
 
@@ -119,6 +119,39 @@ Tudo recalcula na hora no Excel. Não é preciso rodar o script de novo depois d
 - **Recebimento por situação, fornecedor e pedido,** que é como o material chega. Os itens em falta no estoque vêm agrupados por OS.
 - **Só OS preventivas nas abas de trabalho.** Corretivas, compras e giro de estoque ficam na aba **Outras OS**.
   - Para ver todas, mude o parâmetro "Abas de trabalho só com OS preventivas?" para **NÃO** na aba Parâmetros e atualize.
+
+## Cobrança do fornecedor: e-mail e WhatsApp Web
+
+**Carteira de fornecedores (cadastro):**
+- A aba lista todos os fornecedores das bases, com o código SAP (vindo da ME2N) e quantos pedidos e itens estão em aberto.
+- Preencha uma vez as colunas amarelas: `Contato`, `E-mail do fornecedor` e `WhatsApp (DDD + número)`. Fica salvo nas próximas atualizações.
+- **Vários e-mails:** separe com `;`.
+- **WhatsApp:** pode digitar como quiser (`(11) 99999-9999`, `11999999999`, `+55 11 ...`). O script tira os símbolos e põe o 55 do Brasil.
+- **Fornecedor que não está na lista:** inclua no fim da tabela, com o nome escrito igual ao das bases.
+
+**Botões nas linhas do Follow-up:**
+- Cada item com pedido emitido e ainda não disponível tem **✉ Cobrar por e-mail** e **💬 Cobrar no WhatsApp**.
+- A mensagem é do pedido inteiro: todos os itens dele ainda em aberto.
+
+**Botões nas outras abas:**
+- **Por Fornecedor e Painel** (cartão de fornecedores atrasados): os mesmos botões, cobrando todos os pedidos em aberto do fornecedor de uma vez.
+- **Sem contato cadastrado:** o botão mostra `✎ cadastrar` e leva à linha do fornecedor na carteira.
+
+**Mensagem padrão:**
+- Saudação: "Olá, *Contato*" ou "Prezados".
+- O pedido SAP, com o nº TracOS, a data de emissão e a OS.
+- Cada item em aberto: código, descrição, quantidade e data de necessidade, com "(vencida)" quando já passou.
+- O pedido de confirmar a data de entrega e informar a nota fiscal, se já faturou.
+- A sua assinatura: parâmetro "Assinatura das mensagens de cobrança", na aba Parâmetros.
+
+**Envio:**
+- **E-mail:** abre no Outlook, ou no seu programa de e-mail, pronto para enviar. O texto do e-mail vai sem acentos, porque alguns Outlook trocam os acentos de links de e-mail.
+- **WhatsApp:** abre o WhatsApp Web, já na conversa do fornecedor e com a mensagem escrita, com acentos. É preciso estar conectado ao WhatsApp Web no navegador.
+
+**Quando a mensagem sai completa:**
+- Assim que você cadastra o contato, o botão já funciona, mas com uma mensagem curta, porque links criados por fórmula no Excel têm no máximo 255 caracteres.
+- Na próxima atualização (rodar o `.bat`), a mensagem sai completa, com os itens e as datas.
+- Fornecedor com muitos pedidos: a mensagem lista só os números dos pedidos.
 
 ## Painel
 
@@ -143,10 +176,9 @@ Tudo recalcula na hora no Excel. Não é preciso rodar o script de novo depois d
   - requisições paradas.
 
   As cores seguem o estado: verde = ok, amarelo = atenção, laranja = sério, vermelho = crítico, azul = em andamento, cinza = encerrado. Cada linha também tem ícone e texto, e as barras mostram o tamanho de cada grupo.
-- **✉ Cobrar:** abre o e-mail pronto no Outlook.
-  - Fornecedor: já com os pedidos SAP.
-  - Requisição parada: já com o nº SAP, a OS e desde quando está pendente.
-  - O texto do e-mail vai sem acentos, por causa do limite de 255 caracteres dos links no Excel.
+- **Cobrar:**
+  - Fornecedores atrasados: ✉ e 💬, como no Follow-up.
+  - Requisição parada: ✉ Cobrar, já com o nº SAP, a OS e desde quando está pendente. O texto vai sem acentos, por causa do limite de 255 caracteres dos links no Excel.
 
 Não há macros: o arquivo é um `.xlsx` comum e abre sem aviso de segurança. Filtrar a tabela automaticamente ao clicar exigiria macro (`.xlsm`). Para ver todos os itens de um grupo, use o filtro do cabeçalho.
 
@@ -171,11 +203,12 @@ O script sempre lê a planilha mais recente da pasta `saida`. **Faça as marcaç
 | Follow-up | **Onde você preenche.** Uma linha por material × requisição × OS, em blocos por OS, as mais urgentes primeiro |
 | Por OS | APTA PARA PROGRAMAR?, itens que faltam, data de necessidade usada e liberação (consulta) |
 | Recebimento | Itens com pedido e em falta no estoque, por situação e fornecedor (consulta, com `✎ marcar`) |
-| Por Fornecedor | Pedidos abertos, valor e atraso mais antigo, para a cobrança |
+| Por Fornecedor | Pedidos abertos, valor e atraso mais antigo, com ✉ / 💬 para cobrar |
+| Carteira de fornecedores | Contato, e-mail e WhatsApp de cada fornecedor (cadastro) |
 | Divergências | Itens não casados, vínculos de baixa confiança, duplicidades, reservas antigas do SAP, alertas e anotações sem item |
 | Histórico SAP | Itens da IWBK já retirados ou baixados para a ordem (sem ação pendente) |
 | Outras OS | Itens de OS não preventivas (quando o parâmetro "só preventivas" está SIM) |
-| Parâmetros | Limites editáveis, e-mails (gestor, almox e fornecedores), legenda e conciliação de linhas |
+| Parâmetros | Limites editáveis, e-mails do gestor e do almox, assinatura das mensagens, legenda e conciliação de linhas |
 | Bases tratadas | As 3 bases já normalizadas, para auditoria |
 
 ## Arquivos
