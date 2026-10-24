@@ -1,8 +1,8 @@
-"""Atualiza a planilha de follow-up de peças para manutenção (bases do SAP).
+"""Atualiza a planilha de follow-up de peças para manutenção (TracOS).
 
 Uso:
-    1. Jogue as exportações novas do SAP na pasta ./bases: a IWBK (componentes das ordens) e, se quiser o
-       fornecedor dos pedidos, a ME2N
+    1. Jogue os downloads novos do TracOS na pasta ./bases
+       (requisição de compra *.csv, fluxo de compras *.csv, pedido de compra *.csv)
     2. Rode:  python atualizar_followup.py        (ou dê dois cliques em atualizar_followup.bat)
     3. A planilha sai em ./saida/followup_preventivas_AAAA-MM-DD.xlsx
 
@@ -32,8 +32,8 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.formula import ArrayFormula
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-import bases_sap as bs
 import cruzamento as cz
+import tracos_bases as tb
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 PREFIXO = "followup_preventivas_"
@@ -43,7 +43,7 @@ LIN_CAB = 4          # linha do cabeçalho nas abas de tabela (1 = voltar ao Pai
 LIN_1 = LIN_CAB + 1  # primeira linha de dados
 
 # o que você digita (colunas amarelas) fica todo na aba Follow-up e é preservado entre atualizações.
-# Por item (chave material | RC SAP | OS SAP):
+# Por item (chave material | requisição | OS):
 REC_MARCA = "Recebido?"
 REC_DATA = "Data do recebimento"
 REC_LOCAL = "Local / kit de separação"
@@ -129,22 +129,24 @@ PARAMETROS = [
     ("data_ref", "DATA_REF", "Data de referência", "=TODAY()",
      "Base de todos os cálculos de dias. Deixe =HOJE() para usar a data do dia; digite uma data fixa "
      "só para simular (volta a =HOJE() na próxima atualização)."),
-    ("x_aprov", "X_APROV", "X – dias máx. com a RC não liberada", 3,
-     "RC não liberada há mais dias que isso fica 🔴 PARADA NA APROVAÇÃO. Os dias contam desde a 1ª vez que "
-     "a atualização viu a RC (a IWBK não traz a data da RC)."),
-    ("y_sem_pedido", "Y_SEM_PEDIDO", "Y – dias máx. com a RC liberada sem pedido", 2,
-     "RC liberada há mais dias que isso, ainda sem pedido, fica 🟠 SEM PEDIDO."),
+    ("x_nivel01", "X_NIVEL01", "X – dias máx. aguardando o gestor (nível 01)", 3,
+     "Requisição no nível 01 há mais dias que isso fica 🔴 PARADA NA APROVAÇÃO."),
+    ("x_nivel02", "X_NIVEL02", "X – dias máx. aguardando o almox corporativo (nível 02)", 5,
+     "Requisição no nível 02 há mais dias que isso fica 🔴 PARADA NA APROVAÇÃO."),
+    ("y_sem_pedido", "Y_SEM_PEDIDO", "Y – dias máx. em compra autorizada sem pedido", 2,
+     "Item autorizado há mais dias que isso, ainda sem pedido, fica 🟠 SEM PEDIDO."),
     ("z_entrega", "Z_ENTREGA", "Z – antecedência mínima (dias) para a entrega", 5,
-     "Pedido emitido e faltando Z dias ou menos para a necessidade fica 🟠 ENTREGA EM RISCO (também fica "
-     "quando a entrega prevista do pedido é depois da necessidade)."),
-    ("nome_gestor", "NOME_GESTOR", "Aprovador das RC no SAP (gestor)", "",
-     "Aparece na coluna 'Quem cobrar' das RC não liberadas. Ex.: João Silva – ramal 1234"),
-    ("nome_almox", "NOME_ALMOX", "Contato do almoxarifado", "",
-     "Aparece na coluna 'Quem cobrar' dos itens de estoque em falta."),
+     "Pedido emitido e faltando Z dias ou menos para a necessidade fica 🟠 ENTREGA EM RISCO."),
+    ("nome_gestor", "NOME_GESTOR", "Nome do gestor da unidade (aprovador nível 01)", "",
+     "Aparece na coluna 'Quem cobrar'. Ex.: João Silva – ramal 1234"),
+    ("nome_almox", "NOME_ALMOX", "Contato do almox corporativo (nível 02)", "",
+     "Aparece na coluna 'Quem cobrar'."),
     ("nome_comprador", "NOME_COMPRADOR", "Nome do comprador", "",
-     "Aparece na coluna 'Quem cobrar' das RC liberadas sem pedido e dos pedidos sem fornecedor."),
-    ("email_gestor", "EMAIL_GESTOR", "E-mail do aprovador das RC", "",
-     "Usado no botão ✉ Cobrar das RC paradas (Painel). Vários: separe com ';'."),
+     "Aparece na coluna 'Quem cobrar' dos itens autorizados sem pedido."),
+    ("email_gestor", "EMAIL_GESTOR", "E-mail do gestor da unidade (nível 01)", "",
+     "Usado no botão ✉ Cobrar das requisições paradas no nível 01 (Painel). Vários: separe com ';'."),
+    ("email_almox", "EMAIL_ALMOX", "E-mail do almox corporativo (nível 02)", "",
+     "Usado no botão ✉ Cobrar das requisições paradas no nível 02 (Painel)."),
     ("so_preventivas", "SO_PREVENTIVAS", "Abas de trabalho só com OS preventivas? (SIM / NÃO)", "SIM",
      "SIM = Por OS, Recebimento e Follow-up mostram só OS preventivas; as demais ficam na aba Outras OS. "
      "Mude para NÃO para ver todas. Vale a partir da próxima atualização."),
@@ -152,13 +154,13 @@ PARAMETROS = [
 
 DESCR_STATUS = {
     1: "Data de necessidade já passou e o material não está disponível.",
-    2: "RC não liberada há mais de X dias.",
-    3: "RC liberada há mais de Y dias e ainda sem pedido.",
-    4: "Pedido emitido (ou estoque em falta) e faltam Z dias ou menos para a necessidade, ou a entrega prevista "
-       "do pedido é depois da necessidade.",
+    2: "Requisição pendente há mais de X dias (X do nível atual).",
+    3: "Compra autorizada há mais de Y dias e ainda sem pedido.",
+    4: "Pedido emitido e faltam Z dias ou menos para a necessidade.",
     5: "Tem data de necessidade e está dentro dos limites.",
-    6: "Material disponível: marcado SIM em 'Recebido?' no Follow-up ou com entrada / estoque no SAP.",
-    7: "Sem data de necessidade no SAP. Digite a data da OS no Follow-up (coluna 'Data de necessidade da OS').",
+    6: "Material disponível: marcado SIM em 'Recebido?' no Follow-up ou com entrada no TracOS/SAP.",
+    7: "Sem data de necessidade: o TracOS só informa a data quando o item entra no fluxo de compras. "
+       "Digite a data da OS no Follow-up (coluna 'Data de necessidade da OS').",
 }
 
 # ------------------------------------------------------------------ colunas das abas
@@ -169,86 +171,97 @@ COLS_FU = [
     ("Descrição da OS", 34, "descricao_os"), ("Código material", 10, "codigo"),
     ("Descrição do material", 34, "descricao"), ("Qtd", 6, "qtd"),
     ("Data de necessidade", 12, "f_nec"), ("Dias até a necessidade", 12, "f_dias_nec"),
-    ("Entrega prevista do pedido", 12, "data_remessa"), ("Etapa", 30, "etapa_txt"), ("Quem cobrar", 38, "f_quem"),
+    ("Etapa do funil", 30, "etapa_txt"), ("Quem cobrar", 38, "f_quem"),
     # o que você preenche: por item ...
     (REC_MARCA, 10, "m_rec"), (REC_DATA, 12, "m_data"), (REC_LOCAL, 16, "m_local"), (COL_OBS, 36, "m_obs"),
     # ... e por OS (na 1ª linha da OS)
     (OS_DATA, 12, "m_osdata"), (OS_LIB, 13, "m_oslib"),
     # detalhes (recolhidos: clique no + acima das colunas para abrir)
-    ("Prioridade", 8, "f_prio"), ("Un", 5, "unidade"), ("Preventiva", 9, "prev"), ("Ativo", 36, "ativo"),
-    ("Dias de atraso", 9, "f_atraso"), ("Dias na etapa atual", 10, "f_dias_etapa"),
-    ("Valor do item (R$)", 14, "f_valor"), ("Etapa nº", 7, "etapa"), ("Qtd pendente", 9, "qtd_pendente"),
-    ("Origem da data de necessidade", 26, "f_origem"), ("Data de necessidade (SAP)", 12, "data_nec_sap"),
-    ("Data digitada para a OS", 12, "f_nec_manual"), ("Início da etapa", 12, "inicio_etapa"),
-    ("Base do início da etapa", 26, "base_inicio"), ("Item da RC", 8, "rc_item"),
-    ("Status do pedido (SAP)", 18, "status_pedido"), ("Data do pedido (ME2N)", 12, "data_pedido"),
-    ("Preço unitário (R$)", 13, "preco"), ("Origem do preço", 26, "origem_preco"),
-    ("Grupo de compradores", 10, "grupo_compradores"), ("Vínculo com a ME2N", 30, "vinculo_me2n"),
-    ("Categoria (N compra / L estoque)", 10, "categoria"), ("Disponibilidade no SAP (IWBK)", 44, "disponibilidade"),
-    ("Qtd retirada", 9, "qtd_retirada"), ("Qtd entrada", 9, "qtd_entrada"), ("Item da lista técnica", 8, "item_lista"),
-    ("Reserva SAP", 12, "reserva"), ("Linha na IWBK", 8, "orig_sap"), ("Linha na ME2N", 8, "orig_me2n"),
-    (COL_CHAVE, 24, "chave"), ("Faixa (auxiliar)", 6, "faixa"),
+    ("Prioridade", 8, "f_prio"), ("Un", 5, "unidade"), ("Preventiva", 9, "prev"), ("Origem da OS", 11, "origem_os"),
+    ("Ativo", 36, "ativo"), ("Dias de atraso", 9, "f_atraso"), ("Dias na etapa atual", 10, "f_dias_etapa"),
+    ("Valor do item (R$)", 14, "f_valor"), ("Etapa nº", 7, "etapa"), ("OS TracOS", 9, "os_tracos"),
+    ("Qtd pendente", 9, "qtd_pendente"), ("Origem da data de necessidade", 26, "f_origem"),
+    ("Data de necessidade (TracOS/SAP)", 12, "data_nec_tracos"), ("Data digitada para a OS", 12, "f_nec_manual"),
+    ("Início da etapa", 12, "inicio_etapa"), ("Base do início da etapa", 30, "base_inicio"),
+    ("Requisição (TracOS)", 10, "requisicao_txt"), ("Nível de liberação", 22, "nivel_liberacao"),
+    ("Pedido (TracOS)", 8, "pedido"), ("Status do pedido", 15, "status_pedido"),
+    ("Preço unitário (R$)", 13, "preco"), ("Origem do preço", 17, "origem_preco"),
+    ("Entrada", 8, "entrada"), ("Data da entrada", 12, "entrada_em"), ("Nota fiscal", 11, "nota_fiscal"),
+    ("Local de estoque", 20, "local_estoque"), ("Centro de custo", 28, "centro_custo"),
+    ("Grupo de compradores", 30, "grupo_compradores"), ("Plano", 8, "plano"),
+    ("Confiança do vínculo", 44, "confianca"), ("Linhas de origem", 24, "origens"),
+    ("Categoria SAP (N compra / L estoque)", 10, "categoria"), ("Disponibilidade no SAP (IWBK)", 44, "disponibilidade"),
+    ("Qtd retirada (SAP)", 9, "qtd_retirada"), ("Data de remessa do pedido (SAP)", 12, "data_remessa"),
+    ("Reserva SAP", 12, "reserva"), ("Fonte do item (técnico)", 12, "origem"), (COL_CHAVE, 24, "chave"),
+    ("Faixa (auxiliar)", 6, "faixa"),
 ]
 DETALHE_FU = {k for _, _, k in COLS_FU[COLS_FU.index(("Prioridade", 8, "f_prio")):]}
 # as outras abas só mostram o que foi digitado no Follow-up (cabeçalhos diferentes dos do Follow-up de propósito)
 COLS_REC = [
     ("Situação", 28, "f_sit"), ("Recebido? (Follow-up)", 12, "f_marcar"), ("Pedido SAP", 12, "pedido_sap"),
     ("OS SAP", 12, "os_sap"), ("Fornecedor", 32, "fornecedor"), ("Descrição do material", 34, "descricao"),
-    ("Qtd", 7, "qtd"), ("Entrega prevista do pedido", 12, "data_remessa"), ("Data de necessidade", 12, "f_nec"),
-    ("Dias até a necessidade", 12, "f_dias"), ("Itens que faltam na OS", 10, "f_falta_os"),
-    ("Data receb. (Follow-up)", 12, "f_data_rec"), ("Local / kit (Follow-up)", 16, "f_local"),
+    ("Qtd pedida", 8, "qtd"), ("Data de necessidade", 12, "f_nec"), ("Dias até a necessidade", 12, "f_dias"),
+    ("Itens que faltam na OS", 10, "f_falta_os"), ("Data receb. (Follow-up)", 12, "f_data_rec"),
+    ("Local / kit (Follow-up)", 16, "f_local"),
     # detalhes (recolhidos)
     ("Código material", 10, "codigo"), ("Un", 5, "unidade"), ("Preventiva", 9, "prev"),
-    ("Descrição da OS", 40, "descricao_os"), ("Ativo", 34, "ativo"), ("Data do pedido (ME2N)", 12, "data_pedido"),
-    ("Etapa nº", 7, "etapa"), ("Status do pedido (SAP)", 18, "status_pedido"),
-    ("Entrada registrada no SAP?", 11, "rec_sap"), ("Qtd entrada", 9, "qtd_entrada"), (COL_CHAVE, 24, "chave"),
+    ("Descrição da OS", 40, "descricao_os"), ("Data da entrada (TracOS)", 12, "entrada_em"),
+    ("OS TracOS", 9, "os_tracos"), ("Origem da OS", 10, "origem_os"), ("Etapa nº", 7, "etapa"), ("Ativo", 34, "ativo"),
+    ("Pedido (TracOS)", 8, "pedido"), ("Status do pedido (TracOS/SAP)", 15, "status_pedido"),
+    ("Entrada registrada (TracOS/SAP)?", 11, "rec_tracos"), ("Entrada", 8, "entrada"),
+    ("Nota fiscal", 11, "nota_fiscal"), (COL_CHAVE, 24, "chave"),
     ("Marca (auxiliar)", 8, "f_marca"), ("Faixa (auxiliar)", 6, "faixa"),
 ]
 DETALHE_REC = {k for _, _, k in COLS_REC[COLS_REC.index(("Código material", 10, "codigo")):]}
 COLS_OS = [
-    ("OS SAP", 12, "os_sap"), ("Descrição da OS", 40, "descricao_os"),
+    ("OS SAP", 12, "os_sap"), ("Descrição da OS", 38, "descricao_os"), ("Ativo", 28, "ativo"),
     ("APTA PARA PROGRAMAR?", 27, "f_apta"), ("Itens que faltam", 50, "f_lista"), ("Pedidos SAP da OS", 24, "pedidos_sap"),
     ("Data de necessidade (usada)", 12, "f_data"), ("Dias até a necessidade", 12, "f_dias"),
     ("Total de itens", 8, "f_total"), ("Itens faltando", 9, "f_falt"), ("✎ Preencher", 14, "f_ir"),
     ("Liberada em (Follow-up)", 12, "f_lib"), ("Observações dos itens (Follow-up)", 40, "f_obs"),
     # detalhes (recolhidos)
-    ("Preventiva", 9, "prev"), ("Ativo", 30, "ativo"), ("Itens disponíveis", 9, "f_disp"),
-    ("A caminho (com pedido)", 9, "f_caminho"), ("Em RC (sem pedido)", 10, "f_compra"),
-    ("Falta em estoque (SAP)", 9, "f_estoque"), ("Itens em risco 🔴", 9, "f_risco"),
-    ("Itens já retirados (SAP)", 9, "retirados"), ("Valor pendente (R$)", 14, "f_valor"),
-    ("Data digitada (Follow-up)", 11, "f_mdata"), ("Data de necessidade (SAP)", 12, "data_sap"),
-    ("Situação das peças (na geração)", 34, "situacao"),
+    ("Preventiva", 9, "prev"), ("Itens disponíveis", 9, "f_disp"), ("A caminho (com pedido)", 9, "f_caminho"),
+    ("Em compra / aprovação", 10, "f_compra"), ("Falta em estoque (SAP)", 9, "f_estoque"),
+    ("Itens em risco 🔴", 9, "f_risco"), ("Lista de itens", 30, "lista_ok"),
+    ("OS TracOS", 9, "os_tracos"), ("Itens já retirados (SAP)", 9, "retirados"),
+    ("Valor pendente (R$)", 14, "f_valor"), ("Data digitada (Follow-up)", 11, "f_mdata"),
+    ("Data de necessidade (TracOS/SAP)", 12, "data_tracos"),
+    ("Origem da OS", 13, "origem_itens"), ("Situação das peças (na geração)", 34, "situacao"),
+    ("Plano", 8, "plano"), ("Centro de custo", 26, "centro_custo"),
     # auxiliares do Painel (ocultas)
     ("Grupo (painel)", 12, "f_grupo"), ("Janela (painel)", 10, "f_janela"), ("Nº apta (painel)", 8, "f_seq"),
 ]
 DETALHE_OS = {k for _, _, k in COLS_OS[COLS_OS.index(("Preventiva", 9, "prev")):]} - {"f_grupo", "f_janela", "f_seq"}
 COLS_HIST = [
-    ("OS SAP", 12, "os_sap"), ("Descrição da OS", 40, "descricao_os"), ("Preventiva", 9, "prev"),
-    ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
+    ("OS SAP", 12, "os_sap"), ("OS TracOS", 9, "os_tracos"), ("Descrição da OS", 40, "descricao_os"),
+    ("Preventiva", 9, "prev"), ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
     ("Qtd necessária", 9, "qtd"), ("Qtd retirada", 9, "qtd_retirada"), ("Un", 5, "unidade"),
-    ("Data de necessidade", 12, "data_nec_sap"), ("Situação", 30, "etapa_txt"),
+    ("Data de necessidade", 12, "data_nec_tracos"), ("Situação", 30, "etapa_txt"),
     ("Disponibilidade no SAP (IWBK)", 44, "disponibilidade"), ("Reserva SAP", 12, "reserva"),
-    ("RC SAP", 11, "req_sap"), ("Pedido SAP", 12, "pedido_sap"), ("Fornecedor", 30, "fornecedor"),
-    ("Linha na IWBK", 9, "orig_sap"), (COL_CHAVE, 24, "chave"),
+    ("RC SAP", 11, "req_sap"), ("Pedido SAP", 12, "pedido_sap"), ("Linha na IWBK", 9, "orig_sap"),
+    (COL_CHAVE, 24, "chave"),
 ]
 COLS_OUTRAS = [
-    ("OS SAP", 12, "os_sap"), ("Descrição da OS", 40, "descricao_os"), ("Código material", 10, "codigo"),
-    ("Descrição do material", 36, "descricao"), ("Qtd", 7, "qtd"), ("Un", 5, "unidade"),
-    ("Data de necessidade", 12, "data_necessidade"), ("Status (na geração)", 28, "status"),
-    ("Etapa", 32, "etapa_txt"), ("RC SAP", 11, "req_sap"), ("Pedido SAP", 12, "pedido_sap"),
-    ("Fornecedor", 30, "fornecedor"), ("Linha na IWBK", 9, "orig_sap"), (COL_CHAVE, 24, "chave"),
+    ("OS SAP", 12, "os_sap"), ("OS TracOS", 9, "os_tracos"), ("Descrição da OS", 40, "descricao_os"),
+    ("Origem da OS", 11, "origem_os"), ("Código material", 10, "codigo"), ("Descrição do material", 36, "descricao"),
+    ("Qtd", 7, "qtd"), ("Un", 5, "unidade"), ("Data de necessidade", 12, "data_necessidade"),
+    ("Status (na geração)", 28, "status"), ("Etapa do funil", 36, "etapa_txt"), ("Req. SAP", 12, "req_sap"),
+    ("Pedido SAP", 12, "pedido_sap"), ("Fornecedor", 34, "fornecedor"), ("Linhas de origem", 24, "origens"),
+    (COL_CHAVE, 24, "chave"),
 ]
 COLS_FORN = [
-    ("Fornecedor", 38, "fornecedor"), ("✉ Cobrar", 20, "f_mail"), ("Pedidos SAP", 48, "pedidos"),
+    ("Fornecedor", 38, "fornecedor"), ("✉ Cobrar", 20, "f_mail"), ("Pedidos SAP (TracOS)", 48, "pedidos"),
     ("OS SAP afetadas", 26, "os_afetadas"), ("Pedidos abertos", 9, "n_pedidos"),
+    ("Itens em aberto no TracOS", 9, "itens_abertos"),
     ("Itens a receber (follow-up)", 10, "f_receber"), ("Itens com necessidade vencida", 11, "f_vencidos"),
     ("Atraso mais antigo (dias)", 10, "f_atraso"), ("Valor em aberto (R$)", 14, "valor_aberto"),
     ("Pedido mais antigo (emissão)", 13, "pedido_mais_antigo"), ("Dias desde a emissão", 10, "f_dias"),
-    ("Entrega prevista mais próxima", 13, "entrega_prevista"),
-    ("E-mail (cadastro em Parâmetros)", 30, "f_email"), ("Link do e-mail (auxiliar)", 10, "f_url"),
+    ("E-mail (cadastro em Parâmetros)", 30, "f_email"), ("Itens sem OS identificada", 10, "itens_sem_os"),
+    ("Link do e-mail (auxiliar)", 10, "f_url"),
 ]
 OCULTAS = {"f_grupo", "f_janela", "f_seq", "f_url", "f_marca", "faixa"}
 P_FAIXA = PatternFill("solid", fgColor="EDF2F9", bgColor="EDF2F9")
+LISTA_INCOMPLETA = "⚠ conferir no TracOS (fluxo incompleto)"
 
 
 # ------------------------------------------------------------------ utilidades
@@ -561,8 +574,8 @@ def ler_versao_anterior(pasta_saida):
                 nomes_usados[row[0][len("Arquivo de "):]] = {"nomes": {str(row[1])}}
             elif row[3] == ID_FORN:
                 guardar(man, "Fornecedor", _k(row[0]), FORN_EMAIL, row[1])
-            elif row[3] == "x_nivel01" and isinstance(row[1], (int, float)):  # versões com o TracOS
-                prm.setdefault("x_aprov", row[1])
+            elif row[3] == "x_aprov" and isinstance(row[1], (int, float)):  # planilha da versão só com o SAP
+                prm.setdefault("x_nivel01", row[1])
             elif row[3] in ids and row[3] != "data_ref":
                 v = row[1]
                 if row[3].startswith(("nome_", "email_", "so_")):
@@ -577,12 +590,20 @@ def ler_versao_anterior(pasta_saida):
                 arquivos.setdefault(d["Base"], {"md5": set()})["md5"].add(str(d["MD5"]))
     else:
         arquivos = nomes_usados
-    hist = {}
-    if "_historico" in wb.sheetnames:
-        for d in _tabela(wb["_historico"], ["Chave", "Etapa", "Desde"]):
-            if d.get("Chave") and d.get("Etapa") and d.get("Desde"):
-                hist[str(d["Chave"])] = (int(d["Etapa"]), pd.Timestamp(d["Desde"]))
     wb.close()
+    # desde quando cada item está em cada etapa: da versão anterior e, para os itens que ela não tem (ex.: a
+    # planilha anterior foi gerada sem uma das bases), das duas antes dela
+    hist = {}
+    for arq in sorted(arqs, key=os.path.getmtime, reverse=True)[:3]:
+        try:
+            wh = load_workbook(arq, read_only=True, data_only=True)
+        except Exception:
+            continue
+        if "_historico" in wh.sheetnames:
+            for d in _tabela(wh["_historico"], ["Chave", "Etapa", "Desde"]):
+                if d.get("Chave") and d.get("Etapa") and d.get("Desde"):
+                    hist.setdefault(str(d["Chave"]), (int(d["Etapa"]), pd.Timestamp(d["Desde"])))
+        wh.close()
     return dict(arquivo=ant, manuais=man, historico=hist, prm=prm, migrou=not novo_formato, arquivos=arquivos)
 
 
@@ -597,12 +618,13 @@ RE_CHAVE_SAP = re.compile(r"^([^|]+)\|RC[^|]*\|OS(\d+)")
 
 
 def reposicionar_itens(man, todas):
-    """Anotação de item cuja chave não existe mais (o item era do TracOS, ou a RC dele mudou) vai para o item
-    da mesma OS + material, quando só há um. Devolve quantas anotações mudaram de lugar."""
+    """Anotação de item cuja chave não existe mais (ex.: a RC do item mudou) vai para o item da mesma
+    OS + material, quando só há um. Devolve quantas anotações mudaram de lugar."""
     atuais = set(todas["chave"])
     por_oc = {}
     for ch, o, c in zip(todas["chave"], todas["os_sap"], todas["codigo"]):
-        por_oc.setdefault((str(o), str(c)), []).append(ch)
+        if not pd.isna(o):
+            por_oc.setdefault((str(o), str(c)), []).append(ch)
     movidas = 0
     for ch in [k for k in man["item"] if k not in atuais]:
         oc = man["ident"].get(ch)
@@ -620,6 +642,25 @@ def reposicionar_itens(man, todas):
                 novo.setdefault(c, v)
         movidas += 1
     return movidas
+
+
+def migrar_chaves_os(man, B):
+    """Versões antigas guardavam anotações por nº da OS no TracOS; agora a chave é o nº SAP."""
+    mapa = {}
+    for nome in ("requisicao", "fluxo"):
+        for t, s_ in B[nome]["norm"][["os_tracos", "os_sap"]].dropna().itertuples(index=False):
+            mapa[str(int(t))] = str(s_)
+    for parte in ("os", "nota_os"):
+        novo = {}
+        for k, d in man[parte].items():
+            k2 = mapa.get(k, k) if len(k) < 8 else k
+            if parte == "os":
+                alvo = novo.setdefault(k2, {})
+                for c, v in d.items():
+                    alvo[c] = _maior(alvo.get(c), v)
+            else:
+                novo[k2] = _juntar(novo.get(k2), d)
+        man[parte] = novo
 
 
 def distribuir_notas(man, L):
@@ -675,7 +716,7 @@ def anotacoes_sem_lugar(man, R):
             for col, v in cols.items():
                 regs.append([aba, k, col, v])
             ident = man["ident"].get(k) if aba == "Follow-up" else None
-            if ident:  # para achar o item depois pela OS + material (ex.: compra do TracOS que chegar pela ME2N)
+            if ident:  # para achar o item depois pela OS + material
                 regs.append([aba, k, "_ident", "|".join(ident)])
             orfas.append(dict(tipo=TIPO_ORFA, gravidade="Info", base=aba, linha=None, chave=f"{aba}:{k}",
                               no_followup="NÃO", os=ident[0] if ident else None, codigo=ident[1] if ident else None,
@@ -754,47 +795,49 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
     secao("Gestão dos materiais – o que você preenche (tudo na aba Follow-up)")
     linhas_texto([
         ("Recebido?", "SIM = o material chegou e está separado para a OS. PARCIAL = chegou só parte (não libera a "
-         "OS). NÃO = não chegou, mesmo que o SAP mostre entrada. Em branco = vale a entrada / o estoque registrado "
-         "no SAP. Data do recebimento e Local / kit são opcionais."),
+         "OS). NÃO = não chegou, mesmo que o TracOS mostre entrada. Em branco = vale a entrada registrada no "
+         "TracOS/SAP. Data do recebimento e Local / kit são opcionais."),
         (OS_DATA, "Na 1ª linha de cada OS (célula amarela). Data em que a OS precisa das peças (ex.: data "
-         "programada). Vale para todos os itens da OS e manda sobre a data do SAP."),
+         "programada). Vale para todos os itens da OS e manda sobre a data do TracOS/SAP."),
         (OS_LIB, "Na 1ª linha da OS. Data em que você passou a OS para os colaboradores. Se faltar item, a OS "
          "aparece em vermelho: ⚠ LIBERADA FALTANDO."),
         (COL_OBS, "Anotação livre do item: cobrança, previsão de entrega, o que foi combinado."),
         ("Outras abas", "Recebimento, Por OS, Por Fornecedor e Divergências só mostram: o que você digita no "
          "Follow-up aparece nelas na hora. '✎ marcar' e '✎ Preencher' levam à linha certa do Follow-up."),
         ("Links e botões", "Textos e números do Painel levam direto aos itens. ✉ Cobrar abre o e-mail pronto: "
-         "cadastre aqui os e-mails do aprovador das RC e dos fornecedores. Em cada aba, '⬅ Voltar ao Painel' "
+         "cadastre aqui os e-mails do gestor, do almox e dos fornecedores. Em cada aba, '⬅ Voltar ao Painel' "
          "fica na célula A1."),
         ("APTA PARA PROGRAMAR", "Só quando TODOS os itens da OS estão disponíveis. Item disponível = marcado SIM "
-         "em Recebido? ou com entrada / estoque no SAP (sem marca PARCIAL/NÃO)."),
+         "em Recebido? ou com entrada no TracOS/SAP (sem marca PARCIAL/NÃO)."),
     ])
 
     secao("Regras fixas (no script)")
     linhas_texto([
-        ("Bases", "IWBK (obrigatória): componentes das ordens – material, quantidades, data de necessidade, RC, "
-         "pedido, entrada e retirada. ME2N (opcional): itens dos pedidos – fornecedor, data do pedido, preço e o que "
-         "falta fornecer. Exporte as duas com as mesmas OS (ME2N pela ordem / conta F)."),
-        ("Item do follow-up", "Cada componente da IWBK é uma linha. Item da ME2N com OS que não tem componente na "
-         "IWBK (ex.: compra pedida pelo TracOS, que cai no SAP como pedido da ordem) vira uma linha própria."),
-        ("Casamento IWBK × ME2N", "Pelo nº do pedido + material (1 para 1); sem o material, só pelo pedido (um "
-         "pedido tem um fornecedor só)."),
-        ("Etapas", "Estoque (L) em falta = 0; RC não liberada = 1; RC liberada sem pedido = 3; com pedido = 4; "
-         "entrada, estoque disponível ou nada a fornecer na ME2N = 5."),
-        ("Preventiva", "OS com 'PREV' na descrição ou com descrição iniciada por 'MSI' (manutenção sistemática). OS "
-         "que só aparece na ME2N fica nas abas de trabalho (o tipo dela não é conhecido)."),
-        ("Data de necessidade", "1º a data digitada para a OS (Follow-up); 2º a do componente na IWBK; 3º a de outro "
-         "item da mesma OS."),
+        ("Preventiva", "OS com 'PREV' na descrição, com nº de plano de manutenção ou com descrição iniciada por "
+         "'MSI_' (manutenção sistemática)."),
+        ("Data de necessidade", "1º a data digitada para a OS (Follow-up); 2º a do item no fluxo do TracOS ou na IWBK do "
+         "SAP; 3º a de outro item da mesma OS. A base de requisição do TracOS não traz data."),
+        ("IWBK (SAP) – opcional", "Arquivo '*IWBK*.xlsx' na pasta bases. Casa com o TracOS por OS + material + RC, "
+         "OS + material + pedido, OS + material, material + RC e material + pedido. O que não casar entra como "
+         "item 'SAP': estoque (L) em falta = etapa 0; RC não liberada = 1; RC liberada sem pedido = 3; com pedido = 4; "
+         "entrada, retirada ou disponível em estoque = 5. A IWBK não traz fornecedor."),
+        ("ME2N (SAP) – opcional", "Arquivo '*ME2N*.xlsx' na pasta bases (lista de pedidos do SAP com o fornecedor). "
+         "Preenche o fornecedor dos itens que só existem no SAP (a IWBK não traz fornecedor), casando por pedido + "
+         "material; traz também a data do pedido (início da etapa 4) e o preço, se faltar. Exporte com os pedidos "
+         "em aberto das OS (a mesma seleção da IWBK)."),
         ("Material já retirado (SAP)", "Itens já retirados/baixados para a ordem vão para a aba Histórico SAP e saem "
          "do Follow-up, do Recebimento e da Por OS (contam como disponíveis no total da OS). OS com todo o material "
          "retirado aparecem no Painel como ✔ MATERIAL JÁ RETIRADO (SAP)."),
-        ("Preço e valor", "Preço líquido do pedido na ME2N (só em reais); valor = quantidade × preço. Itens sem "
-         "pedido ficam sem valor."),
-        ("Dias na etapa", "Etapa 4: desde a data do pedido (ME2N). Nas outras: desde a 1ª vez que a atualização viu "
-         "o item na etapa (a IWBK não traz a data da RC)."),
-        ("Chave das anotações", "Item: material | RC SAP | OS SAP (+ sequencial quando o trio se repete). OS: nº "
-         "SAP. Se a chave mudar (ex.: o item ganhou RC), a anotação vai para o item da mesma OS + material. Se o "
-         "item sumir das bases, a anotação vai para Divergências e volta quando ele reaparecer."),
+        ("Preço do item", "Entrada > negociado > estimado (R$ 1,00 do TracOS é ignorado como 'sem preço') > "
+         "preço do mesmo material em outra linha do fluxo ('ref.')."),
+        ("Valor do item", "Quantidade × preço unitário. A requisição e o pedido não trazem preço por item: "
+         "itens sem preço ficam sem valor."),
+        ("Dias na etapa", "Etapas 1/2: 'Criado em' da requisição (no nível 02, a partir da 1ª vez que o script "
+         "viu o item no nível 02). Etapa 3: 1ª vez que o script viu o item autorizado. "
+         "Etapa 4: 'Criado em' do pedido. Etapa 5: data da entrada."),
+        ("Chave das anotações", "Item: material | requisição | OS (+ sequencial quando o trio se repete). "
+         "OS: nº SAP. Se o item sumir das bases, a anotação vai para Divergências e volta quando ele "
+         "reaparecer."),
     ])
 
     secao("Legenda – status de risco (em ordem de prioridade)")
@@ -810,24 +853,42 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
                  0: "Tem pedido, não chegou e a data de necessidade já passou.",
                  1: "Tem pedido e ainda não chegou.", 2: "Você marcou PARCIAL no Follow-up: não libera a OS.",
                  3: "Você marcou NÃO no Follow-up.", 4: "Você marcou SIM no Follow-up.",
-                 5: "Entrada registrada no SAP (sem marca sua)."}
+                 5: "Entrada registrada no TracOS ou no SAP (sem marca sua)."}
     for k, txt in cz.SITUACAO_REC.items():
         fundo, letra = next((f, l) for w, f, l in CORES_REC if w in txt)
         cel(ws, (lin, 1), txt, Font(name=FONTE, bold=True, color=letra), preench=PatternFill("solid", fgColor=fundo))
         cel(ws, (lin, 2), descr_rec[k], F_NORMAL)
         lin += 1
 
-    secao("Legenda – etapas")
-    quem = {0: "Almoxarifado (reposição do estoque)", 1: "Aprovador da RC no SAP (gestor)",
-            3: "Comprador (emitir o pedido); sem RC: planejamento (criar a RC)",
-            4: "Fornecedor (ou comprador, se o pedido não estiver na ME2N)", 5: "— (retirar no almoxarifado)"}
+    secao("Legenda – etapas do funil")
+    quem = {0: "Almoxarifado (reposição do estoque)", 1: "Gestor da unidade / aprovador da RC no SAP",
+            2: "Almox corporativo", 3: "Comprador", 4: "Fornecedor (ou comprador, se o pedido for só do SAP)",
+            5: "— (retirar no almoxarifado)"}
     for e, txt in cz.ETAPAS.items():
         cel(ws, (lin, 1), txt, F_NEGRITO)
         cel(ws, (lin, 2), f"Quem cobrar: {quem[e]}", F_NORMAL)
         lin += 1
 
-    secao("Legenda – vínculo com a ME2N")
-    linhas_texto([(v, "") for v in cz.VINCULO.values()])
+    secao("Legenda – confiança do vínculo (ordem em que as regras são testadas)")
+    expl = {
+        "R1": "Fluxo ↔ pedido pelo material + requisição + nº do pedido.",
+        "R2": "Material + nº da requisição (fluxo ↔ pedido, requisição ↔ fluxo ou requisição ↔ pedido).",
+        "R3": "Material + nº do pedido.",
+        "R4": "Material + OS (requisição ↔ fluxo). Vai também para Divergências.",
+        "R5": "Item do pedido fora do fluxo: a requisição dele só tem uma OS, então a OS foi deduzida. "
+              "Vai também para Divergências.",
+        "SO_REQ": "Requisição pendente: ainda não tem fluxo nem pedido (é o esperado).",
+        "SO_FLX": "Compra autorizada que ainda não virou pedido.",
+        "FLX_SEM_PED": "Fluxo diz que há pedido, mas ele não veio na exportação de pedidos.",
+        "S1": "IWBK ↔ TracOS pela OS SAP + material + nº da RC SAP.",
+        "S2": "IWBK ↔ TracOS pela OS SAP + material + nº do pedido SAP.",
+        "S3": "IWBK ↔ TracOS pela OS SAP + material.",
+        "S4": "IWBK ↔ TracOS pelo material + nº da RC SAP.",
+        "S5": "IWBK ↔ TracOS pelo material + nº do pedido SAP.",
+        "SO_SAP": "Item de compra que só existe no SAP (RC/pedido criado direto no SAP).",
+        "SO_SAP_L": "Componente de estoque reservado para a ordem no SAP (o TracOS não mostra).",
+    }
+    linhas_texto([(txt, expl[k]) for k, txt in cz.CONFIANCA.items()])
 
     secao("Esta atualização")
     cel(ws, (lin, 1), "Gerado em", F_NEGRITO)
@@ -838,7 +899,7 @@ def aba_parametros(wb, prm, B, R, data_fixa, info_ant, forn_emails):
     cel(ws, (lin, 2), os.path.basename(info_ant["arquivo"]) if info_ant["arquivo"] else "(primeira versão)")
     lin += 1
     lin_arquivos = lin
-    for nome in bs.PADROES:
+    for nome in ("requisicao", "fluxo", "pedido", "iwbk", "me2n"):
         if not B.get(nome):
             continue
         arq = B[nome]["arquivo"]
@@ -895,18 +956,11 @@ def escrever_tabela(ws, colunas, registros, valor_de, fmts, centro, negrito=(), 
     return ult
 
 
-def _preventiva(prev, descricao_os):
-    if descricao_os == cz.SEM_DESCRICAO_OS:
-        return "?"  # OS que só aparece na ME2N: o tipo dela não é conhecido
-    return "SIM" if prev else "NÃO"
-
-
 def aba_followup(wb, L, man, FU, POS):
     ws = wb.create_sheet("Follow-up")
     ws.sheet_properties.tabColor = "548235"
     titulo(ws, "Follow-up de peças por OS – é aqui que você preenche",
-           "Um componente da OS por linha (IWBK do SAP + pedidos da ME2N), agrupado por OS (faixas de cor), as "
-           "mais urgentes primeiro. Colunas amarelas = o que você "
+           "Itens agrupados por OS (faixas de cor), as mais urgentes primeiro. Colunas amarelas = o que você "
            "preenche: recebimento e observação em cada item; data de necessidade e liberação da OS na 1ª linha "
            "da OS. As outras abas e o Painel se atualizam na hora. Colunas técnicas: clique no + acima das colunas.")
     cabecalho(ws, LIN_CAB, COLS_FU)
@@ -915,31 +969,29 @@ def aba_followup(wb, L, man, FU, POS):
     for k1, k2, txt in (("m_rec", "m_obs", "✎ VOCÊ PREENCHE – ITEM"), ("m_osdata", "m_oslib", "✎ OS (1ª linha da OS)")):
         ws.merge_cells(f"{c[k1]}{LIN_CAB - 1}:{c[k2]}{LIN_CAB - 1}")
         cel(ws, f"{c[k1]}{LIN_CAB - 1}", txt, F_CAB_ED, preench=P_CAB_ED, alin=AL_CAB)
-    E, N, DN, DE, I, Q, PR, FO, PS, P, D, M, NM, NT, OS, RM, RC = (c[k] for k in (
+    E, N, DN, DE, I, Q, PR, FO, PS, P, D, M, NM, NT, OS = (c[k] for k in (
         "etapa", "f_nec", "f_dias_nec", "f_dias_etapa", "inicio_etapa", "qtd", "preco", "fornecedor",
-        "pedido_sap", "f_prio", "f_disp", "m_rec", "f_nec_manual", "data_nec_sap", "os_sap", "data_remessa", "req_sap"))
+        "pedido_sap", "f_prio", "f_disp", "m_rec", "f_nec_manual", "data_nec_tracos", "os_sap"))
     status_txt = ",".join(f'"{cz.STATUS[i]}"' for i in range(1, 8))
     marca = f"UPPER(TRIM({M}{{r}}))"
     f = {
-        # 4 = pedido (ou estoque em falta) perto da necessidade, ou pedido com entrega prevista depois dela
         "f_prio": (f'=IF({D}{{r}}="SIM",6,IF(AND({N}{{r}}<>"",N({DN}{{r}})<0),1,'
-                   f'IF(AND({E}{{r}}=1,N({DE}{{r}})>X_APROV),2,'
+                   f'IF(AND({E}{{r}}>=1,{E}{{r}}<=2,N({DE}{{r}})>IF({E}{{r}}=1,X_NIVEL01,X_NIVEL02)),2,'
                    f'IF(AND({E}{{r}}=3,N({DE}{{r}})>Y_SEM_PEDIDO),3,'
-                   f'IF(AND(OR({E}{{r}}=4,{E}{{r}}=0),{N}{{r}}<>"",OR(N({DN}{{r}})<=Z_ENTREGA,'
-                   f'AND({E}{{r}}=4,N({RM}{{r}})>0,INT(N({RM}{{r}}))>{N}{{r}}))),4,'
+                   f'IF(AND(OR({E}{{r}}=4,{E}{{r}}=0),{N}{{r}}<>"",N({DN}{{r}})<=Z_ENTREGA),4,'
                    f'IF({N}{{r}}="",7,5))))))'),
         "f_status": f"=CHOOSE({P}{{r}},{status_txt})",
         "f_disp": (f'=IF({marca}="SIM","SIM",IF(OR({marca}="PARCIAL",{marca}="NÃO"),"NÃO",'
                    f'IF({E}{{r}}=5,"SIM","NÃO")))'),
-        "f_quem": (f'=IF({D}{{r}}="SIM","Ninguém – material disponível",'
-                   f'IF({E}{{r}}=0,"Almoxarifado – material em falta no estoque"&IF(NOME_ALMOX="",""," – "&NOME_ALMOX),'
-                   f'IF({E}{{r}}=1,"Aprovador da RC "&{RC}{{r}}&IF(NOME_GESTOR="",""," – "&NOME_GESTOR),'
-                   f'IF({E}{{r}}=3,IF({RC}{{r}}="","Planejamento – componente sem RC (criar a RC)",'
-                   f'"Comprador"&IF(NOME_COMPRADOR="",""," – "&NOME_COMPRADOR)&" – emitir o pedido da RC "&{RC}{{r}}),'
-                   f'IF({E}{{r}}=4,IF({FO}{{r}}="","Comprador"&IF(NOME_COMPRADOR="",""," – "&NOME_COMPRADOR)'
-                   f'&" – pedido SAP "&{PS}{{r}}&" (fornecedor fora da ME2N)",'
-                   f'"Fornecedor: "&{FO}{{r}}&" – pedido SAP "&{PS}{{r}}),'
-                   f'"Almoxarifado – SAP tem entrada, conferir o físico")))))'),
+        "f_quem": (f'=IF({D}{{r}}="SIM","Ninguém – material disponível",IF({E}{{r}}=0,'
+                   f'"Almoxarifado – material em falta no estoque (SAP)",CHOOSE({E}{{r}},'
+                   f'"Gestor da unidade"&IF(NOME_GESTOR="",""," – "&NOME_GESTOR),'
+                   f'"Almox corporativo"&IF(NOME_ALMOX="",""," – "&NOME_ALMOX),'
+                   f'"Comprador"&IF(NOME_COMPRADOR="",""," – "&NOME_COMPRADOR)&" (emitir o pedido)",'
+                   f'IF({FO}{{r}}="",IF({PS}{{r}}="","Comprador (pedido sem fornecedor)",'
+                   f'"Comprador – acompanhar o pedido SAP "&{PS}{{r}}),"Fornecedor: "&{FO}{{r}}'
+                   f'&IF({PS}{{r}}="",""," – pedido SAP "&{PS}{{r}})),'
+                   f'"Almoxarifado – sistema tem entrada, conferir o físico")))'),
         # data digitada em qualquer linha da OS (a aba Por OS junta as linhas da OS)
         "f_nec_manual": f'=IFERROR(INDEX({POS["f_mdata"]},MATCH({OS}{{r}},{POS["os_sap"]},0)),0)',
         "f_nec": f'=IF(N({NM}{{r}})>0,{NM}{{r}},IF({NT}{{r}}="","",{NT}{{r}}))',
@@ -958,7 +1010,7 @@ def aba_followup(wb, L, man, FU, POS):
         if k in f:
             return f[k].format(r=r)
         if k == "f_origem":
-            orig = l["origem_data_sap"] if isinstance(l["origem_data_sap"], str) else ""
+            orig = l["origem_data_tracos"] if isinstance(l["origem_data_tracos"], str) else ""
             return f'=IF(N({NM}{r})>0,"Digitada para a OS","{orig}")'
         if k in ("m_osdata", "m_oslib"):
             if r - LIN_1 not in primeira:
@@ -969,20 +1021,16 @@ def aba_followup(wb, L, man, FU, POS):
             v = man["item"].get(l["chave"], {}).get(campo[k])
             return (_data(v) or v) if k == "m_data" else v
         if k == "prev":
-            return _preventiva(l["eh_preventiva"], l["descricao_os"])
-        if k == "req_sap":  # RC da IWBK; sem ela, a que a ME2N informar
-            return l["req_sap"] if not pd.isna(l["req_sap"]) else l.get("rc_me2n")
-        if k == "data_remessa" and pd.isna(l["pedido_sap"]):
-            return None  # sem pedido, a data de remessa é só a desejada na RC
+            return "SIM" if l["eh_preventiva"] else "NÃO"
         return l[k]
 
-    fmts = {"f_nec": FMT_DATA, "data_nec_sap": FMT_DATA, "f_nec_manual": FMT_DATA + ";;", "inicio_etapa": FMT_DATA,
-            "data_remessa": FMT_DATA, "data_pedido": FMT_DATA, "m_data": FMT_DATA, "m_osdata": FMT_DATA,
-            "m_oslib": FMT_DATA, "preco": FMT_RS, "f_valor": FMT_RS, "f_dias_nec": FMT_DIAS,
+    fmts = {"f_nec": FMT_DATA, "data_nec_tracos": FMT_DATA, "f_nec_manual": FMT_DATA + ";;", "inicio_etapa": FMT_DATA,
+            "data_remessa": FMT_DATA, "m_data": FMT_DATA, "m_osdata": FMT_DATA, "m_oslib": FMT_DATA,
+            "entrada_em": FMT_DATA, "preco": FMT_RS, "f_valor": FMT_RS, "f_dias_nec": FMT_DIAS,
             "f_dias_etapa": "0", "f_atraso": FMT_ATRASO}
-    centro = {"f_prio", "f_disp", "etapa", "prev", "codigo", "qtd", "qtd_pendente", "m_rec", "m_data",
-              "m_osdata", "m_oslib", "unidade", "f_dias_nec", "f_atraso", "f_dias_etapa", "data_remessa", "rc_item",
-              "item_lista", "orig_sap", "orig_me2n", "grupo_compradores", "data_pedido", "categoria"}
+    centro = {"f_prio", "f_disp", "etapa", "prev", "os_tracos", "codigo", "qtd", "qtd_pendente", "m_rec", "m_data",
+              "m_osdata", "m_oslib", "unidade", "f_dias_nec", "f_atraso", "f_dias_etapa", "requisicao_txt", "pedido",
+              "entrada"}
     ult = escrever_tabela(ws, COLS_FU, regs, valor_de, fmts, centro, detalhe=DETALHE_FU)
     # campos da OS: amarelos só na 1ª linha da OS (digitar em outra linha da mesma OS também vale)
     for k in ("m_osdata", "m_oslib"):
@@ -1017,9 +1065,8 @@ def aba_recebimento(wb, rec, FU, POS):
            "chegou na coluna 'Recebido?' do Follow-up – clique em '✎ marcar' para ir direto à linha do item.")
     cabecalho(ws, LIN_CAB, COLS_REC)
     c = letras(COLS_REC)
-    MK, P_, Q_, H_, V_, ET, CH = (c[k] for k in ("f_marca", "f_nec", "f_dias", "os_sap", "rec_sap", "etapa",
+    MK, P_, Q_, H_, V_, ET, CH = (c[k] for k in ("f_marca", "f_nec", "f_dias", "os_sap", "rec_tracos", "etapa",
                                                   "chave"))
-    lista_os = letras(COLS_OS)["f_lista"]
     no_fu = f"MATCH({CH}{{r}},{FU['chave']},0)"
 
     def do_fu(k):
@@ -1038,7 +1085,7 @@ def aba_recebimento(wb, rec, FU, POS):
                   f'IF({ET}{{r}}=0,"{cz.SITUACAO_REC[6]}",'
                   f'IF(AND({P_}{{r}}<>"",N({Q_}{{r}})<0),"{cz.SITUACAO_REC[0]}","{cz.SITUACAO_REC[1]}"))))))'),
         "f_dias": f'=IF({P_}{{r}}="","",{P_}{{r}}-INT(DATA_REF))',
-        "f_falta_os": (f'=IF({H_}{{r}}="","",IFERROR(HYPERLINK("#\'Por OS\'!{lista_os}"&(MATCH({H_}{{r}},{POS["os_sap"]},0)'
+        "f_falta_os": (f'=IF({H_}{{r}}="","",IFERROR(HYPERLINK("#\'Por OS\'!E"&(MATCH({H_}{{r}},{POS["os_sap"]},0)'
                        f'+{LIN_CAB}),INDEX({POS["f_falt"]},MATCH({H_}{{r}},{POS["os_sap"]},0))),""))'),
         "f_nec": do_fu("f_nec"),
     }
@@ -1049,15 +1096,14 @@ def aba_recebimento(wb, rec, FU, POS):
         if k in f:
             return f[k].format(r=r)
         if k == "prev":
-            return _preventiva(x["eh_preventiva"], x["descricao_os"])
-        if k == "rec_sap":
-            return "SIM" if x["recebido_sap"] else "NÃO"
+            return "SIM" if x["eh_preventiva"] else "NÃO"
+        if k == "rec_tracos":
+            return "SIM" if x["recebido_tracos"] else "NÃO"
         return x[k]
 
-    fmts = {"f_nec": FMT_DATA, "f_data_rec": FMT_DATA, "data_remessa": FMT_DATA, "data_pedido": FMT_DATA,
-            "f_dias": FMT_DIAS}
-    centro = {"f_marcar", "f_data_rec", "f_falta_os", "os_sap", "etapa", "prev", "codigo", "qtd", "unidade",
-              "f_dias", "rec_sap", "data_remessa", "data_pedido"}
+    fmts = {"f_nec": FMT_DATA, "f_data_rec": FMT_DATA, "entrada_em": FMT_DATA, "f_dias": FMT_DIAS}
+    centro = {"f_marcar", "f_data_rec", "f_falta_os", "os_tracos", "os_sap", "etapa", "origem_os", "prev", "codigo",
+              "qtd", "unidade", "f_dias", "pedido", "rec_tracos", "entrada"}
     ult = escrever_tabela(ws, COLS_REC, [x for _, x in rec.iterrows()], valor_de, fmts, centro, negrito={"f_sit"},
                           links={"f_falta_os", "f_marcar"}, detalhe=DETALHE_REC)
     ws.freeze_panes = f"{get_column_letter(COLS_REC.index(('OS SAP', 12, 'os_sap')) + 2)}{LIN_1}"
@@ -1081,7 +1127,7 @@ def aba_por_os(wb, por_os, FU):
     cabecalho(ws, LIN_CAB, COLS_OS)
     c = letras(COLS_OS)
     A, TOT, DSP, FAL, LIB, MD, FD, DT_, PV, DI, G, RT = (c[k] for k in (
-        "os_sap", "f_total", "f_disp", "f_falt", "f_lib", "f_mdata", "f_data", "data_sap", "prev", "f_dias",
+        "os_sap", "f_total", "f_disp", "f_falt", "f_lib", "f_mdata", "f_data", "data_tracos", "prev", "f_dias",
         "f_grupo", "retirados"))
     a = f"${A}{{r}}"
     # maior data digitada nas linhas da OS (fórmula matricial: funciona em qualquer versão do Excel)
@@ -1114,7 +1160,7 @@ def aba_por_os(wb, por_os, FU):
         "f_grupo": (f'=IF({LIB}{{r}}<>"",IF({FAL}{{r}}=0,"LIBERADA","LIBERADA FALTANDO"),'
                     f'IF(AND({TOT}{{r}}>0,{FAL}{{r}}=0),"APTA",IF({FAL}{{r}}=1,"FALTA 1",'
                     f'IF({FAL}{{r}}<=3,"FALTA 2-3","FALTA 4+"))))'),
-        "f_janela": (f'=IF(OR({FAL}{{r}}=0,{PV}{{r}}="NÃO"),"",IF({FD}{{r}}="","SEM DATA",'
+        "f_janela": (f'=IF(OR({FAL}{{r}}=0,{PV}{{r}}<>"SIM"),"",IF({FD}{{r}}="","SEM DATA",'
                      f'IF({DI}{{r}}<0,"VENCIDA",IF({DI}{{r}}<=7,"ATE 7",IF({DI}{{r}}<=15,"ATE 15",'
                      f'IF({DI}{{r}}<=30,"ATE 30","MAIS DE 30"))))))'),
         "f_seq": f'=IF({G}{{r}}="APTA",COUNTIF({G}${LIN_1}:{G}{{r}},"APTA"),"")',
@@ -1133,21 +1179,25 @@ def aba_por_os(wb, por_os, FU):
             return ArrayFormula(f"{c['f_obs']}{r}", (
                 f'=IFERROR(_xlfn.TEXTJOIN(" | ",TRUE,IF({FU["os_sap"]}={A}{r},{FU["m_obs"]}&"","")),"")'))
         if k == "prev":
-            return _preventiva(o["preventiva"], o["descricao_os"])
+            return "SIM" if o["preventiva"] else "NÃO"
+        if k == "lista_ok":
+            return LISTA_INCOMPLETA if o["fluxo_incompleto"] else "OK"
         return o[k]
 
     fmts = {"f_mdata": FMT_DATA + ";;", "f_data": FMT_DATA, "f_dias": FMT_DIAS, "f_valor": FMT_RS,
-            "data_sap": FMT_DATA, "f_lib": FMT_DATA}
-    centro = {"prev", "f_mdata", "f_data", "f_dias", "f_total", "f_disp", "f_falt", "f_caminho",
-              "f_compra", "f_estoque", "retirados", "f_risco", "data_sap", "f_lib", "f_ir"}
+            "data_tracos": FMT_DATA, "f_lib": FMT_DATA}
+    centro = {"os_tracos", "prev", "f_mdata", "f_data", "f_dias", "f_total", "f_disp", "f_falt", "f_caminho",
+              "f_compra", "f_estoque", "retirados", "f_risco", "data_tracos", "f_lib", "plano", "origem_itens", "f_ir"}
     ult = escrever_tabela(ws, COLS_OS, [o for _, o in por_os.iterrows()], valor_de, fmts, centro,
                           negrito={"f_apta"}, links={"f_ir"}, detalhe=DETALHE_OS)
     ws.freeze_panes = f"C{LIN_1}"
-    ws.conditional_formatting.add(f"A{LIN_1}:{c['descricao_os']}{ult}", FormulaRule(
+    ws.conditional_formatting.add(f"A{LIN_1}:{c['ativo']}{ult}", FormulaRule(
         formula=[f'${c["prev"]}{LIN_1}="SIM"'], fill=P_PREV, font=Font(name=FONTE, bold=True)))
     cf_palavras(ws, f"{c['f_apta']}{LIN_1}:{c['f_apta']}{ult}", f"${c['f_apta']}{LIN_1}", CORES_APTA)
     ws.conditional_formatting.add(f"{c['f_dias']}{LIN_1}:{c['f_dias']}{ult}", CellIsRule(
         operator="lessThan", formula=["0"], font=Font(name=FONTE, color="9C0006", bold=True)))
+    ws.conditional_formatting.add(f"{c['lista_ok']}{LIN_1}:{c['lista_ok']}{ult}", FormulaRule(
+        formula=[f'LEFT(${c["lista_ok"]}{LIN_1},1)="⚠"'], font=Font(name=FONTE, color="9C0006", bold=True)))
     paisagem(ws)
 
 
@@ -1155,8 +1205,8 @@ def aba_por_fornecedor(wb, pf, FU, ini_forn):
     ws = wb.create_sheet("Por Fornecedor")
     ws.sheet_properties.tabColor = "BF8F00"
     titulo(ws, "Pedidos abertos por fornecedor (para cobrança)",
-           "Itens com pedido SAP ainda não disponíveis, pelo fornecedor da ME2N. Itens a receber, vencidos e atraso "
-           "vêm do Follow-up e já descontam o que você marcou como recebido. O e-mail é cadastrado uma vez na aba "
+           "Pedidos e valor vêm da base de pedidos (inclui itens sem OS). Itens a receber, vencidos e atraso vêm "
+           "do Follow-up e já descontam o que você marcou como recebido. O e-mail é cadastrado uma vez na aba "
            "Parâmetros ('✎ cadastrar e-mail').")
     cabecalho(ws, LIN_CAB, COLS_FORN)
     c = letras(COLS_FORN)
@@ -1189,10 +1239,9 @@ def aba_por_fornecedor(wb, pf, FU, ini_forn):
                     f'"mailto:"&{EM}{r}&"{curto}"))')
         return x[k]
 
-    fmts = {"f_atraso": FMT_ATRASO, "valor_aberto": FMT_RS, "pedido_mais_antigo": FMT_DATA,
-            "entrega_prevista": FMT_DATA}
-    centro = {"n_pedidos", "f_receber", "f_vencidos", "f_atraso", "f_dias", "pedido_mais_antigo", "valor_aberto",
-              "entrega_prevista"}
+    fmts = {"f_atraso": FMT_ATRASO, "valor_aberto": FMT_RS, "pedido_mais_antigo": FMT_DATA}
+    centro = {"n_pedidos", "itens_abertos", "f_receber", "f_vencidos", "f_atraso", "f_dias", "itens_sem_os",
+              "pedido_mais_antigo", "valor_aberto"}
     ult = escrever_tabela(ws, COLS_FORN, [x for _, x in pf.iterrows()], valor_de, fmts, centro,
                           negrito={"fornecedor"}, links={"f_mail"})
     ws.freeze_panes = f"B{LIN_1}"
@@ -1206,25 +1255,27 @@ def aba_por_fornecedor(wb, pf, FU, ini_forn):
 def aba_divergencias(wb, D, orfas):
     ws = wb.create_sheet("Divergências")
     ws.sheet_properties.tabColor = "C00000"
-    titulo(ws, "Divergências e avisos sobre as bases",
-           "Avisos de carga, reservas antigas, pedidos fora da ME2N e anotações sem item. Os itens da ME2N 'sem OS' "
-           "são os únicos que não estão no Follow-up (contam na conciliação). As demais linhas apontam para uma "
-           "linha do Follow-up pela Chave: anote lá, na coluna 'Observação / Follow-up'.")
+    titulo(ws, "Divergências e registros não casados",
+           "As linhas 'NÃO CASADO' são as únicas que NÃO estão no Follow-up (contam na conciliação; elas aparecem "
+           "na aba Recebimento). As demais apontam para uma linha do Follow-up pela Chave: anote lá, na coluna "
+           "'Observação / Follow-up'.")
     cols = [("Tipo", 40, "tipo"), ("Gravidade", 9, "gravidade"), ("Base", 11, "base"),
             ("Linha de origem", 9, "linha"), (COL_CHAVE, 24, "chave"), ("Está no Follow-up?", 10, "no_followup"),
             ("Código material", 10, "codigo"), ("Descrição do material", 34, "descricao"),
-            ("RC SAP", 11, "rc"), ("Pedido SAP", 12, "pedido"), ("OS SAP", 12, "os"),
+            ("Requisição", 10, "requisicao"), ("Pedido", 12, "pedido"), ("OS (TracOS ou SAP)", 12, "os"),
             ("Fornecedor", 34, "fornecedor"), ("Detalhe", 90, "detalhe")]
     cabecalho(ws, LIN_CAB, cols)
     regs = ([] if D is None or not len(D) else D.to_dict("records")) + orfas
     ult = escrever_tabela(ws, cols, regs, lambda k, d, r: d.get(k), {},
-                          {"gravidade", "linha", "no_followup", "codigo", "rc", "pedido", "os"})
+                          {"gravidade", "linha", "no_followup", "codigo", "requisicao", "pedido", "os"})
     ws.freeze_panes = f"B{LIN_1}"
     for g, fundo, letra in (("Alta", "FFC7CE", "9C0006"), ("Média", "FFE699", "7F6000"),
                             ("Info", "E7E6E6", "404040")):
         ws.conditional_formatting.add(f"B{LIN_1}:B{ult}", FormulaRule(
             formula=[f'$B{LIN_1}="{g}"'], fill=PatternFill("solid", fgColor=fundo, bgColor=fundo),
             font=Font(name=FONTE, color=letra, bold=True)))
+    ws.conditional_formatting.add(f"A{LIN_1}:A{ult}", FormulaRule(
+        formula=[f'LEFT($A{LIN_1},10)="NÃO CASAD"'], font=Font(name=FONTE, color="9C0006", bold=True)))
     paisagem(ws)
 
 
@@ -1241,14 +1292,13 @@ ROT_GRUPO = [("APTA", "✅ Apta para programar", COR_OK), ("FALTA 1", "⛔ Aguar
 ROT_REC = {0: ("🚚 A caminho – atrasado", COR_CRITICO), 1: ("🚚 A caminho", COR_AZUL),
            6: ("📦 Falta em estoque (SAP)", COR_SERIO), 2: ("🟡 Recebido parcial", COR_ATENCAO),
            3: ("⛔ Não recebido", COR_CRITICO), 4: ("✅ Recebido (marcado por você)", COR_OK),
-           5: ("✅ Recebido (entrada no SAP)", COR_OK)}
+           5: ("✅ Recebido (entrada TracOS/SAP)", COR_OK)}
 ROT_STATUS = {1: ("🔴 Necessidade vencida", COR_CRITICO), 2: ("🔴 Parada na aprovação", COR_CRITICO),
               3: ("🟠 Sem pedido", COR_SERIO), 4: ("🟠 Entrega em risco", COR_ATENCAO), 5: ("🟢 No prazo", COR_OK),
               6: ("✅ Entregue", COR_MUDO), 7: ("⚪ Sem data de necessidade", COR_ATENCAO)}
 N_APTAS = 8  # OS aptas listadas no Painel
-ROT_ETAPA = {0: "Falta em estoque (SAP)", 1: "RC não liberada", 3: "RC liberada, sem pedido", 4: "Pedido emitido",
-             5: "Entregue / disponível"}
-N_RC = 20  # RC paradas listadas no Painel
+ROT_ETAPA = {0: "Falta em estoque (SAP)", 1: "Aprovação – gestor / RC SAP", 2: "Aprovação – almox corporativo",
+             3: "Autorizada, sem pedido", 4: "Pedido emitido", 5: "Entregue / disponível"}
 
 
 def _fonte(tam=10, cor=TINTA, negrito=False, italico=False):
@@ -1295,7 +1345,7 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
     ws.row_dimensions[4].height = 20
     ws.row_dimensions[5].height = 10
     # arquivos usados: para conferir de relance se a atualização pegou as exportações novas
-    rot = {"iwbk": "IWBK", "me2n": "ME2N"}
+    rot = {"requisicao": "Requisição", "fluxo": "Fluxo", "pedido": "Pedido", "iwbk": "IWBK", "me2n": "ME2N"}
     usados = "   ·   ".join(
         f"{rot[n]}: {os.path.basename(b['arquivo'])} ({dt.datetime.fromtimestamp(os.path.getmtime(b['arquivo'])):%d/%m %H:%M})"
         for n, b in B.items() if b)
@@ -1441,6 +1491,9 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
             loc = local("Histórico SAP", "A")
             linhas.append([rotulo(loc, "✔ Material já retirado (SAP)", COR_MUDO), numero(loc, len(ret)),
                            dict(barra=1, cor=COR_MUDO)])
+        loc = local("Por OS", "A", f'MATCH("{LISTA_INCOMPLETA}",{POS["lista_ok"]},0)')
+        linhas.append([rotulo(loc, "⚠ Lista de itens a conferir no TracOS", COR_ATENCAO),
+                       numero(loc, f'COUNTIFS({POS["lista_ok"]},"{LISTA_INCOMPLETA}")'), dict(barra=1, cor=COR_ATENCAO)])
         return cartao(r0, ESQ, "Situação das OS", "apta = todos os itens disponíveis",
                       [("SITUAÇÃO", 3, "l"), ("OS", 1, "c"), ("", 2, "l")], linhas)
 
@@ -1547,38 +1600,46 @@ def aba_painel(wb, R, FU, REC, POS, lin_avisos, ini_forn, B, lin_arquivos):
     ws.row_dimensions[fim + 1].height = 8
     lin = fim + 3
 
-    # 5) RC paradas na aprovação (largura toda)
-    nota = (f'=COUNTIFS({FU["etapa"]},1)&" itens com RC não liberada  ·  "&COUNTIFS({FU["f_prio"]},2)'
-            f'&" parados há mais de "&X_APROV&" dias"')
-    if len(reqs) > N_RC:
-        nota += f'&"  ·  {N_RC} RC mais antigas de {len(reqs)}"'
+    # 5) requisições paradas na aprovação (largura toda)
+    tr = f'{FU["origem"]},"<>SAP"'
+    nota = (f'="Gestor (01): "&COUNTIFS({FU["etapa"]},1,{FU["f_prio"]},2,{tr})&" itens parados  ·  Almox (02): "'
+            f'&COUNTIFS({FU["etapa"]},2,{FU["f_prio"]},2,{tr})&" itens parados"')
+    if len(R["linhas"][(R["linhas"]["origem"] == "SAP") & (R["linhas"]["etapa"] == 1)]):
+        nota += f'&"  ·  RC só no SAP: "&COUNTIFS({FU["etapa"]},1,{FU["origem"]},"SAP")&" itens"'
     linhas = []
-    for _, q in (reqs.head(N_RC) if len(reqs) else reqs).iterrows():
-        os_txt = f"{q['os_sap']}  ·  {q['descricao_os']}" + (f" (+{q['n_os'] - 1} OS)" if q["n_os"] > 1 else "")
-        os_txt = os_txt if len(os_txt) <= 44 else os_txt[:43] + "…"
-        loc = local("Follow-up", "A", f'MATCH("{q["req_sap"]}",{FU["req_sap"]},0)')
-        desde = f"{pd.Timestamp(q['inicio']):%d/%m/%Y}"
-        completo, curto = mailto_partes(
-            f"Liberacao pendente - RC SAP {q['req_sap']}",
-            [f"Favor liberar a RC SAP {q['req_sap']} da OS {q['os_sap']} - {q['descricao_os']}, pendente desde "
-             f"{desde}. Obrigado.",
-             f"Favor liberar a RC SAP {q['req_sap']} da OS {q['os_sap']}, pendente desde {desde}.",
-             f"Favor liberar a RC SAP {q['req_sap']}."])
-        linhas.append([
-            dict(v=link(loc, '"' + os_txt.replace('"', "'") + '"'), f=_fonte(10, COR_LINK, True)),
-            dict(v=q["req_sap"], f=_fonte(10, TINTA)), dict(v=q["itens"], f=_fonte(10, TINTA)),
-            dict(v=q["inicio"], f=_fonte(10, TINTA), fmt=FMT_DATA),
-            dict(v=lambda r: f"=INT(DATA_REF)-INT(J{r})", f=_fonte(10, TINTA, True)),
-            dict(v=lambda r: f'=IF(K{r}>X_APROV,"🔴 Parada","no prazo")', f=_fonte(10, TINTA)),
-            dict(v=formula_mailto("EMAIL_GESTOR", completo, curto, "✉ Cobrar", "(sem e-mail)"),
-                 f=_fonte(10, COR_LINK, True))])
-    fim = cartao(lin, ESQ, "RC paradas na aprovação", nota,
-                 [("OS (clique para ver os itens)", 4, "l"), ("RC SAP", 2, "c"), ("ITENS", 2, "c"),
-                  ("VISTA DESDE", 1, "c"), ("DIAS", 1, "c"), ("SITUAÇÃO", 2, "c"), ("COBRAR", 1, "c")], linhas,
-                 vazio="Nenhuma RC aguardando liberação.")
+    for e in (1, 2):
+        sub = reqs[reqs["etapa"] == e].head(10) if len(reqs) else reqs
+        lim = "X_NIVEL01" if e == 1 else "X_NIVEL02"
+        email = "EMAIL_GESTOR" if e == 1 else "EMAIL_ALMOX"
+        for _, q in sub.iterrows():
+            os_txt = f"{q['os_sap']}  ·  {q['descricao_os']}" if not pd.isna(q["os_sap"]) else "(sem OS)"
+            os_txt = os_txt if len(os_txt) <= 44 else os_txt[:43] + "…"
+            req_txt = f"#{int(q['requisicao'])}"
+            loc = local("Follow-up", "A", f'MATCH("{req_txt}",{FU["requisicao_txt"]},0)')
+            desde = f"{pd.Timestamp(q['inicio']):%d/%m/%Y}"
+            ativo = q["ativo"] if isinstance(q["ativo"], str) else ""
+            completo, curto = mailto_partes(
+                f"Aprovacao pendente - requisicao SAP {q['req_sap']}",
+                [f"Favor aprovar a requisicao SAP {q['req_sap']} (TracOS {req_txt}) da OS {q['os_sap']} - {ativo}, "
+                 f"pendente desde {desde}. Obrigado.",
+                 f"Favor aprovar a requisicao SAP {q['req_sap']} da OS {q['os_sap']}, pendente desde {desde}.",
+                 f"Favor aprovar a requisicao SAP {q['req_sap']}."])
+            linhas.append([
+                dict(v=link(loc, '"' + os_txt.replace('"', "'") + '"'), f=_fonte(10, COR_LINK, True)),
+                dict(v=req_txt, f=_fonte(10, TINTA)), dict(v=q["req_sap"], f=_fonte(10, TINTA)),
+                dict(v="01 Gestor" if e == 1 else "02 Almox", f=_fonte(10, TINTA)),
+                dict(v=q["itens"], f=_fonte(10, TINTA)), dict(v=q["inicio"], f=_fonte(10, TINTA), fmt=FMT_DATA),
+                dict(v=lambda r: f"=INT(DATA_REF)-INT(K{r})", f=_fonte(10, TINTA, True)),
+                dict(v=lambda r, lim=lim: f'=IF(L{r}>{lim},"🔴 Parada","no prazo")', f=_fonte(10, TINTA)),
+                dict(v=formula_mailto(email, completo, curto, "✉ Cobrar", "(sem e-mail)"),
+                     f=_fonte(10, COR_LINK, True))])
+    fim = cartao(lin, ESQ, "Requisições paradas na aprovação", nota,
+                 [("OS (clique para ver os itens)", 4, "l"), ("REQUISIÇÃO", 1, "c"), ("REQ. SAP", 2, "c"),
+                  ("NÍVEL", 1, "c"), ("ITENS", 1, "c"), ("DESDE", 1, "c"), ("DIAS", 1, "c"), ("SITUAÇÃO", 1, "c"),
+                  ("COBRAR", 1, "c")], linhas, vazio="Nenhuma requisição aguardando aprovação.")
     cartoes.append((lin, fim + 1, ESQ, FIM))
-    ws.conditional_formatting.add(f"L{lin}:L{fim}", FormulaRule(
-        formula=[f'ISNUMBER(SEARCH("PARADA",L{lin}))'], font=Font(name=FONTE, color="B42318", bold=True)))
+    ws.conditional_formatting.add(f"M{lin}:M{fim}", FormulaRule(
+        formula=[f'ISNUMBER(SEARCH("PARADA",M{lin}))'], font=Font(name=FONTE, color="B42318", bold=True)))
     ult = fim + 2
 
     # ---------------------------------------------------------------- acabamento: cartões brancos sobre fundo cinza
@@ -1627,8 +1688,8 @@ def aba_historico_sap(wb, H):
             return "SIM" if h["eh_preventiva"] else "NÃO"
         return h[k]
 
-    escrever_tabela(ws, COLS_HIST, regs, valor_de, {"data_nec_sap": FMT_DATA},
-                    {"prev", "codigo", "qtd", "qtd_retirada", "unidade", "data_nec_sap", "orig_sap"})
+    escrever_tabela(ws, COLS_HIST, regs, valor_de, {"data_nec_tracos": FMT_DATA},
+                    {"os_tracos", "prev", "codigo", "qtd", "qtd_retirada", "unidade", "data_nec_tracos", "orig_sap"})
     ws.freeze_panes = f"C{LIN_1}"
     paisagem(ws)
 
@@ -1644,11 +1705,10 @@ def aba_outras_os(wb, O, ativo):
     if not ativo:
         cel(ws, (LIN_1, 1), "Parâmetro como NÃO: todas as OS estão nas abas de trabalho.", F_NOTA)
     escrever_tabela(ws, COLS_OUTRAS, regs, lambda k, o, r: o[k], {"data_necessidade": FMT_DATA},
-                    {"codigo", "qtd", "unidade", "data_necessidade", "orig_sap"})
+                    {"os_tracos", "codigo", "qtd", "unidade", "data_necessidade"})
     ws.freeze_panes = f"C{LIN_1}"
     if regs:
-        st = letras(COLS_OUTRAS)["status"]
-        cf_palavras(ws, f"{st}{LIN_1}:{st}{LIN_1 + len(regs) - 1}", f"${st}{LIN_1}", CORES_STATUS)
+        cf_palavras(ws, f"J{LIN_1}:J{LIN_1 + len(regs) - 1}", f"$J{LIN_1}", CORES_STATUS)
     paisagem(ws)
 
 
@@ -1656,11 +1716,12 @@ def aba_bases(wb, B):
     ws = wb.create_sheet("Bases tratadas")
     ws.sheet_properties.tabColor = "A6A6A6"
     titulo(ws, "Bases tratadas (auditoria)",
-           "As exportações do SAP (IWBK e ME2N) já normalizadas. 'linha_origem' = linha na planilha exportada "
-           "(1 = cabeçalho); é a referência das colunas 'Linha na IWBK' / 'Linha na ME2N' e de Divergências.")
+           "As exportações (TracOS, IWBK e ME2N do SAP) já normalizadas. 'linha_origem' = linha no CSV (1 = cabeçalho); é a "
+           "referência usada em 'Linhas de origem' no Follow-up e em Divergências.")
     lin = LIN_CAB + 1
     larg = {}
-    for nome, tab in (("iwbk", "tbIWBK"), ("me2n", "tbME2N")):
+    for nome, tab in (("requisicao", "tbRequisicao"), ("fluxo", "tbFluxo"), ("pedido", "tbPedido"),
+                      ("iwbk", "tbIWBK"), ("me2n", "tbME2N")):
         if not B.get(nome):
             continue
         df = B[nome]["norm"]
@@ -1701,8 +1762,9 @@ def gerar(pasta_bases, pasta_saida, hoje=None, data_fixa=None, silencioso=False)
     hoje = pd.Timestamp(hoje or dt.date.today()).normalize()
     os.makedirs(pasta_saida, exist_ok=True)
     ant = ler_versao_anterior(pasta_saida)
-    B = bs.carregar_bases(pasta_bases, ant["arquivos"])
+    B = tb.carregar_bases(pasta_bases, ant["arquivos"])
     man = ant["manuais"]
+    migrar_chaves_os(man, B)
     prm = dict(ant["prm"])
     so_prev = str(prm.get("so_preventivas", "SIM")).strip().upper() not in ("NÃO", "NAO", "N")
 
@@ -1831,7 +1893,7 @@ def main():
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
-    ap = argparse.ArgumentParser(description="Gera a planilha de follow-up de peças (bases do SAP).")
+    ap = argparse.ArgumentParser(description="Gera a planilha de follow-up de peças (TracOS).")
     ap.add_argument("--bases", default=os.path.join(AQUI, "bases"))
     ap.add_argument("--saida", default=os.path.join(AQUI, "saida"))
     ap.add_argument("--hoje", help="simula outra data (AAAA-MM-DD); também fixa a data de referência")
@@ -1842,7 +1904,7 @@ def main():
         destino, R = gerar(a.bases, a.saida, hoje=hoje, data_fixa=hoje)
     except FileNotFoundError as e:
         print(f"ERRO: {e}")
-        print("Coloque a IWBK exportada do SAP (e, se quiser o fornecedor, a ME2N) na pasta 'bases' e rode de novo.")
+        print("Coloque os 3 arquivos exportados do TracOS na pasta 'bases' e rode de novo.")
         return 1
     if a.abrir and hasattr(os, "startfile"):
         os.startfile(destino)
