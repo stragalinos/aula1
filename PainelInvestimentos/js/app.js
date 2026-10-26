@@ -263,7 +263,7 @@
     const usd = porId.usd;
     return {
       ano: ANO, selic, ipca12, cdi, juroReal, focus: E.focus, fmi: E.fmi, ativos: porId,
-      dolar: usd ? { valor: usd.preco, tendencia: usd.tendencia, var30: usd.var30, var365: usd.var365 } : null,
+      dolar: usd ? { valor: usd.preco, tendencia: usd.tendencia, var30: usd.var30, var365: usd.var365, varDia: usd.varDia, fonte: P.FONTES[usd.fonte].nome } : null,
     };
   }
 
@@ -300,16 +300,36 @@
     return out;
   }
 
-  function conferenciaCambio(ptax, bce, agora) {
-    const valores = [ptax, bce, agora].filter(num);
-    if (valores.length < 2) return null;
+  /* Compara a mesma cotação em fontes diferentes. lista: [{nome, v, t}] */
+  function conferenciaCambio(lista) {
+    const validas = lista.filter((x) => num(x.v));
+    if (validas.length < 2) return null;
+    const valores = validas.map((x) => x.v);
     const dif = (Math.max(...valores) / Math.min(...valores) - 1) * 100;
     const ok = dif <= 1.5;
+    const dias = new Set(validas.map((x) => (num(x.t) ? Math.floor(x.t / P.DIA) : null)));
+    let texto;
+    if (ok) texto = validas.length + ' fontes conferem (diferença de ' + fmt.pct(dif, 1) + ')';
+    else if (dias.size > 1) {
+      texto = 'Diferença de ' + fmt.pct(dif, 1) + ' entre datas diferentes ('
+        + validas.map((x) => x.nome + ' ' + (num(x.t) ? fmt.diaMes(x.t) : '?')).join(', ') + '): o câmbio se moveu forte.';
+    } else texto = 'Fontes divergem ' + fmt.pct(dif, 1) + ' no mesmo dia: algum dado pode estar errado. Confira na fonte oficial.';
     return P.el('div', { class: 'conferencia ' + (ok ? 'conferencia-ok' : 'conferencia-alerta') },
-      P.el('span', { 'aria-hidden': 'true', texto: ok ? '✓ ' : '⚠ ' }),
-      ok
-        ? valores.length + ' fontes conferem (diferença de ' + fmt.pct(dif, 1) + ')'
-        : 'Fontes divergem ' + fmt.pct(dif, 1) + ': algum dado pode estar desatualizado');
+      P.el('span', { 'aria-hidden': 'true', texto: ok ? '✓ ' : '⚠ ' }), texto);
+  }
+
+  function fontesCambio(moeda, serie) {
+    const u = P.serie.ultimo(serie);
+    return [
+      { nome: 'PTAX', v: u && u.v, t: u && u.t },
+      { nome: 'BCE', v: E.bce && E.bce[moeda], t: E.bce && Date.parse(E.bce.data + 'T12:00:00Z') },
+      { nome: 'comercial', v: E.agora && E.agora[moeda].v, t: E.agora && E.agora[moeda].t },
+    ];
+  }
+
+  function detalheCambio(moeda, serie) {
+    return fontesCambio(moeda, serie).filter((x) => num(x.v))
+      .map((x) => x.nome + ' ' + (num(x.t) ? fmt.diaMes(x.t) : '') + ': ' + fmt.brl(x.v, 4)).join(' · ');
   }
 
   function renderIndicadores() {
@@ -346,28 +366,18 @@
       rodape: selo('bcb', u(E.cdi) ? fmt.data(u(E.cdi).t) : ''),
     }));
 
-    const usd = (E.ativos || []).find((a) => a.id === 'usd');
-    const ptaxUsd = u(E.dolar) ? u(E.dolar).v : null;
-    cont.append(bloco({
-      rotulo: E.agora ? 'Dólar comercial' : 'Dólar (PTAX)',
-      valor: usd ? fmt.brl(usd.preco, 4) : '—',
-      delta: usd && num(usd.varDia) ? { seta: usd.varDia > 0 ? '▲' : usd.varDia < 0 ? '▼' : '▶', texto: fmt.pct(usd.varDia, 2, true) + ' no dia' } : null,
-      detalhe: 'PTAX (BCB): ' + fmt.brl(ptaxUsd, 4) + (E.bce ? ' · BCE: ' + fmt.brl(E.bce.usd, 4) : ''),
-      extra: conferenciaCambio(ptaxUsd, E.bce && E.bce.usd, E.agora && E.agora.usd.v),
-      mini: amostra(E.dolar, 30),
-      rodape: selo(E.agora ? 'awesome' : 'bcb', usd && usd.quando ? fmt.dataHora(usd.quando) : ''),
-    }));
-    const eur = (E.ativos || []).find((a) => a.id === 'eur');
-    const ptaxEur = u(E.euro) ? u(E.euro).v : null;
-    cont.append(bloco({
-      rotulo: E.agora ? 'Euro comercial' : 'Euro (PTAX)',
-      valor: eur ? fmt.brl(eur.preco, 4) : '—',
-      delta: eur && num(eur.varDia) ? { seta: eur.varDia > 0 ? '▲' : eur.varDia < 0 ? '▼' : '▶', texto: fmt.pct(eur.varDia, 2, true) + ' no dia' } : null,
-      detalhe: 'PTAX (BCB): ' + fmt.brl(ptaxEur, 4) + (E.bce ? ' · BCE: ' + fmt.brl(E.bce.eur, 4) : ''),
-      extra: conferenciaCambio(ptaxEur, E.bce && E.bce.eur, E.agora && E.agora.eur.v),
-      mini: amostra(E.euro, 30),
-      rodape: selo(E.agora ? 'awesome' : 'bcb', eur && eur.quando ? fmt.dataHora(eur.quando) : ''),
-    }));
+    for (const [id, rotulo, serie] of [['usd', 'Dólar', E.dolar], ['eur', 'Euro', E.euro]]) {
+      const a = (E.ativos || []).find((x) => x.id === id);
+      cont.append(bloco({
+        rotulo,
+        valor: a ? fmt.brl(a.preco, 4) : '—',
+        delta: a && num(a.varDia) ? { seta: a.varDia > 0 ? '▲' : a.varDia < 0 ? '▼' : '▶', texto: fmt.pct(a.varDia, 2, true) + ' no dia' } : null,
+        detalhe: detalheCambio(id, serie),
+        extra: conferenciaCambio(fontesCambio(id, serie)),
+        mini: amostra(a ? a.serie : serie, 30),
+        rodape: selo(a ? a.fonte : 'bcb', a && a.quando ? (a.fonte === 'awesome' ? fmt.dataHora(a.quando) : fmt.data(a.quando)) : ''),
+      }));
+    }
   }
 
   const ROTULO_TIPO = {
@@ -531,13 +541,26 @@
       cripto: 'Ativo muito volátil, sem lastro em lucros ou juros. Se quiser ter, no máximo uma fatia pequena (até 5%).',
       ouro: 'Proteção clássica em crises e contra a desvalorização das moedas. Não paga juros nem dividendos. Aqui o preço vem do PAXG, um token lastreado em ouro físico.',
     };
-    if (E.dolar && E.dolar.length > 25) {
-      const extra = E.agora ? { preco: E.agora.usd.v, varDia: E.agora.usd.varDia, quando: E.agora.usd.t } : {};
-      lista.push(ativoDeSerie({ id: 'usd', nome: 'Dólar', codigo: 'USD/BRL', grupo: 'moedas', moeda: 'BRL', fonte: 'bcb', significado: SIGNIFICADO.moedas, casas: 4 }, E.dolar, extra));
-    }
-    if (E.euro && E.euro.length > 25) {
-      const extra = E.agora ? { preco: E.agora.eur.v, varDia: E.agora.eur.varDia, quando: E.agora.eur.t } : {};
-      lista.push(ativoDeSerie({ id: 'eur', nome: 'Euro', codigo: 'EUR/BRL', grupo: 'moedas', moeda: 'BRL', fonte: 'bcb', significado: SIGNIFICADO.moedas, casas: 4 }, E.euro, extra));
+    // Histórico oficial (PTAX) + a cotação mais recente disponível (comercial ou BCE) como último ponto.
+    for (const [id, nome, codigo, serie] of [['usd', 'Dólar', 'USD/BRL', E.dolar], ['eur', 'Euro', 'EUR/BRL', E.euro]]) {
+      if (!serie || serie.length <= 25) continue;
+      const candidatos = [];
+      if (E.agora && num(E.agora[id].v)) candidatos.push({ t: E.agora[id].t, v: E.agora[id].v, varDia: E.agora[id].varDia, fonte: 'awesome' });
+      if (E.bce && num(E.bce[id])) candidatos.push({ t: Date.parse(E.bce.data + 'T12:00:00Z'), v: E.bce[id], fonte: 'bce' });
+      const hoje = candidatos.filter((c) => num(c.t)).sort((a, b) => b.t - a.t)[0];
+      const diaPtax = Math.floor(P.serie.ultimo(serie).t / P.DIA);
+      const diaHoje = hoje ? Math.floor(hoje.t / P.DIA) : -1;
+      let s2 = serie;
+      if (diaHoje > diaPtax) s2 = serie.concat([{ t: hoje.t, v: hoje.v }]);
+      else if (diaHoje === diaPtax) s2 = serie.slice(0, -1).concat([{ t: hoje.t, v: hoje.v }]);
+      const usouHoje = s2 !== serie;
+      lista.push(ativoDeSerie({
+        id, nome, codigo, grupo: 'moedas', moeda: 'BRL', casas: 4, significado: SIGNIFICADO.moedas,
+        fonte: usouHoje ? hoje.fonte : 'bcb',
+        desc: usouHoje
+          ? 'Histórico: PTAX do Banco Central. Último ponto: ' + P.FONTES[hoje.fonte].nome + ', ' + (hoje.fonte === 'awesome' ? fmt.dataHora(hoje.t) : fmt.data(hoje.t)) + '.'
+          : 'Cotação PTAX do Banco Central.',
+      }, s2, usouHoje && num(hoje.varDia) ? { varDia: hoje.varDia } : {}));
     }
     for (const c of P.CRIPTO) {
       const s = E.cripto[c.ativo];

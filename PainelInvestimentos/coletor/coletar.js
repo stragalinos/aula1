@@ -4,7 +4,7 @@
    o histórico da coleta anterior e grava um único JSON que o painel lê ao abrir.
 
    Uso: node coletar.js <anterior.json> <saida.json>
-   Variáveis de ambiente (opcionais): TWELVE_DATA_KEY, BRAPI_TOKEN, TICKERS_B3 */
+   Variáveis de ambiente (opcionais): TWELVE_DATA_KEY, BRAPI_TOKEN, AWESOME_API_KEY, TICKERS_B3 */
 'use strict';
 
 const fs = require('fs');
@@ -19,6 +19,14 @@ globalThis.localStorage = {
   removeItem: (k) => { memoria.delete(k); },
   clear: () => { memoria.clear(); },
 };
+// Alguns sites (como o do FMI) recusam programas sem identificação; o coletor se apresenta.
+const fetchOriginal = globalThis.fetch;
+globalThis.fetch = (url, opcoes = {}) => fetchOriginal(url, Object.assign({}, opcoes, {
+  headers: Object.assign({
+    'User-Agent': 'Mozilla/5.0 (compatible; PainelDoInvestidor/1.0; +https://github.com/stragalinos/aula1)',
+    Accept: 'application/json, text/plain, */*',
+  }, opcoes.headers),
+}));
 require(path.join(__dirname, '..', 'js', 'util.js'));
 require(path.join(__dirname, '..', 'js', 'fontes.js'));
 const P = globalThis.Painel;
@@ -115,7 +123,7 @@ async function coletar(anterior, { agora = Date.now(), env = process.env } = {})
   // Câmbio: BCE e cotação comercial.
   dados.bce = await guardar('bce', P.dados.bce(true));
   if (!dados.bce && ant.bce) { dados.bce = ant.bce; manterAnterior('bce'); }
-  dados.agora = await guardar('awesome', P.dados.cambioAgora(true));
+  dados.agora = await guardar('awesome', P.dados.cambioAgora(true, env.AWESOME_API_KEY));
   if (!dados.agora && ant.agora) { dados.agora = ant.agora; manterAnterior('awesome'); }
 
   // Cripto e ouro (24 horas por dia).
