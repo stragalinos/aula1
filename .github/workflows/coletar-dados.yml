@@ -1,7 +1,7 @@
 # Coleta os dados do Painel do Investidor a cada 30 minutos, 24 horas por dia,
 # e publica o resultado na branch "dados" (o painel lê de lá).
 # Chaves opcionais: Settings → Secrets and variables → Actions
-#   secrets: TWELVE_DATA_KEY (bolsa americana), BRAPI_TOKEN (B3)
+#   secrets: TWELVE_DATA_KEY (bolsa americana), BRAPI_TOKEN (B3), AWESOME_API_KEY (câmbio comercial)
 #   variable: TICKERS_B3 (ex.: BOVA11,IVVB11,PETR4)
 name: Coletar dados do painel
 
@@ -42,6 +42,7 @@ jobs:
         env:
           TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
           BRAPI_TOKEN: ${{ secrets.BRAPI_TOKEN }}
+          AWESOME_API_KEY: ${{ secrets.AWESOME_API_KEY }}
           TICKERS_B3: ${{ vars.TICKERS_B3 }}
         run: node PainelInvestimentos/coletor/coletar.js saida/anterior.json saida/painel.json
 

@@ -94,7 +94,7 @@
     return lista.map((r) => {
       const [d, m, a] = String(r.data).split('/').map(Number);
       return { t: Date.UTC(a, m - 1, d, 12), v: parseFloat(String(r.valor).replace(',', '.')) };
-    }).filter((p) => isFinite(p.t) && isFinite(p.v));
+    }).filter((p) => isFinite(p.t) && isFinite(p.v)).sort((a, b) => a.t - b.t); // "últimos N" vem do mais novo para o mais antigo
   }
 
   /* A API do SGS exige período de no máximo 10 anos, ou "últimos N" (N ≤ 20). */
@@ -175,8 +175,9 @@
   P.FMI_INDICADORES = {
     crescimento: { codigo: 'NGDP_RPCH', paises: ['BRA', 'USA', 'WEOWORLD'], bancoMundial: 'NY.GDP.MKTP.KD.ZG', faixa: [-30, 30] },
     inflacao: { codigo: 'PCPIPCH', paises: ['BRA', 'USA', 'WEOWORLD'], bancoMundial: 'FP.CPI.TOTL.ZG', faixa: [-10, 100] },
-    divida: { codigo: 'GGXWDG_NGDP', paises: ['BRA', 'USA', 'WEOWORLD'], faixa: [0, 300] },
-    participacao: { codigo: 'PPPSH', paises: ['BRA', 'USA', 'CHN'], faixa: [0, 50] },
+    divida: { codigo: 'GGXWDG_NGDP', paises: ['BRA', 'USA', 'WEOWORLD'], bancoMundial: 'GC.DOD.TOTL.GD.ZS', faixa: [0, 300] },
+    // Reserva: PIB em paridade de poder de compra de cada país dividido pelo do mundo.
+    participacao: { codigo: 'PPPSH', paises: ['BRA', 'USA', 'CHN'], bancoMundial: 'NY.GDP.MKTP.PP.CD', bancoMundialPaises: 'BRA;USA;CHN;WLD', razaoDoMundo: true, faixa: [0, 50] },
   };
 
   function validarPaises(faixa) {
@@ -213,7 +214,7 @@
   P.dados.bancoMundial = function (chave, forcar) {
     const cfg = P.FMI_INDICADORES[chave];
     const ano = new Date().getFullYear();
-    const url = 'https://api.worldbank.org/v2/country/BRA;USA;WLD/indicator/' + cfg.bancoMundial
+    const url = 'https://api.worldbank.org/v2/country/' + (cfg.bancoMundialPaises || 'BRA;USA;WLD') + '/indicator/' + cfg.bancoMundial
       + '?format=json&per_page=500&date=' + (ano - 12) + ':' + ano;
     return P.buscar('bm-' + chave, url, {
       ttlMin: 1440,
@@ -227,6 +228,16 @@
           const pais = r.countryiso3code === 'WLD' ? 'WEOWORLD' : r.countryiso3code;
           saida[pais] = saida[pais] || {};
           saida[pais][r.date] = Number(r.value);
+        }
+        if (cfg.razaoDoMundo) {
+          const mundo = saida.WEOWORLD || {};
+          delete saida.WEOWORLD;
+          for (const pais in saida) {
+            for (const ano in saida[pais]) {
+              if (mundo[ano]) saida[pais][ano] = saida[pais][ano] / mundo[ano] * 100;
+              else delete saida[pais][ano];
+            }
+          }
         }
         return saida;
       },
@@ -251,8 +262,9 @@
     });
   };
 
-  P.dados.cambioAgora = function (forcar) {
-    return P.buscar('awesome-agora', 'https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL', {
+  P.dados.cambioAgora = function (forcar, token) {
+    const url = 'https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL' + (token ? '?token=' + encodeURIComponent(token) : '');
+    return P.buscar('awesome-agora', url, {
       ttlMin: 2,
       forcar,
       timeout: 10000,

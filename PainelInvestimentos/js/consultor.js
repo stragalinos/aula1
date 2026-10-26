@@ -140,6 +140,22 @@
     const add = (tipo, titulo, texto, fonte) => itens.push({ tipo, titulo, texto, fonte });
     const ano = ctx.ano;
 
+    // Movimentos fortes de um dia vêm primeiro: são os que mais levam a decisões por impulso.
+    const dol = ctx.dolar;
+    if (dol && num(dol.varDia) && Math.abs(dol.varDia) >= 2) {
+      add('atencao', 'Movimento forte no câmbio hoje',
+        'O dólar ' + (dol.varDia > 0 ? 'subiu ' : 'caiu ') + f.pct(Math.abs(dol.varDia), 1) + ' desde o último fechamento, algo raro (num dia comum ele varia menos de 1%). '
+        + 'Em dias de pânico ou euforia, evite decisões grandes: se for dolarizar, mantenha as compras em parcelas e espere a poeira baixar antes de mudar o plano.',
+        dol.fonte || 'Câmbio');
+    }
+    const fortes = Object.values(ctx.ativos || {}).filter((a) => a.grupo === 'brasil' && num(a.varDia) && Math.abs(a.varDia) >= 5);
+    if (fortes.length) {
+      add('atencao', 'Bolsa brasileira com oscilação forte',
+        'No último pregão: ' + fortes.map((a) => a.codigo + ' ' + f.pct(a.varDia, 1, true)).join(', ') + '. '
+        + 'Variações desse tamanho num só dia costumam vir de notícias (eleição, balanço, decisão do governo). Entenda o motivo antes de agir e não venda no susto.',
+        'brapi (dados da B3)');
+    }
+
     if (num(ctx.juroReal)) {
       const base = 'Com a Selic em ' + f.pct(ctx.selic) + ' e a inflação em ' + f.pct(ctx.ipca12) + ' nos últimos 12 meses, o juro real está em ' + f.pct(ctx.juroReal) + ' ao ano';
       if (ctx.juroReal >= 6) {

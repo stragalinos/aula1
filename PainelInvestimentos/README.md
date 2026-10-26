@@ -57,6 +57,7 @@ a cota gratuita. Cripto e câmbio são consultados o tempo todo.
 |---|---|---|
 | Secret | `TWELVE_DATA_KEY` | chave da [Twelve Data](https://twelvedata.com/) (bolsa americana) |
 | Secret | `BRAPI_TOKEN` | token da [brapi](https://brapi.dev/) (B3) |
+| Secret (opcional) | `AWESOME_API_KEY` | chave da [AwesomeAPI](https://docs.awesomeapi.com.br/instrucoes-api-key) (dólar e euro comerciais 24 h) |
 | Variable (opcional) | `TICKERS_B3` | ativos da B3, ex.: `BOVA11,IVVB11,GOLD11,PETR4,VALE3,ITUB4` |
 
 Depois, em *Actions → Coletar dados do painel → Run workflow*, rode a primeira coleta.
