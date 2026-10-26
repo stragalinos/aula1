@@ -221,4 +221,4 @@ if (require.main === module) {
   principal().catch((e) => { console.error(e); process.exit(1); });
 }
 
-module.exports = { coletar, lerTickers, pregaoAberto };
+module.exports = { coletar, resumo, lerTickers, pregaoAberto };

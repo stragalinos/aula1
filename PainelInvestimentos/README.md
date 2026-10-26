@@ -15,6 +15,27 @@ e simula quanto seu dinheiro pode render.
 - **Pela internet:** <https://stragalinos.github.io/aula1/> (abre o painel direto).
 - **No computador:** dê dois cliques em `index.html` (não precisa instalar nada).
 
+## Usar no seu computador
+
+Abre o painel com dois cliques, sem depender do site. Um pequeno programa busca os
+dados a partir do seu computador a cada 30 minutos (enquanto a janela dele estiver aberta),
+então bloqueadores de anúncios e restrições do navegador não atrapalham.
+
+1. **Instale o Node.js** (gratuito, uma vez só): https://nodejs.org/pt-br/download, versão **LTS**.
+2. **Baixe o painel:** no GitHub, botão verde **Code → Download ZIP**. Descompacte o arquivo.
+3. Abra a pasta `PainelInvestimentos` e dê dois cliques em:
+   - **Windows:** `Abrir painel (Windows).bat`
+   - **Mac:** `Abrir painel (Mac).command` (na primeira vez, clique com o botão direito → **Abrir**, porque o Mac desconfia de arquivos baixados)
+   - **Linux:** no terminal, dentro da pasta: `node local/servidor.js`
+4. O navegador abre sozinho em `http://127.0.0.1:8765`. Deixe a janela preta do programa aberta enquanto usa o painel.
+
+**Chaves (opcional):** na primeira vez, o programa cria o arquivo `local/chaves.txt`. Abra-o com o
+Bloco de Notas (ou TextEdit), cole cada chave depois do `=` (ex.: `TWELVE_DATA_KEY=abc123`), salve
+e abra o painel de novo. Esse arquivo fica só no seu computador e nunca é enviado ao GitHub.
+
+O programa só aceita conexões do próprio computador e só entrega a página, os estilos e os
+scripts: o arquivo de chaves não pode ser lido pelo navegador.
+
 ### Publicar no GitHub Pages (uma vez só)
 
 1. No GitHub, abra o repositório e vá em **Settings → Pages**.
@@ -133,6 +154,8 @@ ao próprio provedor. Nunca coloque chaves no código nem as publique no GitHub.
 PainelInvestimentos/
 ├── index.html        página e guia de investimento no exterior
 ├── coletor/coletar.js  coleta automática (roda no GitHub Actions)
+├── local/servidor.js   programa para usar o painel no seu computador
+├── Abrir painel (Windows).bat / Abrir painel (Mac).command   atalhos de dois cliques
 ├── css/estilo.css    visual (tema claro e escuro, celular)
 └── js/
     ├── util.js       formatação, busca com cache e verificações
