@@ -282,9 +282,9 @@
 
   /* ---------- CoinGecko: cripto e ouro tokenizado ---------- */
   P.CRIPTO = [
-    { id: 'bitcoin', ativo: 'btc', nome: 'Bitcoin', codigo: 'BTC', grupo: 'cripto' },
-    { id: 'ethereum', ativo: 'eth', nome: 'Ethereum', codigo: 'ETH', grupo: 'cripto' },
-    { id: 'pax-gold', ativo: 'ouro', nome: 'Ouro (1 onça troy)', codigo: 'PAXG', grupo: 'cripto' },
+    { id: 'bitcoin', ativo: 'btc', nome: 'Bitcoin', codigo: 'BTC', grupo: 'cripto', explica: 'A criptomoeda mais conhecida. Risco muito alto.' },
+    { id: 'ethereum', ativo: 'eth', nome: 'Ethereum', codigo: 'ETH', grupo: 'cripto', explica: 'A segunda maior criptomoeda. Risco muito alto.' },
+    { id: 'pax-gold', ativo: 'ouro', nome: 'Ouro (1 onça troy)', codigo: 'PAXG', grupo: 'cripto', explica: 'Preço de 1 onça (31 gramas) de ouro, em reais.' },
   ];
 
   P.dados.cripto = function (id, forcar) {
@@ -300,6 +300,22 @@
 
   /* ---------- brapi: ações e ETFs da B3 ---------- */
   P.B3_SEM_TOKEN = ['PETR4', 'VALE3', 'ITUB4', 'MGLU3'];
+  /* O que é cada ativo, em uma frase simples (os mais comuns). */
+  P.DESCRICOES_B3 = {
+    BOVA11: 'Fundo (ETF) que compra as maiores empresas da bolsa brasileira (Ibovespa).',
+    IVVB11: 'Fundo (ETF) que compra as 500 maiores empresas dos EUA, pago em reais.',
+    NASD11: 'Fundo (ETF) das 100 maiores empresas da Nasdaq (tecnologia dos EUA), pago em reais.',
+    GOLD11: 'Fundo (ETF) que acompanha o preço do ouro, pago em reais.',
+    SMAL11: 'Fundo (ETF) de empresas brasileiras menores.',
+    HASH11: 'Fundo (ETF) de criptomoedas, pago em reais. Risco muito alto.',
+    PETR4: 'Ação da Petrobras (petróleo; o governo é o maior acionista).',
+    VALE3: 'Ação da Vale (mineração; exporta minério de ferro).',
+    ITUB4: 'Ação do Itaú Unibanco (banco).',
+    BBAS3: 'Ação do Banco do Brasil.',
+    BBDC4: 'Ação do Bradesco (banco).',
+    MGLU3: 'Ação do Magazine Luiza (varejo).',
+    WEGE3: 'Ação da WEG (motores e equipamentos elétricos).',
+  };
   P.B3_COM_TOKEN = ['BOVA11', 'IVVB11', 'GOLD11', 'PETR4', 'VALE3', 'ITUB4'];
 
   P.dados.b3 = function (ticker, token, forcar) {

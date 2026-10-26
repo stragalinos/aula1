@@ -66,6 +66,15 @@
     return den ? (num / den) / ym * 100 : 0;
   };
 
+  /* Nível de risco em linguagem simples, a partir da volatilidade. */
+  A.risco = function (vol) {
+    if (vol == null) return null;
+    if (vol < 10) return { nivel: 1, rotulo: 'Baixo', texto: 'balança pouco' };
+    if (vol < 25) return { nivel: 2, rotulo: 'Médio', texto: 'sobe e desce de forma moderada' };
+    if (vol < 50) return { nivel: 3, rotulo: 'Alto', texto: 'pode cair bastante em poucas semanas' };
+    return { nivel: 4, rotulo: 'Muito alto', texto: 'já caiu mais da metade em anos ruins' };
+  };
+
   A.classeVolatilidade = function (vol) {
     if (vol < 10) return { nome: 'baixa', texto: 'costuma variar pouco' };
     if (vol < 25) return { nome: 'moderada', texto: 'oscila de forma parecida com uma bolsa de valores' };
@@ -115,13 +124,23 @@
       textos.push('Volatilidade de ' + fmt.pct(vol, 0) + ' ao ano (' + c.nome + '): ' + c.texto + '.');
     }
 
-    return { sinal, pontos, ultimo, m20, m50, nLonga, ifr, vol, movimento, curta, longa, textos };
+    // Mesma leitura, em linguagem simples (modo simples).
+    const simples = [];
+    if (sinal === 'alta') simples.push('O preço vem subindo nas últimas semanas.');
+    else if (sinal === 'baixa') simples.push('O preço vem caindo nas últimas semanas.');
+    else simples.push('O preço tem subido e descido, sem uma direção clara nas últimas semanas.');
+    if (ifr != null && ifr >= 70) simples.push('Subiu rápido demais nos últimos dias e pode devolver parte da alta. Se for comprar, vá aos poucos.');
+    else if (ifr != null && ifr <= 30) simples.push('Caiu rápido demais nos últimos dias. Pode voltar a subir, mas ninguém sabe quando.');
+    const risco = A.risco(vol);
+    if (risco) simples.push('Risco ' + risco.rotulo.toLowerCase() + ': costuma variar cerca de ' + fmt.pct(vol, 0) + ' para cima ou para baixo em um ano (' + risco.texto + ').');
+
+    return { sinal, pontos, ultimo, m20, m50, nLonga, ifr, vol, movimento, curta, longa, textos, simples, risco };
   };
 
   A.ROTULO_SINAL = {
-    alta: { seta: '▲', texto: 'Alta' },
-    baixa: { seta: '▼', texto: 'Baixa' },
-    lateral: { seta: '▶', texto: 'Lateral' },
+    alta: { seta: '▲', texto: 'Alta', simples: 'Subindo' },
+    baixa: { seta: '▼', texto: 'Baixa', simples: 'Caindo' },
+    lateral: { seta: '▶', texto: 'Lateral', simples: 'Sem direção' },
   };
 
   P.analise = A;

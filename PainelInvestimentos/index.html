@@ -24,6 +24,10 @@
       </div>
       <div class="topo-acoes">
         <span id="situacao" class="situacao" aria-live="polite">Carregando dados…</span>
+        <div class="modo" role="group" aria-label="Nível de detalhe">
+          <button type="button" class="modo-botao" data-modo="simples" aria-pressed="true">Simples</button>
+          <button type="button" class="modo-botao" data-modo="completo" aria-pressed="false">Completo</button>
+        </div>
         <button id="btn-atualizar" class="botao" type="button">Atualizar</button>
         <button id="btn-tema" class="botao botao-icone" type="button" aria-label="Alternar tema claro ou escuro" title="Alternar tema"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm0 1.6v12.8a6.4 6.4 0 0 1 0-12.8Z"/></svg></button>
       </div>
@@ -35,6 +39,7 @@
       <a href="#mercados">Mercados</a>
       <a href="#consultor">Consultor</a>
       <a href="#exterior">Investir no exterior</a>
+      <a href="#glossario">Dicionário</a>
       <a href="#fontes">Fontes</a>
     </nav>
   </header>
@@ -49,33 +54,45 @@
     <!-- VISÃO GERAL -->
     <section id="visao-geral" class="secao" aria-labelledby="t-visao">
       <h2 id="t-visao">Visão geral</h2>
+      <div class="cartao comece">
+        <h3>Comece por aqui</h3>
+        <p class="sub">Está começando agora? Siga estes passos, sem pressa. Ao lado das palavras difíceis há um <span class="termo-exemplo" aria-hidden="true">i</span>: clique nele para ver uma explicação simples.</p>
+        <ol class="passos-inicio">
+          <li><a href="#leitura-titulo"><strong>Veja o resumo do dia</strong><span>O que está acontecendo e o que fazer. 1 minuto.</span></a></li>
+          <li><a href="#consultor"><strong>Descubra seu perfil e seu plano</strong><span>6 perguntas e quanto colocar em cada investimento. 3 minutos.</span></a></li>
+          <li><a href="#exterior"><strong>Entenda como investir fora do Brasil</strong><span>Os caminhos, os impostos e os cuidados. 5 minutos.</span></a></li>
+        </ol>
+        <p class="sub so-simples">Você está no <strong>modo simples</strong>. Para ver gráficos técnicos e mais números, escolha <strong>Completo</strong> no topo da página.</p>
+      </div>
+      <h3 class="titulo-grade">Os números mais importantes hoje</h3>
       <div id="indicadores" class="grade-indicadores"></div>
       <div class="cartao leitura">
-        <h3>O que o consultor está vendo agora</h3>
-        <p class="sub">Leitura automática dos dados mais recentes. Cada ponto mostra de onde veio a informação.</p>
+        <h3 id="leitura-titulo">O que o consultor está vendo agora</h3>
+        <p class="sub">Em linguagem simples: o que está acontecendo e o que fazer. Clique em “Entenda o porquê” para ver os detalhes e a fonte.</p>
         <ul id="leitura" class="lista-leitura"><li class="carregando">Analisando os dados…</li></ul>
       </div>
     </section>
 
     <!-- BRASIL -->
     <section id="brasil" class="secao" aria-labelledby="t-brasil">
-      <h2 id="t-brasil">Brasil: juros, inflação e o que o mercado espera</h2>
+      <h2 id="t-brasil">Brasil: juros, inflação e o que vem pela frente</h2>
+      <p class="sub-secao">Juros e inflação decidem quanto rende a renda fixa e quanto seu dinheiro perde de valor. Aqui você vê como estão e o que os especialistas esperam.</p>
       <div class="cartao">
-        <h3>Boletim Focus: projeções do mercado</h3>
-        <p class="sub">Mediana das projeções de cerca de 100 bancos, gestoras e consultorias, coletadas pelo Banco Central. A seta compara com 4 semanas atrás.</p>
+        <h3>O que os especialistas esperam <button type="button" class="termo" data-termo="focus" aria-label="O que é Boletim Focus?" title="O que é Boletim Focus?">i</button></h3>
+        <p class="sub">Previsão média de cerca de 100 bancos e consultorias, coletada toda semana pelo Banco Central (Boletim Focus). É uma estimativa, não uma garantia.</p>
         <div id="focus" class="tabela-rolagem"><p class="carregando">Carregando o Focus…</p></div>
         <p class="fonte" id="focus-fonte"></p>
       </div>
       <div class="duas-colunas">
         <div class="cartao">
-          <h3>Selic (meta), últimos 2 anos</h3>
-          <p class="sub">A taxa básica de juros define quanto rendem Tesouro Selic, CDBs e a poupança.</p>
+          <h3>Juros (Selic) nos últimos 2 anos <button type="button" class="termo" data-termo="selic" aria-label="O que é Selic?" title="O que é Selic?">i</button></h3>
+          <p class="sub">Quando a linha sobe, a renda fixa passa a render mais; quando desce, rende menos.</p>
           <div id="graf-selic"></div>
           <p class="fonte">Fonte: Banco Central do Brasil (SGS, série 432)</p>
         </div>
         <div class="cartao">
-          <h3>Inflação (IPCA) acumulada em 12 meses</h3>
-          <p class="sub">A meta é 3% ao ano, com tolerância até 4,5%.</p>
+          <h3>Inflação acumulada em 12 meses <button type="button" class="termo" data-termo="ipca" aria-label="O que é IPCA?" title="O que é IPCA?">i</button></h3>
+          <p class="sub">Quanto os preços subiram. A meta do governo é 3% ao ano e vai até 4,5%; acima disso, a inflação está alta.</p>
           <div id="graf-ipca"></div>
           <p class="fonte">Fonte: Banco Central do Brasil (SGS, série 13522) com dados do IBGE</p>
         </div>
@@ -85,19 +102,22 @@
     <!-- MUNDO -->
     <section id="mundo" class="secao" aria-labelledby="t-mundo">
       <h2 id="t-mundo">Mundo: o Brasil comparado aos EUA e à economia global</h2>
-      <p class="sub-secao">Dados e projeções do Fundo Monetário Internacional (FMI). A área sombreada mostra os anos projetados.</p>
+      <p class="sub-secao">Como o Brasil se compara aos EUA e ao mundo, segundo o FMI (Fundo Monetário Internacional). A área sombreada mostra o que o FMI espera para os próximos anos.</p>
       <div id="participacao" class="cartao destaque-numero"></div>
       <div class="tres-colunas">
         <div class="cartao">
-          <h3>Crescimento do PIB (% ao ano)</h3>
+          <h3>Crescimento da economia (% ao ano) <button type="button" class="termo" data-termo="pib" aria-label="O que é PIB?" title="O que é PIB?">i</button></h3>
+          <p class="sub">Quanto a economia cresce por ano. Linha mais alta = cresce mais.</p>
           <div id="graf-crescimento"></div>
         </div>
         <div class="cartao">
           <h3>Inflação (% ao ano)</h3>
+          <p class="sub">Quanto os preços sobem por ano. Mais baixo é melhor.</p>
           <div id="graf-inflacao"></div>
         </div>
         <div class="cartao">
-          <h3>Dívida do governo (% do PIB)</h3>
+          <h3>Dívida do governo (% do PIB) <button type="button" class="termo" data-termo="dividaPublica" aria-label="O que é dívida pública?" title="O que é dívida pública?">i</button></h3>
+          <p class="sub">Quanto o governo deve, comparado a tudo que o país produz em um ano. Mais alto = mais risco.</p>
           <div id="graf-divida"></div>
         </div>
       </div>
@@ -106,7 +126,9 @@
 
     <!-- MERCADOS -->
     <section id="mercados" class="secao" aria-labelledby="t-mercados">
-      <h2 id="t-mercados">Mercados e tendências</h2>
+      <h2 id="t-mercados">Preços e tendências</h2>
+      <p class="sub-secao">Como estão moedas, ações, ouro e cripto. Clique em um cartão para ver o gráfico e uma explicação.
+        <span class="legenda-mercados">Tendência <button type="button" class="termo" data-termo="tendencia" aria-label="O que é tendência?" title="O que é tendência?">i</button>: subindo, caindo ou sem direção nas últimas semanas. Risco <button type="button" class="termo" data-termo="volatilidade" aria-label="O que é risco?" title="O que é risco?">i</button>: de ●○○○ (baixo) a ●●●● (muito alto).</span></p>
       <div class="filtros" role="group" aria-label="Filtrar ativos">
         <button type="button" class="filtro" data-filtro="todos" aria-pressed="true">Todos</button>
         <button type="button" class="filtro" data-filtro="moedas" aria-pressed="false">Moedas</button>
@@ -116,7 +138,7 @@
       </div>
       <div id="ativos" class="grade-ativos"></div>
       <div id="detalhe" class="cartao detalhe" aria-live="polite"></div>
-      <details class="cartao como-ler">
+      <details class="cartao como-ler avancado">
         <summary>Como a tendência é calculada?</summary>
         <ul>
           <li><strong>Médias móveis:</strong> média dos últimos 20 e 50 dias. Preço acima das médias, e a curta acima da longa, indica alta.</li>
@@ -132,9 +154,10 @@
     <!-- CONSULTOR -->
     <section id="consultor" class="secao" aria-labelledby="t-consultor">
       <h2 id="t-consultor">Seu consultor</h2>
+      <p class="sub-secao">Responda o teste, informe seus números e veja um plano passo a passo, com quanto colocar em cada tipo de investimento.</p>
       <div class="duas-colunas">
         <div class="cartao">
-          <h3>1. Descubra seu perfil</h3>
+          <h3>1. Descubra seu perfil <button type="button" class="termo" data-termo="perfil" aria-label="O que é perfil de investidor?" title="O que é perfil de investidor?">i</button></h3>
           <p class="sub">Seis perguntas rápidas, inspiradas na análise de perfil (suitability) que as corretoras são obrigadas a fazer.</p>
           <form id="questionario" class="questionario"></form>
         </div>
@@ -165,8 +188,8 @@
       <div id="plano" class="cartao plano"></div>
 
       <div class="cartao simulador">
-        <h3>3. Simulador: Brasil × exterior</h3>
-        <p class="sub">Compare quanto seu dinheiro pode virar. A renda fixa usa a Selic atual e as projeções do Focus; a carteira global usa as hipóteses que você escolher.</p>
+        <h3>3. Simulador: quanto seu dinheiro pode virar</h3>
+        <p class="sub">Compare deixar o dinheiro na poupança, num CDB ou numa carteira no exterior. Mude os valores e veja o resultado na hora.</p>
         <form id="simulador" class="formulario formulario-linha">
           <label>Valor inicial (R$)<input type="number" id="s-inicial" min="0" step="100" value="10000"></label>
           <label>Por mês (R$)<input type="number" id="s-mensal" min="0" step="50" value="1000"></label>
@@ -219,7 +242,7 @@
             <tbody>
               <tr><th scope="row">Onde fica o dinheiro</th><td>No Brasil (custódia na B3), com exposição a ativos de fora</td><td>Fora do Brasil, em dólar</td></tr>
               <tr><th scope="row">Câmbio</th><td>Não precisa enviar dinheiro</td><td>Precisa: paga IOF e o spread do câmbio no envio</td></tr>
-              <tr><th scope="row">Opções</th><td>Dezenas de ETFs e centenas de BDRs (ex.: IVVB11, NASD11)</td><td>Milhares de ETFs, ações, títulos do Tesouro americano e ETFs irlandeses (UCITS)</td></tr>
+              <tr><th scope="row">Opções</th><td>Dezenas de ETFs <button type="button" class="termo" data-termo="etf" aria-label="O que é ETF?" title="O que é ETF?">i</button> e centenas de BDRs <button type="button" class="termo" data-termo="bdr" aria-label="O que é BDR?" title="O que é BDR?">i</button> (ex.: IVVB11, NASD11)</td><td>Milhares de ETFs, ações, títulos do Tesouro americano e ETFs irlandeses <button type="button" class="termo" data-termo="ucits" aria-label="O que é ETF irlandês?" title="O que é ETF irlandês?">i</button></td></tr>
               <tr><th scope="row">Imposto</th><td>Regras brasileiras: 15% sobre o lucro na venda de ETFs, pago via DARF no mês seguinte</td><td>15% sobre o ganho, apurado na declaração anual (Lei 14.754/2023)</td></tr>
               <tr><th scope="row">Protege do “risco Brasil”?</th><td>Em parte: o ativo é global, mas a custódia e as regras são brasileiras</td><td>Sim: diversifica moeda e país</td></tr>
               <tr><th scope="row">Indicado para</th><td>Começar e valores menores</td><td>Valores maiores e quem quer patrimônio de fato fora</td></tr>
@@ -249,6 +272,18 @@
             <li><strong>Proteja o acesso:</strong> autenticação em dois fatores em todas as contas e nunca compartilhe senhas ou códigos.</li>
           </ul>
         </div>
+      </div>
+    </section>
+
+    <!-- DICIONÁRIO -->
+    <section id="glossario" class="secao" aria-labelledby="t-glossario">
+      <h2 id="t-glossario">Dicionário do investidor</h2>
+      <p class="sub-secao">As palavras que aparecem no painel, explicadas sem complicação.</p>
+      <div class="cartao">
+        <label class="busca">Procurar um termo
+          <input type="search" id="busca-termo" placeholder="Ex.: CDI, ETF, inflação" autocomplete="off">
+        </label>
+        <div id="verbetes" class="verbetes"></div>
       </div>
     </section>
 
@@ -303,6 +338,7 @@
   <script src="js/fontes.js"></script>
   <script src="js/analise.js"></script>
   <script src="js/graficos.js"></script>
+  <script src="js/glossario.js"></script>
   <script src="js/consultor.js"></script>
   <script src="js/app.js"></script>
 </body>

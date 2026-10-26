@@ -134,10 +134,30 @@
     return anos.length ? anos[0] : null;
   }
 
+  /* O que fazer, em uma frase simples, para cada ponto da leitura do momento. */
+  C.ACOES = {
+    'Movimento forte no câmbio hoje': 'Hoje não é dia de decisões grandes. Siga o plano e compre dólar só em parcelas.',
+    'Bolsa brasileira com oscilação forte': 'Não venda no susto. Entenda o motivo antes de mexer nos seus investimentos.',
+    'A renda fixa brasileira paga muito acima da inflação': 'Deixe a reserva e uma parte do dinheiro em renda fixa no Brasil.',
+    'Juro real em nível razoável': 'A renda fixa continua sendo uma boa base para a carteira.',
+    'Juro real baixo': 'Vale diversificar além da renda fixa, inclusive no exterior.',
+    'O mercado espera queda dos juros': 'Para dinheiro de longo prazo, considere também Tesouro IPCA+ ou prefixado.',
+    'O mercado espera alta dos juros': 'Prefira renda fixa que acompanha a Selic (Tesouro Selic, CDB pós-fixado).',
+    'Juros devem ficar perto do nível atual': 'Nada muda para quem está começando.',
+    'Inflação pede atenção': 'Proteja-se com investimentos atrelados à inflação, como o Tesouro IPCA+.',
+    'Inflação sob controle relativo': 'Nada urgente: siga o seu plano.',
+    'Câmbio: como levar dinheiro para fora': 'Compre dólar aos poucos, em parcelas mensais.',
+    'Contas públicas do Brasil': 'Ter uma parte do patrimônio fora do Brasil reduz esse risco.',
+    'Crescimento: Brasil × mundo': 'Investir em vários países é mais seguro do que em um só.',
+    'Diversificar fora faz sentido': 'Considere ter uma parte do seu dinheiro em investimentos no exterior.',
+    'Bolsa americana': 'Se for investir lá, faça aportes mensais em vez de tudo de uma vez.',
+    'Cripto: só uma fatia pequena': 'No máximo 5% do patrimônio, e só depois da reserva de emergência.',
+  };
+
   /* Leitura do momento: frases geradas a partir dos dados, sempre com a fonte. */
   C.leitura = function (ctx) {
     const itens = [];
-    const add = (tipo, titulo, texto, fonte) => itens.push({ tipo, titulo, texto, fonte });
+    const add = (tipo, titulo, texto, fonte) => itens.push({ tipo, titulo, texto, fonte, acao: C.ACOES[titulo] || null });
     const ano = ctx.ano;
 
     // Movimentos fortes de um dia vêm primeiro: são os que mais levam a decisões por impulso.

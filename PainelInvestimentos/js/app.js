@@ -267,13 +267,31 @@
     };
   }
 
+  /* ---------- Modo simples × completo ---------- */
+  const simples = () => document.body.classList.contains('modo-simples');
+
+  function aplicarModo(modo) {
+    document.body.classList.toggle('modo-simples', modo !== 'completo');
+    document.querySelectorAll('[data-modo]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.modo === modo ? 'true' : 'false'));
+  }
+
+  function montarModo() {
+    aplicarModo(P.armazenamento.ler('modo', 'simples'));
+    document.querySelectorAll('[data-modo]').forEach((b) => b.addEventListener('click', () => {
+      aplicarModo(b.dataset.modo);
+      P.armazenamento.gravar('modo', b.dataset.modo);
+      renderTudo();
+    }));
+  }
+
   /* ---------- Visão geral ---------- */
-  function bloco({ rotulo, valor, detalhe, delta, mini, rodape, extra }) {
+  function bloco({ rotulo, termo, valor, paraVoce, detalhe, delta, mini, rodape, extra }) {
     const card = P.el('div', { class: 'indicador cartao' });
-    card.append(P.el('div', { class: 'ind-rotulo', texto: rotulo }));
+    card.append(P.el('div', { class: 'ind-rotulo' }, rotulo, termo ? P.termo(termo, rotulo) : null));
     card.append(P.el('div', { class: 'ind-valor', texto: valor }));
     if (delta) card.append(P.el('div', { class: 'ind-delta' }, P.el('span', { class: 'seta', 'aria-hidden': 'true', texto: delta.seta }), delta.texto));
-    if (detalhe) card.append(P.el('div', { class: 'ind-detalhe', texto: detalhe }));
+    if (paraVoce) card.append(P.el('p', { class: 'para-voce' }, P.el('strong', { texto: 'Para você: ' }), paraVoce));
+    if (detalhe) card.append(P.el('div', { class: 'ind-detalhe avancado', texto: detalhe }));
     if (extra) card.append(extra);
     if (mini && mini.length > 1) {
       const m = P.el('div', { class: 'ind-mini' });
@@ -307,15 +325,18 @@
     const valores = validas.map((x) => x.v);
     const dif = (Math.max(...valores) / Math.min(...valores) - 1) * 100;
     const ok = dif <= 1.5;
+    const alerta = !ok && !(dif <= 3 && new Set(validas.map((x) => (num(x.t) ? Math.floor(x.t / P.DIA) : null))).size === 1);
     const dias = new Set(validas.map((x) => (num(x.t) ? Math.floor(x.t / P.DIA) : null)));
     let texto;
     if (ok) texto = validas.length + ' fontes conferem (diferença de ' + fmt.pct(dif, 1) + ')';
-    else if (dias.size > 1) {
+    else if (dias.size === 1 && dif <= 3) {
+      texto = 'Pequena diferença entre as fontes (' + fmt.pct(dif, 1) + '): normal em dias agitados, porque cada uma mede num horário diferente.';
+    } else if (dias.size > 1) {
       texto = 'Diferença de ' + fmt.pct(dif, 1) + ' entre datas diferentes ('
         + validas.map((x) => x.nome + ' ' + (num(x.t) ? fmt.diaMes(x.t) : '?')).join(', ') + '): o câmbio se moveu forte.';
     } else texto = 'Fontes divergem ' + fmt.pct(dif, 1) + ' no mesmo dia: algum dado pode estar errado. Confira na fonte oficial.';
-    return P.el('div', { class: 'conferencia ' + (ok ? 'conferencia-ok' : 'conferencia-alerta') },
-      P.el('span', { 'aria-hidden': 'true', texto: ok ? '✓ ' : '⚠ ' }), texto);
+    return P.el('div', { class: 'conferencia ' + (alerta ? 'conferencia-alerta' : 'conferencia-ok') },
+      P.el('span', { 'aria-hidden': 'true', texto: alerta ? '⚠ ' : '✓ ' }), texto);
   }
 
   function fontesCambio(moeda, serie) {
@@ -332,46 +353,85 @@
       .map((x) => x.nome + ' ' + (num(x.t) ? fmt.diaMes(x.t) : '') + ': ' + fmt.brl(x.v, 4)).join(' · ');
   }
 
+  /* "Para você": o que cada número significa na prática. */
+  const PARA_VOCE = {
+    selic(s) {
+      if (!num(s)) return null;
+      if (s >= 10) return 'juros altos. A renda fixa está rendendo bem, e empréstimos e financiamentos estão caros.';
+      if (s >= 6) return 'juros médios. A renda fixa rende de forma razoável.';
+      return 'juros baixos. A renda fixa rende pouco; vale diversificar.';
+    },
+    ipca(i) {
+      if (!num(i)) return null;
+      const meta = i > 4.5 ? ' Está acima do limite da meta do governo (4,5%).' : i < 1.5 ? ' Está abaixo do piso da meta (1,5%).' : ' Está dentro da meta do governo.';
+      return 'o que custava R$ 100 há um ano hoje custa cerca de ' + fmt.brl(100 * (1 + i / 100)) + '. Seu dinheiro precisa render mais que isso para não perder valor.' + meta;
+    },
+    juroReal(j) {
+      if (!num(j)) return null;
+      if (j >= 6) return 'excelente. A renda fixa está rendendo bem acima da inflação.';
+      if (j >= 3) return 'bom. A renda fixa rende acima da inflação.';
+      if (j >= 0) return 'fraco. A renda fixa rende pouco acima da inflação.';
+      return 'negativo. A renda fixa está perdendo para a inflação.';
+    },
+    cdi(c, poupanca) {
+      if (!num(c)) return null;
+      // Para 1 ano, o imposto da renda fixa é de 17,5% sobre o ganho.
+      const cdb = 1000 * (1 + c / 100 * (1 - 0.175));
+      return 'R$ 1.000 num CDB de 100% do CDI viram cerca de ' + fmt.brl(cdb, 0) + ' em 1 ano, já descontado o imposto.'
+        + (num(poupanca) ? ' Na poupança, cerca de ' + fmt.brl(1000 * (1 + poupanca / 100), 0) + '.' : '');
+    },
+    moeda(a, simbolo) {
+      if (!a || !num(a.preco)) return null;
+      let t = 'para comprar ' + simbolo + ' 100, você precisa de cerca de ' + fmt.brl(a.preco * 100, 0) + ', sem contar taxas.';
+      if (num(a.varDia) && Math.abs(a.varDia) >= 2) t += ' Hoje ele se moveu bastante: evite decisões por impulso.';
+      return t;
+    },
+  };
+
   function renderIndicadores() {
     const ctx = contexto();
     const cont = P.limpar($('indicadores'));
     const u = P.serie.ultimo;
 
     cont.append(bloco({
-      rotulo: 'Selic (meta)',
-      valor: num(ctx.selic) ? fmt.pct(ctx.selic) + ' a.a.' : '—',
+      rotulo: 'Juros (Selic)', termo: 'selic',
+      valor: num(ctx.selic) ? fmt.pct(ctx.selic) + ' ao ano' : '—',
       delta: deltaPP(E.selic, 365, 'em 12 meses'),
+      paraVoce: PARA_VOCE.selic(ctx.selic),
       mini: amostra(E.selic, 24),
       rodape: selo('bcb', u(E.selic) ? fmt.data(u(E.selic).t) : ''),
     }));
     cont.append(bloco({
-      rotulo: 'Inflação (IPCA 12 meses)',
+      rotulo: 'Inflação (IPCA, 12 meses)', termo: 'ipca',
       valor: num(ctx.ipca12) ? fmt.pct(ctx.ipca12) : '—',
       delta: deltaPP(E.ipca12, 365, 'em 12 meses'),
-      detalhe: num(ctx.ipca12) ? (ctx.ipca12 > 4.5 ? 'Acima do teto da meta (4,5%)' : ctx.ipca12 < 1.5 ? 'Abaixo do piso da meta (1,5%)' : 'Dentro da meta (3% ± 1,5)') : null,
+      paraVoce: PARA_VOCE.ipca(ctx.ipca12),
       mini: amostra(E.ipca12, 24),
       rodape: selo('bcb', u(E.ipca12) ? fmt.mesAno(u(E.ipca12).t) : ''),
     }));
     cont.append(bloco({
-      rotulo: 'Juro real',
-      valor: num(ctx.juroReal) ? fmt.pct(ctx.juroReal) + ' a.a.' : '—',
-      detalhe: 'Selic descontada a inflação de 12 meses: quanto a renda fixa paga acima dos preços.',
+      rotulo: 'Ganho acima da inflação (juro real)', termo: 'juroReal',
+      valor: num(ctx.juroReal) ? fmt.pct(ctx.juroReal) + ' ao ano' : '—',
+      paraVoce: PARA_VOCE.juroReal(ctx.juroReal),
+      detalhe: 'Cálculo: Selic descontada a inflação dos últimos 12 meses.',
       rodape: selo('bcb', 'cálculo do painel'),
     }));
     const poupanca = num(ctx.selic) ? (ctx.selic > 8.5 ? (Math.pow(1.005, 12) - 1) * 100 : ctx.selic * 0.7) : null;
     cont.append(bloco({
-      rotulo: 'CDI',
-      valor: num(ctx.cdi) ? fmt.pct(ctx.cdi) + ' a.a.' : '—',
-      detalhe: num(poupanca) ? 'Poupança: cerca de ' + fmt.pct(poupanca) + ' a.a. + TR. Um CDB de 100% do CDI rende ' + fmt.pct((ctx.cdi || 0) * 0.85) + ' líquido (após 2 anos).' : null,
+      rotulo: 'Rendimento da renda fixa (CDI)', termo: 'cdi',
+      valor: num(ctx.cdi) ? fmt.pct(ctx.cdi) + ' ao ano' : '—',
+      paraVoce: PARA_VOCE.cdi(ctx.cdi, poupanca),
+      detalhe: num(poupanca) ? 'Poupança: cerca de ' + fmt.pct(poupanca) + ' ao ano + TR. CDB de 100% do CDI após 2 anos: ' + fmt.pct((ctx.cdi || 0) * 0.85) + ' ao ano líquido.' : null,
       rodape: selo('bcb', u(E.cdi) ? fmt.data(u(E.cdi).t) : ''),
     }));
 
-    for (const [id, rotulo, serie] of [['usd', 'Dólar', E.dolar], ['eur', 'Euro', E.euro]]) {
+    for (const [id, rotulo, serie, simbolo] of [['usd', 'Dólar', E.dolar, 'US$'], ['eur', 'Euro', E.euro, '€']]) {
       const a = (E.ativos || []).find((x) => x.id === id);
       cont.append(bloco({
-        rotulo,
-        valor: a ? fmt.brl(a.preco, 4) : '—',
+        rotulo, termo: id === 'usd' ? 'dolarizar' : null,
+        valor: a ? fmt.brl(a.preco, 2) : '—',
         delta: a && num(a.varDia) ? { seta: a.varDia > 0 ? '▲' : a.varDia < 0 ? '▼' : '▶', texto: fmt.pct(a.varDia, 2, true) + ' no dia' } : null,
+        paraVoce: PARA_VOCE.moeda(a, simbolo),
         detalhe: detalheCambio(id, serie),
         extra: conferenciaCambio(fontesCambio(id, serie)),
         mini: amostra(a ? a.serie : serie, 30),
@@ -395,12 +455,16 @@
     }
     for (const it of itens) {
       const t = ROTULO_TIPO[it.tipo];
+      const porque = P.el('details', { class: 'entenda' },
+        P.el('summary', { texto: 'Entenda o porquê' }),
+        P.el('p', { texto: it.texto }),
+        P.el('span', { class: 'fonte', texto: 'Fonte: ' + it.fonte }));
+      porque.open = !simples();
       lista.append(P.el('li', { class: 'item-leitura tipo-' + it.tipo },
         P.el('span', { class: 'chip chip-' + it.tipo }, P.el('span', { 'aria-hidden': 'true', class: 'chip-icone', texto: t.icone }), t.texto),
-        P.el('div', null,
-          P.el('strong', { texto: it.titulo }),
-          P.el('p', { texto: it.texto }),
-          P.el('span', { class: 'fonte', texto: 'Fonte: ' + it.fonte }))));
+        P.el('strong', { class: 'leitura-titulo', texto: it.titulo }),
+        it.acao ? P.el('p', { class: 'leitura-acao' }, P.el('span', { class: 'leitura-acao-rotulo', texto: 'O que fazer: ' }), it.acao) : null,
+        porque));
     }
   }
 
@@ -443,12 +507,13 @@
     const cont = P.limpar($('focus'));
     if (!E.focus) { falha(cont, 'focus'); return; }
     const anos = [ANO, ANO + 1, ANO + 2];
-    const nomes = { IPCA: 'Inflação (IPCA, %)', Selic: 'Selic no fim do ano (%)', 'PIB Total': 'Crescimento do PIB (%)', 'Câmbio': 'Dólar no fim do ano (R$)' };
+    const nomes = { IPCA: 'Inflação no ano (%)', Selic: 'Juros (Selic) no fim do ano (%)', 'PIB Total': 'Crescimento da economia (%)', 'Câmbio': 'Dólar no fim do ano (R$)' };
+    const termos = { IPCA: 'ipca', Selic: 'selic', 'PIB Total': 'pib', 'Câmbio': 'ptax' };
     const t = P.el('table', { class: 'tabela-focus' });
     t.append(P.el('thead', null, P.el('tr', null, P.el('th', { scope: 'col', texto: 'Indicador' }), anos.map((a) => P.el('th', { scope: 'col', texto: String(a) })))));
     const corpo = P.el('tbody');
     for (const ind of P.FOCUS_INDICADORES) {
-      const linha = P.el('tr', null, P.el('th', { scope: 'row', texto: nomes[ind] }));
+      const linha = P.el('tr', null, P.el('th', { scope: 'row' }, nomes[ind], P.termo(termos[ind])));
       for (const a of anos) {
         const it = C.focusItem(E, ind, a);
         if (!it) { linha.append(P.el('td', { texto: '—' })); continue; }
@@ -472,7 +537,7 @@
       corpo.append(linha);
     }
     t.append(corpo);
-    cont.append(t);
+    cont.append(t, P.el('p', { class: 'legenda-setas', texto: '▲ a previsão subiu nas últimas 4 semanas · ▼ caiu · = não mudou' }));
     const ipca = C.focusItem(E, 'IPCA', ANO + 1);
     $('focus-fonte').textContent = 'Fonte: Banco Central do Brasil, Sistema de Expectativas de Mercado · data-base '
       + (E.focus.dataBase ? fmt.data(Date.parse(E.focus.dataBase + 'T12:00:00Z')) : '—')
@@ -509,7 +574,7 @@
       cont.append(
         P.el('div', { class: 'numero-grande', texto: fmt.pct(br, 1) }),
         P.el('div', null,
-          P.el('strong', { texto: 'é o tamanho da economia brasileira no mundo' }),
+          P.el('strong', null, 'é o tamanho da economia brasileira no mundo', P.termo('ppp')),
           P.el('p', { texto: 'EUA: ' + fmt.pct(part.USA && part.USA[anoPart], 1) + ' · China: ' + fmt.pct(part.CHN && part.CHN[anoPart], 1) + '. Investir só no Brasil concentra todo o seu patrimônio em uma fatia pequena da economia global.' }),
           P.el('span', { class: 'fonte', texto: 'FMI, participação no PIB mundial em paridade de poder de compra, ' + anoPart })));
       $('ext-participacao').textContent = 'Segundo o FMI, o Brasil representa cerca de ' + fmt.pct(br, 1) + ' da economia mundial (' + anoPart + '). Os outros ' + fmt.pct(100 - br, 1) + ' estão fora daqui.';
@@ -556,6 +621,7 @@
       const usouHoje = s2 !== serie;
       lista.push(ativoDeSerie({
         id, nome, codigo, grupo: 'moedas', moeda: 'BRL', casas: 4, significado: SIGNIFICADO.moedas,
+        explica: id === 'usd' ? 'Quanto custa 1 dólar americano em reais.' : 'Quanto custa 1 euro em reais.',
         fonte: usouHoje ? hoje.fonte : 'bcb',
         desc: usouHoje
           ? 'Histórico: PTAX do Banco Central. Último ponto: ' + P.FONTES[hoje.fonte].nome + ', ' + (hoje.fonte === 'awesome' ? fmt.dataHora(hoje.t) : fmt.data(hoje.t)) + '.'
@@ -566,7 +632,7 @@
       const s = E.cripto[c.ativo];
       if (!s) continue;
       lista.push(ativoDeSerie({
-        id: c.ativo, nome: c.nome, codigo: c.codigo, grupo: 'cripto', moeda: 'BRL', fonte: 'coingecko', periodosAno: 365,
+        id: c.ativo, nome: c.nome, codigo: c.codigo, grupo: 'cripto', moeda: 'BRL', fonte: 'coingecko', periodosAno: 365, explica: c.explica,
         significado: c.ativo === 'ouro' ? SIGNIFICADO.ouro : SIGNIFICADO.cripto,
       }, s));
     }
@@ -574,13 +640,13 @@
       for (const a of P.EUA) {
         const d = E.eua[a.simbolo];
         if (!d || !d.serie || d.serie.length < 25) continue;
-        lista.push(ativoDeSerie({ id: a.simbolo, nome: a.nome, codigo: a.simbolo, desc: a.desc, grupo: 'exterior', moeda: 'USD', fonte: 'twelve', significado: SIGNIFICADO.exterior }, d.serie));
+        lista.push(ativoDeSerie({ id: a.simbolo, nome: a.nome, codigo: a.simbolo, explica: a.desc + '. Cotado em dólar.', grupo: 'exterior', moeda: 'USD', fonte: 'twelve', significado: SIGNIFICADO.exterior }, d.serie));
       }
     }
     for (const tk in E.b3) {
       const d = E.b3[tk];
       if (!d.serie || d.serie.length < 2) continue;
-      lista.push(ativoDeSerie({ id: 'b3-' + tk, nome: d.nome, codigo: d.simbolo, grupo: 'brasil', moeda: d.moeda, fonte: 'brapi', significado: SIGNIFICADO.brasil },
+      lista.push(ativoDeSerie({ id: 'b3-' + tk, nome: d.nome, codigo: d.simbolo, explica: P.DESCRICOES_B3[tk] || 'Negociado na bolsa brasileira (B3), em reais.', grupo: 'brasil', moeda: d.moeda, fonte: 'brapi', significado: SIGNIFICADO.brasil },
         d.serie, num(d.preco) ? { preco: d.preco, varDia: num(d.varDia) ? d.varDia : P.serie.variacaoUltima(d.serie) } : {}));
     }
     return lista;
@@ -589,7 +655,17 @@
   function chipTendencia(t) {
     if (!t) return P.el('span', { class: 'chip chip-neutro', texto: 'Histórico curto' });
     const r = A.ROTULO_SINAL[t.sinal];
-    return P.el('span', { class: 'chip chip-' + t.sinal }, P.el('span', { class: 'chip-icone', 'aria-hidden': 'true', texto: r.seta }), r.texto);
+    return P.el('span', { class: 'chip chip-' + t.sinal, title: 'Tendência das últimas semanas' },
+      P.el('span', { class: 'chip-icone', 'aria-hidden': 'true', texto: r.seta }), simples() ? r.simples : r.texto);
+  }
+
+  function seloRisco(t) {
+    const r = t && t.risco;
+    if (!r) return null;
+    const pontos = '●'.repeat(r.nivel) + '○'.repeat(4 - r.nivel);
+    return P.el('span', { class: 'risco risco-' + r.nivel, title: 'Risco ' + r.rotulo.toLowerCase() + ': ' + r.texto },
+      'Risco ', P.el('span', { class: 'risco-pontos', 'aria-hidden': 'true', texto: pontos }),
+      P.el('span', { class: 'sr', texto: r.rotulo + ' (' + r.nivel + ' de 4)' }));
   }
 
   function variacao(rotulo, v) {
@@ -610,10 +686,12 @@
       G.mini(mini, a.serie.slice(-90).map((p) => p.v));
       card.append(
         P.el('div', { class: 'ativo-topo' }, P.el('span', { class: 'ativo-nome', texto: a.nome }), P.el('span', { class: 'ativo-codigo', texto: a.codigo })),
-        P.el('div', { class: 'ativo-preco', texto: fmt.moeda(a.preco, a.moeda, a.casas || (a.preco < 10 ? 4 : 2)) }),
-        P.el('div', { class: 'ativo-vars' }, variacao('Dia', a.varDia), variacao('30 dias', a.var30)),
+        a.explica ? P.el('div', { class: 'ativo-explica', texto: a.explica }) : null,
+        P.el('div', { class: 'ativo-preco', texto: fmt.moeda(a.preco, a.moeda, a.grupo === 'moedas' ? 2 : a.casas || (a.preco < 10 ? 4 : 2)) }),
+        P.el('div', { class: 'ativo-vars' }, variacao('Hoje', a.varDia), variacao('30 dias', a.var30)),
         mini,
-        P.el('div', { class: 'ativo-rodape' }, chipTendencia(a.tendencia), P.el('span', { class: 'fonte', texto: P.FONTES[a.fonte].nome.split(' (')[0] })));
+        P.el('div', { class: 'ativo-rodape' }, chipTendencia(a.tendencia), seloRisco(a.tendencia)),
+        P.el('span', { class: 'fonte avancado', texto: P.FONTES[a.fonte].nome.split(' (')[0] }));
       cont.append(card);
     }
 
@@ -647,16 +725,17 @@
       return;
     }
     const t = a.tendencia;
-    const casas = a.casas || (a.preco < 10 ? 4 : 2);
+    const casas = a.grupo === 'moedas' && simples() ? 2 : a.casas || (a.preco < 10 ? 4 : 2);
     cont.append(
       P.el('div', { class: 'detalhe-topo' },
         P.el('div', null,
           P.el('h3', { texto: a.nome + ' (' + a.codigo + ')' }),
-          a.desc ? P.el('p', { class: 'sub', texto: a.desc }) : null),
+          a.explica ? P.el('p', { class: 'sub', texto: a.explica }) : null,
+          a.desc ? P.el('p', { class: 'sub avancado', texto: a.desc }) : null),
         P.el('div', { class: 'detalhe-preco' },
           P.el('span', { class: 'ind-valor', texto: fmt.moeda(a.preco, a.moeda, casas) }),
-          chipTendencia(t))),
-      P.el('div', { class: 'ativo-vars' }, variacao('Dia', a.varDia), variacao('30 dias', a.var30), variacao('12 meses', a.var365)));
+          chipTendencia(t), seloRisco(t))),
+      P.el('div', { class: 'ativo-vars' }, variacao('Hoje', a.varDia), variacao('30 dias', a.var30), variacao('12 meses', a.var365)));
 
     const graf = P.el('div', { class: 'detalhe-grafico' });
     cont.append(graf);
@@ -664,21 +743,21 @@
     const ini = a.serie.length - n;
     const x = a.serie.slice(ini).map((p) => p.t);
     const series = [{ nome: 'Preço', cor: 'var(--serie-1)', y: a.serie.slice(ini).map((p) => p.v) }];
-    if (t) {
+    if (t && !simples()) {
       series.push({ nome: 'Média de 20 dias', cor: 'var(--serie-2)', y: t.curta.slice(ini) });
       series.push({ nome: 'Média de ' + t.nLonga + ' dias', cor: 'var(--serie-3)', y: t.longa.slice(ini) });
     }
     const fy = (v) => fmt.moeda(v, a.moeda, casas);
     G.linha(graf, {
-      titulo: 'Preço de ' + a.nome + ' com médias móveis', x, series,
+      titulo: 'Preço de ' + a.nome + (series.length > 1 ? ' com médias móveis' : ' no último ano'), x, series,
       formatoX: n > 120 ? fmt.mesAno : fmt.diaMes, formatoXLongo: fmt.data, formatoY: (v) => fmt.num(v, v < 10 ? 2 : 0), formatoYLongo: fy, altura: 280,
     });
 
     const analise = P.el('div', { class: 'duas-colunas analise' });
     const ul = P.el('ul', { class: 'lista' });
-    (t ? t.textos : ['Histórico ainda curto para calcular a tendência com segurança.']).forEach((x2) => ul.append(P.el('li', { texto: x2 })));
+    (t ? (simples() ? t.simples : t.textos) : ['Histórico ainda curto para calcular a tendência com segurança.']).forEach((x2) => ul.append(P.el('li', { texto: x2 })));
     analise.append(
-      P.el('div', null, P.el('h4', { texto: 'Leitura técnica' }), ul),
+      P.el('div', null, P.el('h4', null, simples() ? 'O que os números mostram' : 'Leitura técnica', P.termo(simples() ? 'tendencia' : 'mediaMovel')), ul),
       P.el('div', null, P.el('h4', { texto: 'O que isso significa para você' }), P.el('p', { texto: a.significado })));
     cont.append(analise, P.el('p', { class: 'fonte' }, selo(a.fonte, a.quando ? 'último dado: ' + fmt.data(a.quando) : '')));
   }
@@ -894,7 +973,16 @@
     }
     corpo.append(P.el('tr', null, P.el('th', { scope: 'row', texto: 'Total investido' }), P.el('td', { class: 'numero', texto: fmt.brl(investido, 0) }), P.el('td', { texto: '' }), P.el('td', { texto: '' })));
     t.append(corpo);
-    resultado.append(t);
+    const [poup, cdb, glob] = series.slice(0, 3).map((se) => se.y[fim]);
+    const anosTexto = fmt.num(r.x[fim], Number.isInteger(r.x[fim]) ? 0 : 1) + (r.x[fim] === 1 ? ' ano' : ' anos');
+    resultado.append(
+      P.el('p', { class: 'resumo-simulacao' },
+        P.el('strong', { texto: 'Em resumo: ' }),
+        'colocando ' + fmt.brl(p.inicial, 0) + ' agora e ' + fmt.brl(p.mensal, 0) + ' por mês durante ' + anosTexto
+        + ', você terá investido ' + fmt.brl(investido, 0) + ' do seu bolso. Com os juros, isso viraria cerca de '
+        + fmt.brl(cdb, 0) + ' num CDB, ' + fmt.brl(poup, 0) + ' na poupança e ' + fmt.brl(glob, 0)
+        + ' na carteira global, se as hipóteses se confirmarem. A diferença mostra a força dos juros compostos (juros sobre juros).'),
+      t);
   }
 
   /* ---------- Fontes e configurações ---------- */
@@ -987,7 +1075,9 @@
   }
 
   function iniciar() {
+    montarModo();
     montarTema();
+    P.montarGlossario($('verbetes'), $('busca-termo'));
     montarFiltros();
     montarQuestionario();
     montarValores();
