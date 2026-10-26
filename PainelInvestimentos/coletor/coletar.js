@@ -30,6 +30,7 @@ globalThis.fetch = (url, opcoes = {}) => fetchOriginal(url, Object.assign({}, op
 require(path.join(__dirname, '..', 'js', 'util.js'));
 require(path.join(__dirname, '..', 'js', 'fontes.js'));
 const P = globalThis.Painel;
+P.TEMPO_LIMITE = 40000; // no servidor dá para esperar mais que no navegador
 const mesclar = P.serie.mesclar;
 
 /* Pregão aberto (com folga para o fechamento), em dias úteis, no horário UTC. */

@@ -191,6 +191,7 @@
 
   P.dados.fmi = function (chave, forcar) {
     const cfg = P.FMI_INDICADORES[chave];
+    const desde = new Date().getFullYear() - 15;
     return P.buscar('fmi-' + chave, FMI + cfg.codigo + '/' + cfg.paises.join('/'), {
       ttlMin: 1440,
       forcar,
@@ -203,6 +204,7 @@
           if (!v[pais]) continue;
           saida[pais] = {};
           for (const ano in v[pais]) {
+            if (Number(ano) < desde) continue; // o painel mostra só os anos recentes
             const n = Number(v[pais][ano]);
             if (v[pais][ano] !== null && isFinite(n)) saida[pais][ano] = n;
           }

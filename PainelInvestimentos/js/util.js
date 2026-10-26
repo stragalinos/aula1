@@ -109,7 +109,7 @@ window.Painel = window.Painel || {};
      `urls` pode ser uma lista de endereços alternativos, tentados em ordem.
      A chave do cache nunca inclui tokens. */
   P.buscar = async function (chave, urls, opcoes = {}) {
-    const { ttlMin = 30, forcar = false, transformar, validar, timeout = 15000 } = opcoes;
+    const { ttlMin = 30, forcar = false, transformar, validar, timeout = P.TEMPO_LIMITE || 15000 } = opcoes;
     const salvo = P.armazenamento.ler('cache:' + chave, null);
     const agora = Date.now();
     if (salvo && !forcar && agora - salvo.t < ttlMin * 60000) {
