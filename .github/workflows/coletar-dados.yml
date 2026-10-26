@@ -7,7 +7,8 @@ name: Coletar dados do painel
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    # Minutos fora do pico: o GitHub atrasa ou descarta execuções marcadas para :00 e :30.
+    - cron: "13,43 * * * *"
   workflow_dispatch:
 
 permissions:
