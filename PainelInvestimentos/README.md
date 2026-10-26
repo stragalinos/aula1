@@ -12,9 +12,30 @@ e simula quanto seu dinheiro pode render.
 
 ## Como abrir
 
+- **Pela internet:** <https://stragalinos.github.io/aula1/> (abre o painel direto).
 - **No computador:** dê dois cliques em `index.html` (não precisa instalar nada).
-- **Pela internet (GitHub Pages):** no GitHub, vá em *Settings → Pages*, escolha a
-  branch e a pasta raiz. O painel ficará em `https://stragalinos.github.io/aula1/PainelInvestimentos/`.
+
+### Publicar no GitHub Pages (uma vez só)
+
+1. No GitHub, abra o repositório e vá em **Settings → Pages**.
+2. Em *Build and deployment*, escolha **Source: Deploy from a branch**.
+3. Em *Branch*, escolha **master** e a pasta **/ (root)**. Clique em **Save**.
+4. Em 1 a 2 minutos o endereço aparece no topo da página. Cada novo commit na
+   `master` atualiza o site sozinho.
+
+## Como usar
+
+1. **Visão geral:** comece pela leitura do consultor. Cada ponto diz o que está
+   acontecendo agora e de onde veio o dado.
+2. **Consultor:** responda as 6 perguntas e preencha seus números (valor disponível,
+   aporte mensal, gasto mensal e reserva). O plano aparece logo abaixo, com quanto
+   colocar em cada classe hoje e por mês.
+3. **Simulador:** ajuste prazo e hipóteses para comparar poupança, CDB e uma carteira global.
+4. **Mercados:** clique em um ativo para ver o gráfico com médias móveis e a explicação da tendência.
+5. **Fontes:** confira se todas as fontes estão com ✓. Se quiser a bolsa americana e mais
+   ativos da B3, cole as chaves gratuitas ali (veja abaixo).
+
+Suas respostas, números e chaves ficam salvos só no seu navegador; ninguém mais vê.
 
 ## O que tem no painel
 
