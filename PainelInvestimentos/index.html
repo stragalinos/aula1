@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; img-src 'self' data:; connect-src https://api.bcb.gov.br https://olinda.bcb.gov.br https://www.imf.org https://api.worldbank.org https://api.frankfurter.dev https://api.frankfurter.app https://economia.awesomeapi.com.br https://api.coingecko.com https://brapi.dev https://api.twelvedata.com; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="Painel do mercado financeiro com dados oficiais do Brasil e do exterior, análise de tendências e um consultor para quem está começando a investir.">
+  <title>Painel do Investidor</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+  <a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+  <header class="topo">
+    <div class="topo-interno">
+      <div class="marca">
+        <span class="marca-icone" aria-hidden="true">▲</span>
+        <div>
+          <strong>Painel do Investidor</strong>
+          <span class="marca-sub">Mercado, tendências e um consultor para quem está começando</span>
+        </div>
+      </div>
+      <div class="topo-acoes">
+        <span id="situacao" class="situacao" aria-live="polite">Carregando dados…</span>
+        <button id="btn-atualizar" class="botao" type="button">Atualizar</button>
+        <button id="btn-tema" class="botao botao-icone" type="button" aria-label="Alternar tema claro ou escuro" title="Alternar tema"><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm0 1.6v12.8a6.4 6.4 0 0 1 0-12.8Z"/></svg></button>
+      </div>
+    </div>
+    <nav class="abas" aria-label="Seções do painel">
+      <a href="#visao-geral">Visão geral</a>
+      <a href="#brasil">Brasil</a>
+      <a href="#mundo">Mundo</a>
+      <a href="#mercados">Mercados</a>
+      <a href="#consultor">Consultor</a>
+      <a href="#exterior">Investir no exterior</a>
+      <a href="#fontes">Fontes</a>
+    </nav>
+  </header>
+
+  <main id="conteudo">
+    <p class="aviso" role="note">
+      <strong>Importante:</strong> este painel é educativo. Ele reúne dados de fontes oficiais e de mercado e aplica regras
+      transparentes, mas não é recomendação individual de investimento e não substitui um consultor registrado na CVM.
+      Rentabilidade passada e tendências não garantem resultados futuros.
+    </p>
+
+    <!-- VISÃO GERAL -->
+    <section id="visao-geral" class="secao" aria-labelledby="t-visao">
+      <h2 id="t-visao">Visão geral</h2>
+      <div id="indicadores" class="grade-indicadores"></div>
+      <div class="cartao leitura">
+        <h3>O que o consultor está vendo agora</h3>
+        <p class="sub">Leitura automática dos dados mais recentes. Cada ponto mostra de onde veio a informação.</p>
+        <ul id="leitura" class="lista-leitura"><li class="carregando">Analisando os dados…</li></ul>
+      </div>
+    </section>
+
+    <!-- BRASIL -->
+    <section id="brasil" class="secao" aria-labelledby="t-brasil">
+      <h2 id="t-brasil">Brasil: juros, inflação e o que o mercado espera</h2>
+      <div class="cartao">
+        <h3>Boletim Focus: projeções do mercado</h3>
+        <p class="sub">Mediana das projeções de cerca de 100 bancos, gestoras e consultorias, coletadas pelo Banco Central. A seta compara com 4 semanas atrás.</p>
+        <div id="focus" class="tabela-rolagem"><p class="carregando">Carregando o Focus…</p></div>
+        <p class="fonte" id="focus-fonte"></p>
+      </div>
+      <div class="duas-colunas">
+        <div class="cartao">
+          <h3>Selic (meta), últimos 2 anos</h3>
+          <p class="sub">A taxa básica de juros define quanto rendem Tesouro Selic, CDBs e a poupança.</p>
+          <div id="graf-selic"></div>
+          <p class="fonte">Fonte: Banco Central do Brasil (SGS, série 432)</p>
+        </div>
+        <div class="cartao">
+          <h3>Inflação (IPCA) acumulada em 12 meses</h3>
+          <p class="sub">A meta é 3% ao ano, com tolerância até 4,5%.</p>
+          <div id="graf-ipca"></div>
+          <p class="fonte">Fonte: Banco Central do Brasil (SGS, série 13522) com dados do IBGE</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- MUNDO -->
+    <section id="mundo" class="secao" aria-labelledby="t-mundo">
+      <h2 id="t-mundo">Mundo: o Brasil comparado aos EUA e à economia global</h2>
+      <p class="sub-secao">Dados e projeções do Fundo Monetário Internacional (FMI). A área sombreada mostra os anos projetados.</p>
+      <div id="participacao" class="cartao destaque-numero"></div>
+      <div class="tres-colunas">
+        <div class="cartao">
+          <h3>Crescimento do PIB (% ao ano)</h3>
+          <div id="graf-crescimento"></div>
+        </div>
+        <div class="cartao">
+          <h3>Inflação (% ao ano)</h3>
+          <div id="graf-inflacao"></div>
+        </div>
+        <div class="cartao">
+          <h3>Dívida do governo (% do PIB)</h3>
+          <div id="graf-divida"></div>
+        </div>
+      </div>
+      <p class="fonte" id="mundo-fonte">Fonte: FMI, World Economic Outlook (DataMapper)</p>
+    </section>
+
+    <!-- MERCADOS -->
+    <section id="mercados" class="secao" aria-labelledby="t-mercados">
+      <h2 id="t-mercados">Mercados e tendências</h2>
+      <div class="filtros" role="group" aria-label="Filtrar ativos">
+        <button type="button" class="filtro" data-filtro="todos" aria-pressed="true">Todos</button>
+        <button type="button" class="filtro" data-filtro="moedas" aria-pressed="false">Moedas</button>
+        <button type="button" class="filtro" data-filtro="exterior" aria-pressed="false">Exterior (EUA)</button>
+        <button type="button" class="filtro" data-filtro="brasil" aria-pressed="false">Brasil (B3)</button>
+        <button type="button" class="filtro" data-filtro="cripto" aria-pressed="false">Ouro e cripto</button>
+      </div>
+      <div id="ativos" class="grade-ativos"></div>
+      <div id="detalhe" class="cartao detalhe" aria-live="polite"></div>
+      <details class="cartao como-ler">
+        <summary>Como a tendência é calculada?</summary>
+        <ul>
+          <li><strong>Médias móveis:</strong> média dos últimos 20 e 50 dias. Preço acima das médias, e a curta acima da longa, indica alta.</li>
+          <li><strong>Inclinação:</strong> direção da reta que melhor descreve os últimos 30 dias.</li>
+          <li><strong>Classificação:</strong> com 2 ou 3 sinais apontando para o mesmo lado, a tendência é de alta ou baixa; senão, lateral.</li>
+          <li><strong>IFR (Índice de Força Relativa):</strong> acima de 70 sugere que subiu rápido demais; abaixo de 30, que caiu rápido demais.</li>
+          <li><strong>Volatilidade:</strong> quanto o preço costuma oscilar em um ano. Quanto maior, mais risco.</li>
+          <li>Esses indicadores descrevem o passado recente. Eles ajudam a escolher o momento de entrar (por exemplo, em parcelas), mas não preveem o futuro.</li>
+        </ul>
+      </details>
+    </section>
+
+    <!-- CONSULTOR -->
+    <section id="consultor" class="secao" aria-labelledby="t-consultor">
+      <h2 id="t-consultor">Seu consultor</h2>
+      <div class="duas-colunas">
+        <div class="cartao">
+          <h3>1. Descubra seu perfil</h3>
+          <p class="sub">Seis perguntas rápidas, inspiradas na análise de perfil (suitability) que as corretoras são obrigadas a fazer.</p>
+          <form id="questionario" class="questionario"></form>
+        </div>
+        <div class="cartao">
+          <h3>2. Seus números</h3>
+          <p class="sub">Ficam salvos apenas neste navegador.</p>
+          <form id="valores" class="formulario">
+            <label>Quanto você tem para investir hoje
+              <input type="number" id="v-disponivel" min="0" step="100" inputmode="decimal" placeholder="Ex.: 10000">
+            </label>
+            <label>Quanto consegue investir por mês
+              <input type="number" id="v-aporte" min="0" step="50" inputmode="decimal" placeholder="Ex.: 1000">
+            </label>
+            <label>Seu gasto mensal médio
+              <input type="number" id="v-gasto" min="0" step="100" inputmode="decimal" placeholder="Ex.: 4000">
+            </label>
+            <label>Quanto já tem guardado como reserva
+              <input type="number" id="v-reserva" min="0" step="100" inputmode="decimal" placeholder="Ex.: 0">
+            </label>
+            <label class="caixa">
+              <input type="checkbox" id="v-ajustar" checked>
+              Ajustar a divisão ao momento atual do mercado
+            </label>
+          </form>
+          <div id="perfil-resultado" class="perfil-resultado"></div>
+        </div>
+      </div>
+      <div id="plano" class="cartao plano"></div>
+
+      <div class="cartao simulador">
+        <h3>3. Simulador: Brasil × exterior</h3>
+        <p class="sub">Compare quanto seu dinheiro pode virar. A renda fixa usa a Selic atual e as projeções do Focus; a carteira global usa as hipóteses que você escolher.</p>
+        <form id="simulador" class="formulario formulario-linha">
+          <label>Valor inicial (R$)<input type="number" id="s-inicial" min="0" step="100" value="10000"></label>
+          <label>Por mês (R$)<input type="number" id="s-mensal" min="0" step="50" value="1000"></label>
+          <label>Prazo (anos)<input type="number" id="s-anos" min="1" max="40" step="1" value="10"></label>
+          <label>Retorno em dólar (% a.a.)<input type="number" id="s-retorno" min="-10" max="25" step="0.5" value="7"></label>
+          <label>Alta do dólar (% a.a.)<input type="number" id="s-cambio" min="-10" max="20" step="0.5" value="3"></label>
+          <label>Custo de envio (%)<input type="number" id="s-custo" min="0" max="10" step="0.1" value="1.5"></label>
+        </form>
+        <p class="sub" id="s-premissas"></p>
+        <div id="graf-simulador"></div>
+        <div id="s-resultado" class="tabela-rolagem"></div>
+        <p class="nota">Valores líquidos de imposto de renda se resgatados no fim de cada ano (renda fixa: tabela regressiva; exterior: 15% sobre o ganho). Poupança considera 0,5% ao mês com Selic acima de 8,5% (ou 70% da Selic), sem a TR. Ações oscilam: em alguns anos a carteira global pode cair 20% a 40%. Simulação com hipóteses, não promessa de rentabilidade.</p>
+      </div>
+    </section>
+
+    <!-- EXTERIOR -->
+    <section id="exterior" class="secao" aria-labelledby="t-exterior">
+      <h2 id="t-exterior">Guia: como investir fora do Brasil com segurança</h2>
+
+      <div class="duas-colunas">
+        <div class="cartao">
+          <h3>Por que diversificar fora?</h3>
+          <ul class="lista">
+            <li><strong>O Brasil é uma fatia pequena do mundo.</strong> <span id="ext-participacao">A economia brasileira é uma pequena parte da economia mundial.</span></li>
+            <li><strong>Suas contas são em reais, seus riscos não precisam ser.</strong> Ter parte em dólar protege seu poder de compra se o real se desvalorizar.</li>
+            <li><strong>Acesso às maiores empresas do mundo</strong>, de setores pouco presentes na bolsa brasileira (tecnologia, saúde, consumo global).</li>
+            <li><strong>Diversificar não é fugir:</strong> o câmbio também pode jogar contra no curto prazo. Por isso a regra é ir aos poucos e manter a reserva em reais.</li>
+          </ul>
+        </div>
+        <div class="cartao">
+          <h3>Passo a passo para começar</h3>
+          <ol class="lista">
+            <li>Monte a reserva de emergência em reais (Tesouro Selic ou CDB com liquidez diária).</li>
+            <li>Responda o questionário acima e veja a fatia sugerida para o exterior.</li>
+            <li>Escolha o caminho: pela B3 (mais simples) ou por uma corretora no exterior (diversificação de verdade).</li>
+            <li>Prefira ETFs amplos (que compram centenas ou milhares de empresas de uma vez) em vez de escolher ações sozinho.</li>
+            <li>Compre em parcelas mensais e revise uma vez por ano.</li>
+            <li>Guarde as notas de compra e declare tudo no Imposto de Renda.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="cartao">
+        <h3>Os dois caminhos</h3>
+        <div class="tabela-rolagem">
+          <table class="tabela-comparacao">
+            <thead>
+              <tr><th scope="col"></th><th scope="col">Pela B3 (ETFs e BDRs, em reais)</th><th scope="col">Conta em corretora no exterior (em dólar)</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">Onde fica o dinheiro</th><td>No Brasil (custódia na B3), com exposição a ativos de fora</td><td>Fora do Brasil, em dólar</td></tr>
+              <tr><th scope="row">Câmbio</th><td>Não precisa enviar dinheiro</td><td>Precisa: paga IOF e o spread do câmbio no envio</td></tr>
+              <tr><th scope="row">Opções</th><td>Dezenas de ETFs e centenas de BDRs (ex.: IVVB11, NASD11)</td><td>Milhares de ETFs, ações, títulos do Tesouro americano e ETFs irlandeses (UCITS)</td></tr>
+              <tr><th scope="row">Imposto</th><td>Regras brasileiras: 15% sobre o lucro na venda de ETFs, pago via DARF no mês seguinte</td><td>15% sobre o ganho, apurado na declaração anual (Lei 14.754/2023)</td></tr>
+              <tr><th scope="row">Protege do “risco Brasil”?</th><td>Em parte: o ativo é global, mas a custódia e as regras são brasileiras</td><td>Sim: diversifica moeda e país</td></tr>
+              <tr><th scope="row">Indicado para</th><td>Começar e valores menores</td><td>Valores maiores e quem quer patrimônio de fato fora</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="duas-colunas">
+        <div class="cartao">
+          <h3>Impostos e declarações</h3>
+          <ul class="lista">
+            <li><strong>Lei 14.754/2023:</strong> desde 2024, ganhos de aplicações no exterior pagam 15% ao ano, apurados na declaração anual do IR. O ganho é calculado em reais, então a alta do dólar também conta.</li>
+            <li><strong>Dividendos de empresas americanas:</strong> os EUA retêm 30% na fonte para quem não é residente. Por isso ETFs que reinvestem os dividendos (acumulação) costumam ser mais eficientes.</li>
+            <li><strong>Imposto sobre herança dos EUA (estate tax):</strong> ativos americanos acima de US$ 60 mil podem ser taxados em até 40% na sucessão. ETFs domiciliados na Irlanda (UCITS) evitam esse risco.</li>
+            <li><strong>Declare tudo:</strong> bens no exterior vão na ficha de Bens e Direitos do IR. Acima de US$ 1 milhão no exterior, há também a declaração ao Banco Central (CBE).</li>
+            <li>Regras mudam: confirme com um contador antes de decisões grandes.</li>
+          </ul>
+        </div>
+        <div class="cartao">
+          <h3>Segurança: como não cair em armadilhas</h3>
+          <ul class="lista">
+            <li><strong>Corretora no exterior:</strong> confirme o registro no regulador (nos EUA, consulte o <a href="https://brokercheck.finra.org/" target="_blank" rel="noopener noreferrer">FINRA BrokerCheck</a>) e a proteção da <a href="https://www.sipc.org/" target="_blank" rel="noopener noreferrer">SIPC</a>.</li>
+            <li><strong>No Brasil:</strong> use corretoras autorizadas pela <a href="https://www.gov.br/cvm/pt-br" target="_blank" rel="noopener noreferrer">CVM</a> e confira a garantia do <a href="https://www.fgc.org.br/" target="_blank" rel="noopener noreferrer">FGC</a> em CDBs, LCIs e LCAs.</li>
+            <li><strong>Desconfie</strong> de promessas de retorno garantido em dólar, “robôs” de investimento, Forex, mensagens de desconhecidos e qualquer pressa para decidir.</li>
+            <li><strong>IOF e câmbio:</strong> as alíquotas mudaram em 2025. Confira o custo total (IOF + spread) na simulação da corretora antes de enviar.</li>
+            <li><strong>Proteja o acesso:</strong> autenticação em dois fatores em todas as contas e nunca compartilhe senhas ou códigos.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- FONTES -->
+    <section id="fontes" class="secao" aria-labelledby="t-fontes">
+      <h2 id="t-fontes">Fontes e configurações</h2>
+      <div class="cartao">
+        <h3>De onde vêm os dados</h3>
+        <p class="sub">Prioridade para fontes oficiais. Cada dado passa por uma verificação de faixa plausível antes de aparecer. Se uma fonte falhar, o painel mostra o último dado válido e avisa a data.</p>
+        <div id="tabela-fontes" class="tabela-rolagem"></div>
+      </div>
+      <div class="cartao">
+        <h3>Chaves gratuitas (opcional)</h3>
+        <p class="sub">Sem chaves, o painel já mostra Brasil, mundo, câmbio, ouro, cripto e 4 ações da B3. Com elas, você libera a bolsa americana e mais ativos da B3. As chaves ficam salvas apenas neste navegador e só são enviadas para o próprio provedor.</p>
+        <form id="config" class="formulario">
+          <label>Chave da Twelve Data (bolsas dos EUA)
+            <input type="password" id="c-twelve" autocomplete="off" spellcheck="false" placeholder="Crie grátis em twelvedata.com → API Keys">
+          </label>
+          <label>Token da brapi (B3)
+            <input type="password" id="c-brapi" autocomplete="off" spellcheck="false" placeholder="Crie grátis em brapi.dev → Dashboard">
+          </label>
+          <label>Ativos da B3 (separados por vírgula)
+            <input type="text" id="c-b3" autocomplete="off" spellcheck="false" placeholder="PETR4,VALE3,ITUB4,MGLU3">
+          </label>
+          <div class="botoes">
+            <button type="submit" class="botao botao-primario">Salvar e atualizar</button>
+            <button type="button" id="c-apagar" class="botao">Apagar chaves</button>
+          </div>
+          <p id="c-mensagem" class="sub" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="rodape">
+    <p>Painel educativo. Dados de terceiros podem ter atraso ou erros; confira na fonte oficial antes de decidir. Nada aqui é oferta ou recomendação de compra ou venda.</p>
+  </footer>
+
+  <script src="js/util.js"></script>
+  <script src="js/fontes.js"></script>
+  <script src="js/analise.js"></script>
+  <script src="js/graficos.js"></script>
+  <script src="js/consultor.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
