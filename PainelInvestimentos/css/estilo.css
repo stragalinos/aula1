@@ -471,3 +471,7 @@ body:not(.modo-simples) .so-simples { display: none !important; }
   .passos-inicio { grid-template-columns: minmax(0, 1fr); }
   .modo-botao { padding: 6px 9px; }
 }
+
+/* Painel aberto pelo programa local × pelo site */
+body:not(.no-computador) .so-computador { display: none !important; }
+body.no-computador .so-site { display: none !important; }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; img-src 'self' data:; connect-src https://api.bcb.gov.br https://olinda.bcb.gov.br https://www.imf.org https://api.worldbank.org https://api.frankfurter.dev https://api.frankfurter.app https://economia.awesomeapi.com.br https://api.coingecko.com https://brapi.dev https://api.twelvedata.com https://raw.githubusercontent.com; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; img-src 'self' data:; connect-src 'self' https://api.bcb.gov.br https://olinda.bcb.gov.br https://www.imf.org https://api.worldbank.org https://api.frankfurter.dev https://api.frankfurter.app https://economia.awesomeapi.com.br https://api.coingecko.com https://brapi.dev https://api.twelvedata.com https://raw.githubusercontent.com; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <meta name="description" content="Painel do mercado financeiro com dados oficiais do Brasil e do exterior, análise de tendências e um consultor para quem está começando a investir.">
   <title>Painel do Investidor</title>
@@ -295,7 +295,16 @@
         <p class="sub">Prioridade para fontes oficiais. Cada dado passa por uma verificação de faixa plausível antes de aparecer. Se uma fonte falhar, o painel mostra o último dado válido e avisa a data.</p>
         <div id="tabela-fontes" class="tabela-rolagem"></div>
       </div>
-      <div class="cartao">
+      <div class="cartao so-computador">
+        <h3>Você está usando o painel no seu computador</h3>
+        <p class="sub">O programa “Abrir painel” busca os dados a cada 30 minutos enquanto a janela dele estiver aberta. As consultas saem do programa, não do navegador, por isso bloqueios do navegador não atrapalham.</p>
+        <ol class="lista">
+          <li>Para usar as chaves gratuitas, abra o arquivo <code>local/chaves.txt</code> (dentro da pasta do painel) com o Bloco de Notas ou o TextEdit.</li>
+          <li>Cole cada chave depois do sinal de igual, por exemplo <code>TWELVE_DATA_KEY=abc123</code>, e salve.</li>
+          <li>Feche a janela do programa e abra o painel de novo para as chaves valerem.</li>
+        </ol>
+      </div>
+      <div class="cartao so-site">
         <h3>Coleta automática 24 horas</h3>
         <p class="sub">Um robô no GitHub Actions busca todas as fontes a cada 30 minutos, mesmo com o painel fechado, e guarda o histórico. As chaves ficam guardadas como segredos do GitHub: ninguém vê, e o painel funciona igual em qualquer aparelho.</p>
         <ol class="lista">
@@ -307,7 +316,7 @@
           <li>Na aba <strong>Actions</strong>, abra “Coletar dados do painel” e clique em <strong>Run workflow</strong> para a primeira coleta. Depois ele roda sozinho.</li>
         </ol>
       </div>
-      <div class="cartao">
+      <div class="cartao so-site">
         <h3>Chaves só neste navegador (alternativa)</h3>
         <p class="sub">Se preferir não usar o coletor, cole as chaves aqui. Elas ficam salvas apenas neste navegador, só são enviadas ao próprio provedor e deixam as cotações um pouco mais imediatas enquanto o painel está aberto.</p>
         <form id="config" class="formulario">

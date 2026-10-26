@@ -95,6 +95,37 @@
     }
   }
 
+  /* ---------- Painel no computador (local/servidor.js) ---------- */
+  // Aberto pelo programa local, o painel recebe tudo pronto dele e não consulta as fontes pelo navegador.
+  const NO_COMPUTADOR = location.protocol === 'http:' && (location.hostname === '127.0.0.1' || location.hostname === 'localhost');
+
+  async function carregarColetorLocal(forcar) {
+    try {
+      const r = await P.buscar('coletor-local', 'dados/painel.json' + (forcar ? '?atualizar=1' : ''), {
+        ttlMin: 2,
+        forcar,
+        timeout: 120000, // a primeira busca pode levar até 1 minuto
+        validar: (d) => (d && d.versao === 1 && d.dados && num(d.geradoEm) ? null : 'formato desconhecido'),
+      });
+      Object.assign(P.FONTES.coletor, {
+        nome: 'Coletor local (seu computador)',
+        tipo: 'Próprio · a cada 30 min, com o programa aberto',
+        site: 'https://github.com/' + P.REPOSITORIO.join('/') + '/tree/master/PainelInvestimentos#usar-no-seu-computador',
+        uso: 'O programa “Abrir painel” busca todas as fontes a partir do seu computador e guarda o histórico. As chaves ficam no arquivo local/chaves.txt.',
+      });
+      anotar('coletor', { origem: r.origem, quando: r.dados.geradoEm, erro: r.erro });
+      aplicarColetor(r.dados);
+      const col = E.coletor;
+      E.b3 = Object.assign({}, col.b3);
+      E.b3Erros = Object.assign({}, col.b3Erros);
+      E.eua = col.eua;
+      E.euaErro = col.eua ? null : col.euaErro;
+      return true;
+    } catch (_) {
+      return false; // não é o programa local (ex.: outro servidor): segue o modo normal
+    }
+  }
+
   /* O arquivo do coletor vira o ponto de partida; as fontes ao vivo só substituem quando respondem. */
   function aplicarColetor(snap) {
     const d = snap.dados;
@@ -205,12 +236,16 @@
     E.status = {};
     E.carregando++;
     situacao();
-    await carregarColetor(forcar);
-    agendar();
-    await Promise.all([
-      carregarBrasil(forcar), carregarFocus(forcar), carregarMundo(forcar), carregarCambio(forcar),
-      carregarCripto(forcar), carregarB3(forcar), carregarEua(forcar),
-    ]);
+    E.local = NO_COMPUTADOR && await carregarColetorLocal(forcar);
+    document.body.classList.toggle('no-computador', E.local);
+    if (!E.local) {
+      await carregarColetor(forcar);
+      agendar();
+      await Promise.all([
+        carregarBrasil(forcar), carregarFocus(forcar), carregarMundo(forcar), carregarCambio(forcar),
+        carregarCripto(forcar), carregarB3(forcar), carregarEua(forcar),
+      ]);
+    }
     E.carregando--;
     E.ultimaAtualizacao = Date.now();
     situacao();
@@ -219,13 +254,14 @@
 
   function situacao() {
     const el = $('situacao');
-    if (E.carregando > 0) { el.textContent = 'Atualizando dados…'; return; }
+    if (E.carregando > 0) { el.textContent = NO_COMPUTADOR && !E.coletor ? 'Buscando os dados pela primeira vez (até 1 minuto)…' : 'Atualizando dados…'; return; }
     const resumos = Object.keys(P.FONTES).map(resumoFonte).filter(Boolean);
     const falhas = resumos.filter((r) => r.estado !== 'ok' || r.parcial).length;
     let texto = 'Atualizado às ' + fmt.hora(E.ultimaAtualizacao);
     if (E.coletor) {
       const parado = Date.now() - E.coletor.geradoEm > 3 * 3600000;
-      texto += parado ? ' · coletor parado desde ' + fmt.dataHora(E.coletor.geradoEm) : ' · coletor ' + fmt.hora(E.coletor.geradoEm);
+      const nome = E.local ? 'dados do computador' : 'coletor';
+      texto += parado ? ' · ' + nome + ' de ' + fmt.dataHora(E.coletor.geradoEm) : ' · ' + nome + ' ' + fmt.hora(E.coletor.geradoEm);
     }
     el.textContent = texto + (falhas ? ' · ' + falhas + (falhas > 1 ? ' fontes com problema' : ' fonte com problema') : ' · todas as fontes ok');
   }
@@ -700,7 +736,9 @@
     if ((E.filtro === 'todos' || E.filtro === 'exterior') && !E.eua) {
       cont.append(P.el('div', { class: 'ativo cartao ativo-aviso' },
         P.el('strong', { texto: E.euaErro ? 'Bolsa americana indisponível' : 'Bolsa americana (S&P 500, Nasdaq, mundo, Treasuries)' }),
-        P.el('p', { texto: E.euaErro ? E.euaErro : cfg.twelve ? 'Carregando…' : 'Crie uma chave gratuita na Twelve Data e guarde como segredo TWELVE_DATA_KEY no GitHub (veja a seção Fontes) para o coletor buscar os ETFs americanos 24 horas.' }),
+        P.el('p', { texto: E.euaErro ? E.euaErro : E.local
+          ? 'Crie uma chave gratuita na Twelve Data, cole no arquivo local/chaves.txt (linha TWELVE_DATA_KEY=) e abra o painel de novo.'
+          : cfg.twelve ? 'Carregando…' : 'Crie uma chave gratuita na Twelve Data e guarde como segredo TWELVE_DATA_KEY no GitHub (veja a seção Fontes) para o coletor buscar os ETFs americanos 24 horas.' }),
         P.el('a', { href: '#fontes', texto: 'Configurar chave' })));
     }
     const errosB3 = Object.entries(E.b3Erros);
