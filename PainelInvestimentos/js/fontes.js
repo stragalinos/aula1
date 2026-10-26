@@ -198,7 +198,9 @@
         const v = j && j.values && j.values[cfg.codigo];
         if (!v) throw new P.ErroFonte('Indicador não encontrado na resposta do FMI.', 'formato');
         const saida = {};
-        for (const pais in v) {
+        // A API pode devolver todos os países; ficamos só com os pedidos.
+        for (const pais of cfg.paises) {
+          if (!v[pais]) continue;
           saida[pais] = {};
           for (const ano in v[pais]) {
             const n = Number(v[pais][ano]);
