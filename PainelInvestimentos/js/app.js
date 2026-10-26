@@ -1,0 +1,902 @@
+/* Orquestra o painel: carrega cada fonte de forma independente (uma falha
+   não derruba as outras), monta as seções e liga o consultor aos dados. */
+(function (P) {
+  'use strict';
+
+  const fmt = P.fmt;
+  const A = P.analise;
+  const C = P.consultor;
+  const G = P.graficos;
+  const num = P.ehNumero;
+  const $ = (id) => document.getElementById(id);
+  const ANO = new Date().getFullYear();
+
+  const CORES = { brasil: 'var(--serie-1)', eua: 'var(--serie-2)', mundo: 'var(--serie-3)' };
+
+  const E = {
+    selic: null, cdi: null, ipca12: null, dolar: null, euro: null,
+    focus: null, fmi: {}, fmiOrigem: {}, bce: null, agora: null,
+    cripto: {}, b3: {}, b3Erros: {}, eua: null, euaErro: null,
+    status: {}, carregando: 0, selecionado: 'usd', filtro: 'todos',
+  };
+
+  /* ---------- Configuração (fica só neste navegador) ---------- */
+  function config() {
+    return Object.assign({ twelve: '', brapi: '', b3: '' }, P.armazenamento.ler('config', {}));
+  }
+  function tickersB3(cfg) {
+    const lista = (cfg.b3 || '').toUpperCase().split(/[\s,;]+/).filter((t) => /^[A-Z0-9^.]{2,12}$/.test(t));
+    if (lista.length) return lista.slice(0, 10);
+    return cfg.brapi ? P.B3_COM_TOKEN : P.B3_SEM_TOKEN;
+  }
+
+  /* ---------- Registro da situação de cada fonte ---------- */
+  function anotar(fonte, resultado, erro) {
+    (E.status[fonte] = E.status[fonte] || []).push(resultado
+      ? { origem: resultado.origem, quando: resultado.quando, erro: resultado.erro }
+      : { origem: 'erro', erro: erro ? erro.message : 'erro desconhecido' });
+  }
+  function resumoFonte(fonte) {
+    const lista = E.status[fonte];
+    if (!lista || !lista.length) return null;
+    const boas = lista.filter((r) => r.origem === 'rede' || r.origem === 'cache-recente');
+    if (boas.length) return { estado: 'ok', quando: Math.min(...boas.map((r) => r.quando)), parcial: boas.length < lista.length, erro: (lista.find((r) => r.erro) || {}).erro };
+    const antigas = lista.filter((r) => r.origem === 'cache-antigo');
+    if (antigas.length) return { estado: 'cache', quando: Math.min(...antigas.map((r) => r.quando)), erro: antigas[0].erro };
+    return { estado: 'erro', erro: lista[0].erro };
+  }
+  function selo(fonte, quando) {
+    const r = resumoFonte(fonte);
+    const nome = P.FONTES[fonte].nome;
+    if (r && r.estado === 'cache') return P.el('span', { class: 'fonte fonte-cache', texto: nome + ' · dado de ' + fmt.dataHora(r.quando) + ' (fonte fora do ar)' });
+    return P.el('span', { class: 'fonte', texto: nome + (quando ? ' · ' + quando : '') });
+  }
+
+  async function guardar(fonte, promessa, aplicar) {
+    try {
+      const r = await promessa;
+      anotar(fonte, r);
+      aplicar(r.dados, r);
+      return true;
+    } catch (e) {
+      anotar(fonte, null, e);
+      return false;
+    }
+  }
+
+  /* ---------- Carregamento ---------- */
+  function carregarBrasil(forcar) {
+    const sgs = P.dados.sgs;
+    return Promise.all([
+      guardar('bcb', sgs(432, { anos: 2, faixa: [0, 60], forcar }), (d) => { E.selic = d; }),
+      guardar('bcb', sgs(4389, { ultimos: 10, faixa: [0, 60], forcar }), (d) => { E.cdi = d; }),
+      guardar('bcb', sgs(13522, { anos: 3, faixa: [-10, 100], ttlMin: 360, forcar }), (d) => { E.ipca12 = d; }),
+      guardar('bcb', sgs(1, { anos: 1, faixa: [1, 20], forcar }), (d) => { E.dolar = d; }),
+      guardar('bcb', sgs(21619, { anos: 1, faixa: [1, 25], forcar }), (d) => { E.euro = d; }),
+    ]).then(() => { renderBrasil(); agendar(); });
+  }
+
+  function carregarFocus(forcar) {
+    return guardar('focus', P.dados.focus(forcar), (d) => { E.focus = d; }).then(() => { renderFocus(); agendar(); });
+  }
+
+  function carregarMundo(forcar) {
+    return Promise.all(Object.keys(P.FMI_INDICADORES).map(async (chave) => {
+      const ok = await guardar('fmi', P.dados.fmi(chave, forcar), (d) => { E.fmi[chave] = d; E.fmiOrigem[chave] = 'fmi'; });
+      if (!ok && P.FMI_INDICADORES[chave].bancoMundial) {
+        await guardar('bancoMundial', P.dados.bancoMundial(chave, forcar), (d) => { E.fmi[chave] = d; E.fmiOrigem[chave] = 'bancoMundial'; });
+      }
+    })).then(() => { renderMundo(); agendar(); });
+  }
+
+  function carregarCambio(forcar) {
+    return Promise.all([
+      guardar('bce', P.dados.bce(forcar), (d) => { E.bce = d; }),
+      guardar('awesome', P.dados.cambioAgora(forcar), (d) => { E.agora = d; }),
+    ]).then(agendar);
+  }
+
+  function carregarCripto(forcar) {
+    return Promise.all(P.CRIPTO.map((c) => guardar('coingecko', P.dados.cripto(c.id, forcar), (d) => { E.cripto[c.ativo] = d; }))).then(agendar);
+  }
+
+  function carregarB3(forcar) {
+    const cfg = config();
+    E.b3 = {};
+    E.b3Erros = {};
+    E.status.brapi = [];
+    return Promise.all(tickersB3(cfg).map(async (tk) => {
+      try {
+        const r = await P.dados.b3(tk, cfg.brapi, forcar);
+        anotar('brapi', r);
+        E.b3[tk] = r.dados;
+      } catch (e) {
+        anotar('brapi', null, e);
+        E.b3Erros[tk] = e.message;
+      }
+    })).then(agendar);
+  }
+
+  function carregarEua(forcar) {
+    const cfg = config();
+    E.eua = null;
+    E.euaErro = null;
+    E.status.twelve = [];
+    if (!cfg.twelve) return Promise.resolve(agendar());
+    return P.dados.eua(cfg.twelve, forcar)
+      .then((r) => { anotar('twelve', r); E.eua = r.dados; })
+      .catch((e) => { anotar('twelve', null, e); E.euaErro = e.message; })
+      .then(agendar);
+  }
+
+  async function carregar(forcar) {
+    E.status = {};
+    E.carregando++;
+    situacao();
+    await Promise.all([
+      carregarBrasil(forcar), carregarFocus(forcar), carregarMundo(forcar), carregarCambio(forcar),
+      carregarCripto(forcar), carregarB3(forcar), carregarEua(forcar),
+    ]);
+    E.carregando--;
+    E.ultimaAtualizacao = Date.now();
+    situacao();
+    renderTudo();
+  }
+
+  function situacao() {
+    const el = $('situacao');
+    if (E.carregando > 0) { el.textContent = 'Atualizando dados…'; return; }
+    const resumos = Object.keys(P.FONTES).map(resumoFonte).filter(Boolean);
+    const falhas = resumos.filter((r) => r.estado !== 'ok' || r.parcial).length;
+    el.textContent = 'Atualizado às ' + fmt.hora(E.ultimaAtualizacao) + (falhas ? ' · ' + falhas + (falhas > 1 ? ' fontes com problema' : ' fonte com problema') : ' · todas as fontes ok');
+  }
+
+  let agendado = false;
+  function agendar() {
+    if (agendado) return;
+    agendado = true;
+    requestAnimationFrame(() => {
+      agendado = false;
+      renderTudo();
+    });
+  }
+
+  function renderTudo() {
+    const ativos = montarAtivos();
+    E.ativos = ativos;
+    renderIndicadores();
+    renderMercados();
+    renderLeitura();
+    renderPlano();
+    renderSimulador();
+    renderFontes();
+  }
+
+  /* ---------- Contexto usado pelo consultor ---------- */
+  function contexto() {
+    const u = P.serie.ultimo;
+    const selic = u(E.selic) ? u(E.selic).v : null;
+    const ipca12 = u(E.ipca12) ? u(E.ipca12).v : null;
+    const cdi = u(E.cdi) ? u(E.cdi).v : null;
+    const juroReal = num(selic) && num(ipca12) ? ((1 + selic / 100) / (1 + ipca12 / 100) - 1) * 100 : null;
+    const porId = {};
+    for (const a of E.ativos || []) porId[a.id] = a;
+    const usd = porId.usd;
+    return {
+      ano: ANO, selic, ipca12, cdi, juroReal, focus: E.focus, fmi: E.fmi, ativos: porId,
+      dolar: usd ? { valor: usd.preco, tendencia: usd.tendencia, var30: usd.var30, var365: usd.var365 } : null,
+    };
+  }
+
+  /* ---------- Visão geral ---------- */
+  function bloco({ rotulo, valor, detalhe, delta, mini, rodape, extra }) {
+    const card = P.el('div', { class: 'indicador cartao' });
+    card.append(P.el('div', { class: 'ind-rotulo', texto: rotulo }));
+    card.append(P.el('div', { class: 'ind-valor', texto: valor }));
+    if (delta) card.append(P.el('div', { class: 'ind-delta' }, P.el('span', { class: 'seta', 'aria-hidden': 'true', texto: delta.seta }), delta.texto));
+    if (detalhe) card.append(P.el('div', { class: 'ind-detalhe', texto: detalhe }));
+    if (extra) card.append(extra);
+    if (mini && mini.length > 1) {
+      const m = P.el('div', { class: 'ind-mini' });
+      G.mini(m, mini);
+      card.append(m);
+    }
+    if (rodape) card.append(P.el('div', { class: 'ind-fonte' }, rodape));
+    return card;
+  }
+
+  function deltaPP(serie, dias, sufixo) {
+    const u = P.serie.ultimo(serie);
+    const a = P.serie.valorHaDias(serie, dias);
+    if (!u || !a) return null;
+    const d = u.v - a.v;
+    return { seta: d > 0.005 ? '▲' : d < -0.005 ? '▼' : '▶', texto: (Math.abs(d) < 0.005 ? 'estável' : fmt.pp(d)) + ' ' + sufixo };
+  }
+
+  function amostra(serie, n) {
+    if (!serie) return [];
+    const passo = Math.max(1, Math.floor(serie.length / n));
+    const out = [];
+    for (let i = serie.length - 1; i >= 0 && out.length < n; i -= passo) out.unshift(serie[i].v);
+    return out;
+  }
+
+  function conferenciaCambio(ptax, bce, agora) {
+    const valores = [ptax, bce, agora].filter(num);
+    if (valores.length < 2) return null;
+    const dif = (Math.max(...valores) / Math.min(...valores) - 1) * 100;
+    const ok = dif <= 1.5;
+    return P.el('div', { class: 'conferencia ' + (ok ? 'conferencia-ok' : 'conferencia-alerta') },
+      P.el('span', { 'aria-hidden': 'true', texto: ok ? '✓ ' : '⚠ ' }),
+      ok
+        ? valores.length + ' fontes conferem (diferença de ' + fmt.pct(dif, 1) + ')'
+        : 'Fontes divergem ' + fmt.pct(dif, 1) + ': algum dado pode estar desatualizado');
+  }
+
+  function renderIndicadores() {
+    const ctx = contexto();
+    const cont = P.limpar($('indicadores'));
+    const u = P.serie.ultimo;
+
+    cont.append(bloco({
+      rotulo: 'Selic (meta)',
+      valor: num(ctx.selic) ? fmt.pct(ctx.selic) + ' a.a.' : '—',
+      delta: deltaPP(E.selic, 365, 'em 12 meses'),
+      mini: amostra(E.selic, 24),
+      rodape: selo('bcb', u(E.selic) ? fmt.data(u(E.selic).t) : ''),
+    }));
+    cont.append(bloco({
+      rotulo: 'Inflação (IPCA 12 meses)',
+      valor: num(ctx.ipca12) ? fmt.pct(ctx.ipca12) : '—',
+      delta: deltaPP(E.ipca12, 365, 'em 12 meses'),
+      detalhe: num(ctx.ipca12) ? (ctx.ipca12 > 4.5 ? 'Acima do teto da meta (4,5%)' : ctx.ipca12 < 1.5 ? 'Abaixo do piso da meta (1,5%)' : 'Dentro da meta (3% ± 1,5)') : null,
+      mini: amostra(E.ipca12, 24),
+      rodape: selo('bcb', u(E.ipca12) ? fmt.mesAno(u(E.ipca12).t) : ''),
+    }));
+    cont.append(bloco({
+      rotulo: 'Juro real',
+      valor: num(ctx.juroReal) ? fmt.pct(ctx.juroReal) + ' a.a.' : '—',
+      detalhe: 'Selic descontada a inflação de 12 meses: quanto a renda fixa paga acima dos preços.',
+      rodape: selo('bcb', 'cálculo do painel'),
+    }));
+    const poupanca = num(ctx.selic) ? (ctx.selic > 8.5 ? (Math.pow(1.005, 12) - 1) * 100 : ctx.selic * 0.7) : null;
+    cont.append(bloco({
+      rotulo: 'CDI',
+      valor: num(ctx.cdi) ? fmt.pct(ctx.cdi) + ' a.a.' : '—',
+      detalhe: num(poupanca) ? 'Poupança: cerca de ' + fmt.pct(poupanca) + ' a.a. + TR. Um CDB de 100% do CDI rende ' + fmt.pct((ctx.cdi || 0) * 0.85) + ' líquido (após 2 anos).' : null,
+      rodape: selo('bcb', u(E.cdi) ? fmt.data(u(E.cdi).t) : ''),
+    }));
+
+    const usd = (E.ativos || []).find((a) => a.id === 'usd');
+    const ptaxUsd = u(E.dolar) ? u(E.dolar).v : null;
+    cont.append(bloco({
+      rotulo: E.agora ? 'Dólar comercial' : 'Dólar (PTAX)',
+      valor: usd ? fmt.brl(usd.preco, 4) : '—',
+      delta: usd && num(usd.varDia) ? { seta: usd.varDia > 0 ? '▲' : usd.varDia < 0 ? '▼' : '▶', texto: fmt.pct(usd.varDia, 2, true) + ' no dia' } : null,
+      detalhe: 'PTAX (BCB): ' + fmt.brl(ptaxUsd, 4) + (E.bce ? ' · BCE: ' + fmt.brl(E.bce.usd, 4) : ''),
+      extra: conferenciaCambio(ptaxUsd, E.bce && E.bce.usd, E.agora && E.agora.usd.v),
+      mini: amostra(E.dolar, 30),
+      rodape: selo(E.agora ? 'awesome' : 'bcb', usd && usd.quando ? fmt.dataHora(usd.quando) : ''),
+    }));
+    const eur = (E.ativos || []).find((a) => a.id === 'eur');
+    const ptaxEur = u(E.euro) ? u(E.euro).v : null;
+    cont.append(bloco({
+      rotulo: E.agora ? 'Euro comercial' : 'Euro (PTAX)',
+      valor: eur ? fmt.brl(eur.preco, 4) : '—',
+      delta: eur && num(eur.varDia) ? { seta: eur.varDia > 0 ? '▲' : eur.varDia < 0 ? '▼' : '▶', texto: fmt.pct(eur.varDia, 2, true) + ' no dia' } : null,
+      detalhe: 'PTAX (BCB): ' + fmt.brl(ptaxEur, 4) + (E.bce ? ' · BCE: ' + fmt.brl(E.bce.eur, 4) : ''),
+      extra: conferenciaCambio(ptaxEur, E.bce && E.bce.eur, E.agora && E.agora.eur.v),
+      mini: amostra(E.euro, 30),
+      rodape: selo(E.agora ? 'awesome' : 'bcb', eur && eur.quando ? fmt.dataHora(eur.quando) : ''),
+    }));
+  }
+
+  const ROTULO_TIPO = {
+    oportunidade: { icone: '●', texto: 'Oportunidade' },
+    atencao: { icone: '▲', texto: 'Atenção' },
+    contexto: { icone: 'i', texto: 'Contexto' },
+  };
+
+  function renderLeitura() {
+    const lista = P.limpar($('leitura'));
+    const itens = C.leitura(contexto());
+    if (!itens.length) {
+      lista.append(P.el('li', { class: 'carregando', texto: E.carregando ? 'Analisando os dados…' : 'Sem dados suficientes agora. Veja a seção Fontes para entender o motivo.' }));
+      return;
+    }
+    for (const it of itens) {
+      const t = ROTULO_TIPO[it.tipo];
+      lista.append(P.el('li', { class: 'item-leitura tipo-' + it.tipo },
+        P.el('span', { class: 'chip chip-' + it.tipo }, P.el('span', { 'aria-hidden': 'true', class: 'chip-icone', texto: t.icone }), t.texto),
+        P.el('div', null,
+          P.el('strong', { texto: it.titulo }),
+          P.el('p', { texto: it.texto }),
+          P.el('span', { class: 'fonte', texto: 'Fonte: ' + it.fonte }))));
+    }
+  }
+
+  /* ---------- Brasil ---------- */
+  function serieParaGrafico(serie) {
+    return { x: serie.map((p) => p.t), y: serie.map((p) => p.v) };
+  }
+
+  function renderBrasil() {
+    if (E.selic && E.selic.length > 1) {
+      const d = serieParaGrafico(E.selic);
+      G.linha($('graf-selic'), {
+        titulo: 'Selic meta nos últimos 2 anos', x: d.x, series: [{ nome: 'Selic meta', cor: CORES.brasil, y: d.y }],
+        formatoX: fmt.mesAno, formatoXLongo: fmt.data, formatoY: (v) => fmt.pct(v, 1), formatoYLongo: (v) => fmt.pct(v), altura: 220,
+      });
+    } else {
+      falha($('graf-selic'), 'bcb');
+    }
+    if (E.ipca12 && E.ipca12.length > 1) {
+      const d = serieParaGrafico(E.ipca12);
+      G.linha($('graf-ipca'), {
+        titulo: 'IPCA acumulado em 12 meses', x: d.x, series: [{ nome: 'IPCA 12 meses', cor: CORES.brasil, y: d.y }],
+        formatoX: fmt.mesAno, formatoXLongo: fmt.mesAno, formatoY: (v) => fmt.pct(v, 1), formatoYLongo: (v) => fmt.pct(v),
+        referencias: [{ valor: 3, rotulo: 'Meta 3%' }, { valor: 4.5, rotulo: 'Teto 4,5%' }], altura: 220,
+      });
+    } else {
+      falha($('graf-ipca'), 'bcb');
+    }
+  }
+
+  function falha(cont, fonte) {
+    P.limpar(cont);
+    const r = resumoFonte(fonte);
+    cont.append(P.el('p', { class: 'vazio' },
+      E.carregando && !r ? 'Carregando…' : 'Não foi possível carregar agora' + (r && r.erro ? ': ' + r.erro : '.') + ' ',
+      P.el('a', { href: P.FONTES[fonte].site, target: '_blank', rel: 'noopener noreferrer', texto: 'Ver na fonte' })));
+  }
+
+  function renderFocus() {
+    const cont = P.limpar($('focus'));
+    if (!E.focus) { falha(cont, 'focus'); return; }
+    const anos = [ANO, ANO + 1, ANO + 2];
+    const nomes = { IPCA: 'Inflação (IPCA, %)', Selic: 'Selic no fim do ano (%)', 'PIB Total': 'Crescimento do PIB (%)', 'Câmbio': 'Dólar no fim do ano (R$)' };
+    const t = P.el('table', { class: 'tabela-focus' });
+    t.append(P.el('thead', null, P.el('tr', null, P.el('th', { scope: 'col', texto: 'Indicador' }), anos.map((a) => P.el('th', { scope: 'col', texto: String(a) })))));
+    const corpo = P.el('tbody');
+    for (const ind of P.FOCUS_INDICADORES) {
+      const linha = P.el('tr', null, P.el('th', { scope: 'row', texto: nomes[ind] }));
+      for (const a of anos) {
+        const it = C.focusItem(E, ind, a);
+        if (!it) { linha.append(P.el('td', { texto: '—' })); continue; }
+        const valor = fmt.num(it.mediana, 2);
+        let seta = '';
+        let mudou = 'sem mudança em 4 semanas';
+        if (num(it.ha4sem)) {
+          const d = it.mediana - it.ha4sem;
+          if (Math.abs(d) >= 0.005) {
+            seta = d > 0 ? '▲' : '▼';
+            mudou = (d > 0 ? 'subiu ' : 'caiu ') + fmt.num(Math.abs(d), 2) + ' em 4 semanas (era ' + fmt.num(it.ha4sem, 2) + ')';
+          } else {
+            seta = '=';
+          }
+        }
+        linha.append(P.el('td', { title: mudou },
+          P.el('span', { class: 'valor-focus', texto: valor }),
+          seta ? P.el('span', { class: 'seta-focus', 'aria-hidden': 'true', texto: ' ' + seta }) : null,
+          P.el('span', { class: 'sr', texto: ' (' + mudou + ')' })));
+      }
+      corpo.append(linha);
+    }
+    t.append(corpo);
+    cont.append(t);
+    const ipca = C.focusItem(E, 'IPCA', ANO + 1);
+    $('focus-fonte').textContent = 'Fonte: Banco Central do Brasil, Sistema de Expectativas de Mercado · data-base '
+      + (E.focus.dataBase ? fmt.data(Date.parse(E.focus.dataBase + 'T12:00:00Z')) : '—')
+      + (ipca && ipca.respondentes ? ' · ' + ipca.respondentes + ' instituições responderam' : '');
+  }
+
+  /* ---------- Mundo (FMI) ---------- */
+  function renderMundo() {
+    const anos = [];
+    for (let a = ANO - 8; a <= ANO + 5; a++) anos.push(a);
+    const paises = [['BRA', 'Brasil', CORES.brasil], ['USA', 'EUA', CORES.eua], ['WEOWORLD', 'Mundo', CORES.mundo]];
+    const graficos = { crescimento: 'graf-crescimento', inflacao: 'graf-inflacao', divida: 'graf-divida' };
+    for (const chave in graficos) {
+      const dados = E.fmi[chave];
+      const cont = $(graficos[chave]);
+      if (!dados) { falha(cont, 'fmi'); continue; }
+      const daFmi = E.fmiOrigem[chave] === 'fmi';
+      const xs = anos.filter((a) => paises.some(([p]) => dados[p] && num(dados[p][a])));
+      const series = paises.filter(([p]) => dados[p]).map(([p, nome, cor]) => ({ nome, cor, y: xs.map((a) => (num(dados[p][a]) ? dados[p][a] : null)) }));
+      G.linha(cont, {
+        titulo: chave, x: xs, series, rotuloX: 'Ano', formatoX: String, formatoY: (v) => fmt.num(v, chave === 'divida' ? 0 : 1),
+        formatoYLongo: (v) => fmt.pct(v, 1), sombraDesde: daFmi ? ANO : null, rotuloSombra: 'Projeção do FMI',
+        incluirZero: chave !== 'inflacao', altura: 220,
+      });
+    }
+    const usouBM = Object.values(E.fmiOrigem).includes('bancoMundial');
+    $('mundo-fonte').textContent = 'Fonte: FMI, World Economic Outlook (DataMapper)' + (usouBM ? ' · alguns gráficos vieram do Banco Mundial (sem projeções), porque o FMI não respondeu' : '');
+
+    const cont = P.limpar($('participacao'));
+    const part = E.fmi.participacao;
+    const anoPart = part && part.BRA ? Object.keys(part.BRA).map(Number).filter((a) => a <= ANO).sort((a, b) => b - a)[0] : null;
+    if (anoPart) {
+      const br = part.BRA[anoPart];
+      cont.append(
+        P.el('div', { class: 'numero-grande', texto: fmt.pct(br, 1) }),
+        P.el('div', null,
+          P.el('strong', { texto: 'é o tamanho da economia brasileira no mundo' }),
+          P.el('p', { texto: 'EUA: ' + fmt.pct(part.USA && part.USA[anoPart], 1) + ' · China: ' + fmt.pct(part.CHN && part.CHN[anoPart], 1) + '. Investir só no Brasil concentra todo o seu patrimônio em uma fatia pequena da economia global.' }),
+          P.el('span', { class: 'fonte', texto: 'FMI, participação no PIB mundial em paridade de poder de compra, ' + anoPart })));
+      $('ext-participacao').textContent = 'Segundo o FMI, o Brasil representa cerca de ' + fmt.pct(br, 1) + ' da economia mundial (' + anoPart + '). Os outros ' + fmt.pct(100 - br, 1) + ' estão fora daqui.';
+    }
+    cont.hidden = !anoPart;
+  }
+
+  /* ---------- Mercados ---------- */
+  function ativoDeSerie(base, serie, extra) {
+    const t = A.tendencia(serie, { periodosAno: base.periodosAno || 252, moeda: base.moeda });
+    const ultimo = P.serie.ultimo(serie);
+    return Object.assign({
+      serie,
+      tendencia: t,
+      preco: ultimo ? ultimo.v : null,
+      quando: ultimo ? ultimo.t : null,
+      varDia: P.serie.variacaoUltima(serie),
+      var30: P.serie.variacaoDias(serie, 30),
+      var365: P.serie.variacaoDias(serie, 360),
+    }, base, extra || {});
+  }
+
+  function montarAtivos() {
+    const lista = [];
+    const SIGNIFICADO = {
+      moedas: 'Para quem quer investir fora, o dólar em alta encarece a compra e, em queda, barateia. Como ninguém acerta o câmbio, a regra é comprar em parcelas.',
+      exterior: 'ETF negociado nos EUA, em dólar. Para comprar, é preciso conta em corretora internacional; na B3 há alternativas em reais (ETFs e BDRs).',
+      brasil: 'Ativo da B3, em reais. Para começar, ETFs (como BOVA11 e IVVB11) diversificam mais do que ações isoladas.',
+      cripto: 'Ativo muito volátil, sem lastro em lucros ou juros. Se quiser ter, no máximo uma fatia pequena (até 5%).',
+      ouro: 'Proteção clássica em crises e contra a desvalorização das moedas. Não paga juros nem dividendos. Aqui o preço vem do PAXG, um token lastreado em ouro físico.',
+    };
+    if (E.dolar && E.dolar.length > 25) {
+      const extra = E.agora ? { preco: E.agora.usd.v, varDia: E.agora.usd.varDia, quando: E.agora.usd.t } : {};
+      lista.push(ativoDeSerie({ id: 'usd', nome: 'Dólar', codigo: 'USD/BRL', grupo: 'moedas', moeda: 'BRL', fonte: 'bcb', significado: SIGNIFICADO.moedas, casas: 4 }, E.dolar, extra));
+    }
+    if (E.euro && E.euro.length > 25) {
+      const extra = E.agora ? { preco: E.agora.eur.v, varDia: E.agora.eur.varDia, quando: E.agora.eur.t } : {};
+      lista.push(ativoDeSerie({ id: 'eur', nome: 'Euro', codigo: 'EUR/BRL', grupo: 'moedas', moeda: 'BRL', fonte: 'bcb', significado: SIGNIFICADO.moedas, casas: 4 }, E.euro, extra));
+    }
+    for (const c of P.CRIPTO) {
+      const s = E.cripto[c.ativo];
+      if (!s) continue;
+      lista.push(ativoDeSerie({
+        id: c.ativo, nome: c.nome, codigo: c.codigo, grupo: 'cripto', moeda: 'BRL', fonte: 'coingecko', periodosAno: 365,
+        significado: c.ativo === 'ouro' ? SIGNIFICADO.ouro : SIGNIFICADO.cripto,
+      }, s));
+    }
+    if (E.eua) {
+      for (const a of P.EUA) {
+        const d = E.eua[a.simbolo];
+        if (!d || !d.serie || d.serie.length < 25) continue;
+        lista.push(ativoDeSerie({ id: a.simbolo, nome: a.nome, codigo: a.simbolo, desc: a.desc, grupo: 'exterior', moeda: 'USD', fonte: 'twelve', significado: SIGNIFICADO.exterior }, d.serie));
+      }
+    }
+    for (const tk in E.b3) {
+      const d = E.b3[tk];
+      if (!d.serie || d.serie.length < 2) continue;
+      lista.push(ativoDeSerie({ id: 'b3-' + tk, nome: d.nome, codigo: d.simbolo, grupo: 'brasil', moeda: d.moeda, fonte: 'brapi', significado: SIGNIFICADO.brasil },
+        d.serie, num(d.preco) ? { preco: d.preco, varDia: num(d.varDia) ? d.varDia : P.serie.variacaoUltima(d.serie) } : {}));
+    }
+    return lista;
+  }
+
+  function chipTendencia(t) {
+    if (!t) return P.el('span', { class: 'chip chip-neutro', texto: 'Histórico curto' });
+    const r = A.ROTULO_SINAL[t.sinal];
+    return P.el('span', { class: 'chip chip-' + t.sinal }, P.el('span', { class: 'chip-icone', 'aria-hidden': 'true', texto: r.seta }), r.texto);
+  }
+
+  function variacao(rotulo, v) {
+    return P.el('span', { class: 'var ' + (v > 0 ? 'sobe' : v < 0 ? 'desce' : '') },
+      rotulo + ' ', P.el('strong', { texto: num(v) ? fmt.pct(v, 1, true) : '—' }));
+  }
+
+  function renderMercados() {
+    const cont = P.limpar($('ativos'));
+    const visiveis = (E.ativos || []).filter((a) => E.filtro === 'todos' || a.grupo === E.filtro);
+    for (const a of visiveis) {
+      const ativo = a.id === E.selecionado;
+      const card = P.el('button', {
+        type: 'button', class: 'ativo cartao' + (ativo ? ' selecionado' : ''), 'aria-pressed': ativo ? 'true' : 'false',
+        onclick: () => { E.selecionado = a.id; renderMercados(); $('detalhe').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); },
+      });
+      const mini = P.el('div', { class: 'ind-mini' });
+      G.mini(mini, a.serie.slice(-90).map((p) => p.v));
+      card.append(
+        P.el('div', { class: 'ativo-topo' }, P.el('span', { class: 'ativo-nome', texto: a.nome }), P.el('span', { class: 'ativo-codigo', texto: a.codigo })),
+        P.el('div', { class: 'ativo-preco', texto: fmt.moeda(a.preco, a.moeda, a.casas || (a.preco < 10 ? 4 : 2)) }),
+        P.el('div', { class: 'ativo-vars' }, variacao('Dia', a.varDia), variacao('30 dias', a.var30)),
+        mini,
+        P.el('div', { class: 'ativo-rodape' }, chipTendencia(a.tendencia), P.el('span', { class: 'fonte', texto: P.FONTES[a.fonte].nome.split(' (')[0] })));
+      cont.append(card);
+    }
+
+    // Avisos de grupos que dependem de chave ou que falharam.
+    const cfg = config();
+    if ((E.filtro === 'todos' || E.filtro === 'exterior') && !E.eua) {
+      cont.append(P.el('div', { class: 'ativo cartao ativo-aviso' },
+        P.el('strong', { texto: E.euaErro ? 'Bolsa americana indisponível' : 'Bolsa americana (S&P 500, Nasdaq, mundo, Treasuries)' }),
+        P.el('p', { texto: E.euaErro ? E.euaErro : cfg.twelve ? 'Carregando…' : 'Crie uma chave gratuita na Twelve Data e cole na seção Fontes para ver os ETFs americanos e suas tendências.' }),
+        P.el('a', { href: '#fontes', texto: 'Configurar chave' })));
+    }
+    const errosB3 = Object.entries(E.b3Erros);
+    if ((E.filtro === 'todos' || E.filtro === 'brasil') && errosB3.length) {
+      cont.append(P.el('div', { class: 'ativo cartao ativo-aviso' },
+        P.el('strong', { texto: 'B3: ' + errosB3.map(([tk]) => tk).join(', ') + ' indisponível' }),
+        P.el('p', { texto: errosB3[0][1] + (cfg.brapi ? '' : ' Sem token, a brapi libera só PETR4, VALE3, ITUB4 e MGLU3.') }),
+        P.el('a', { href: '#fontes', texto: 'Ver configurações' })));
+    }
+    if (!visiveis.length && !cont.childNodes.length) {
+      cont.append(P.el('p', { class: 'vazio', texto: E.carregando ? 'Carregando cotações…' : 'Nenhum ativo disponível neste filtro agora.' }));
+    }
+    renderDetalhe();
+  }
+
+  function renderDetalhe() {
+    const cont = P.limpar($('detalhe'));
+    const lista = E.ativos || [];
+    const a = lista.find((x) => x.id === E.selecionado) || lista[0];
+    if (!a) {
+      cont.append(P.el('p', { class: 'vazio', texto: E.carregando ? 'Carregando…' : 'Escolha um ativo acima para ver a análise.' }));
+      return;
+    }
+    const t = a.tendencia;
+    const casas = a.casas || (a.preco < 10 ? 4 : 2);
+    cont.append(
+      P.el('div', { class: 'detalhe-topo' },
+        P.el('div', null,
+          P.el('h3', { texto: a.nome + ' (' + a.codigo + ')' }),
+          a.desc ? P.el('p', { class: 'sub', texto: a.desc }) : null),
+        P.el('div', { class: 'detalhe-preco' },
+          P.el('span', { class: 'ind-valor', texto: fmt.moeda(a.preco, a.moeda, casas) }),
+          chipTendencia(t))),
+      P.el('div', { class: 'ativo-vars' }, variacao('Dia', a.varDia), variacao('30 dias', a.var30), variacao('12 meses', a.var365)));
+
+    const graf = P.el('div', { class: 'detalhe-grafico' });
+    cont.append(graf);
+    const n = Math.min(a.serie.length, 260);
+    const ini = a.serie.length - n;
+    const x = a.serie.slice(ini).map((p) => p.t);
+    const series = [{ nome: 'Preço', cor: 'var(--serie-1)', y: a.serie.slice(ini).map((p) => p.v) }];
+    if (t) {
+      series.push({ nome: 'Média de 20 dias', cor: 'var(--serie-2)', y: t.curta.slice(ini) });
+      series.push({ nome: 'Média de ' + t.nLonga + ' dias', cor: 'var(--serie-3)', y: t.longa.slice(ini) });
+    }
+    const fy = (v) => fmt.moeda(v, a.moeda, casas);
+    G.linha(graf, {
+      titulo: 'Preço de ' + a.nome + ' com médias móveis', x, series,
+      formatoX: n > 120 ? fmt.mesAno : fmt.diaMes, formatoXLongo: fmt.data, formatoY: (v) => fmt.num(v, v < 10 ? 2 : 0), formatoYLongo: fy, altura: 280,
+    });
+
+    const analise = P.el('div', { class: 'duas-colunas analise' });
+    const ul = P.el('ul', { class: 'lista' });
+    (t ? t.textos : ['Histórico ainda curto para calcular a tendência com segurança.']).forEach((x2) => ul.append(P.el('li', { texto: x2 })));
+    analise.append(
+      P.el('div', null, P.el('h4', { texto: 'Leitura técnica' }), ul),
+      P.el('div', null, P.el('h4', { texto: 'O que isso significa para você' }), P.el('p', { texto: a.significado })));
+    cont.append(analise, P.el('p', { class: 'fonte' }, selo(a.fonte, a.quando ? 'último dado: ' + fmt.data(a.quando) : '')));
+  }
+
+  /* ---------- Consultor ---------- */
+  function montarQuestionario() {
+    const form = $('questionario');
+    const salvas = P.armazenamento.ler('respostas', {});
+    C.PERGUNTAS.forEach((q, k) => {
+      const grupo = P.el('fieldset', { class: 'pergunta' }, P.el('legend', { texto: (k + 1) + '. ' + q.texto }));
+      q.opcoes.forEach((op, i) => {
+        const input = P.el('input', { type: 'radio', name: q.id, value: String(i) });
+        if (String(salvas[q.id]) === String(i)) input.checked = true;
+        grupo.append(P.el('label', { class: 'opcao' }, input, P.el('span', { texto: op })));
+      });
+      form.append(grupo);
+    });
+    form.addEventListener('change', () => {
+      const resp = {};
+      for (const q of C.PERGUNTAS) {
+        const marcado = form.querySelector('input[name="' + q.id + '"]:checked');
+        if (marcado) resp[q.id] = Number(marcado.value);
+      }
+      P.armazenamento.gravar('respostas', resp);
+      renderPlano();
+      renderSimulador();
+    });
+  }
+
+  function respostas() {
+    return P.armazenamento.ler('respostas', {});
+  }
+
+  const CAMPOS_VALORES = ['disponivel', 'aporte', 'gasto', 'reserva'];
+  function montarValores() {
+    const salvos = P.armazenamento.ler('valores', {});
+    for (const c of CAMPOS_VALORES) if (num(salvos[c])) $('v-' + c).value = salvos[c];
+    if (salvos.ajustar === false) $('v-ajustar').checked = false;
+    $('valores').addEventListener('input', () => {
+      const v = valores();
+      P.armazenamento.gravar('valores', v);
+      sincronizarSimulador(v);
+      renderPlano();
+      renderSimulador();
+    });
+    $('valores').addEventListener('submit', (ev) => ev.preventDefault());
+  }
+  function valores() {
+    const v = {};
+    for (const c of CAMPOS_VALORES) {
+      const n = parseFloat($('v-' + c).value);
+      v[c] = num(n) && n > 0 ? n : 0;
+    }
+    v.ajustar = $('v-ajustar').checked;
+    return v;
+  }
+
+  function renderPlano() {
+    const perfil = C.avaliarPerfil(respostas());
+    const res = P.limpar($('perfil-resultado'));
+    const cont = P.limpar($('plano'));
+    if (!perfil) {
+      const faltam = C.PERGUNTAS.filter((q) => respostas()[q.id] == null).length;
+      res.append(P.el('p', { class: 'sub', texto: 'Responda ' + (faltam === C.PERGUNTAS.length ? 'as perguntas' : 'mais ' + faltam + (faltam > 1 ? ' perguntas' : ' pergunta')) + ' para ver seu perfil e seu plano.' }));
+      cont.append(P.el('h3', { texto: 'Seu plano aparece aqui' }), P.el('p', { class: 'sub', texto: 'Depois do questionário, o consultor monta um plano com reserva de emergência, divisão entre Brasil e exterior e o caminho mais simples para começar.' }));
+      return;
+    }
+    res.append(
+      P.el('div', { class: 'perfil-nome' }, P.el('span', { class: 'sub', texto: 'Seu perfil' }), P.el('strong', { texto: perfil.nome })),
+      P.el('p', { texto: perfil.descricao }),
+      perfil.notas.map((n) => P.el('p', { class: 'nota', texto: n })));
+
+    const ent = valores();
+    const ctx = contexto();
+    const plano = C.plano(perfil, ent, ctx, ent.ajustar);
+
+    cont.append(P.el('h3', { texto: 'Seu plano · perfil ' + perfil.nome.toLowerCase() }));
+    const passos = P.el('ol', { class: 'passos' });
+    plano.passos.forEach((p) => passos.append(P.el('li', null, P.el('strong', { texto: p.titulo }), P.el('p', { texto: p.texto }))));
+    cont.append(passos);
+
+    cont.append(P.el('h4', { texto: 'Divisão sugerida (depois da reserva)' }));
+    const barra = P.el('div', { class: 'alocacao' });
+    cont.append(barra);
+    G.barraEmpilhada(barra, plano.alocacao.map((c) => ({
+      nome: c.nome, valor: c.pct, cor: c.cor, corTexto: c.corTexto,
+      detalhe: (c.exterior ? 'Exterior · ' : 'Brasil · ') + 'risco: ' + c.risco.toLowerCase(),
+    })));
+    cont.append(P.el('p', { class: 'resumo-exterior' },
+      P.el('strong', { texto: fmt.pct(plano.exteriorPct, 0) + ' no exterior' }),
+      ' · ' + fmt.pct(100 - plano.exteriorPct, 0) + ' no Brasil, além da reserva de emergência em reais.'));
+    if (plano.ajustes.length) {
+      cont.append(P.el('div', { class: 'ajustes' },
+        P.el('strong', { texto: 'Ajustes ao momento atual' }),
+        P.el('ul', { class: 'lista' }, plano.ajustes.map((a) => P.el('li', { texto: a })))));
+    }
+
+    const temValores = ent.disponivel > 0 || ent.aporte > 0;
+    const t = P.el('table', { class: 'tabela-plano tabela-alocacao' });
+    t.append(P.el('thead', null, P.el('tr', null,
+      P.el('th', { scope: 'col', texto: 'Classe' }),
+      P.el('th', { scope: 'col', texto: '%' }),
+      temValores ? P.el('th', { scope: 'col', texto: 'Hoje' }) : null,
+      temValores ? P.el('th', { scope: 'col', texto: 'Por mês' }) : null,
+      P.el('th', { scope: 'col', texto: 'Onde investir (exemplos)' }),
+      P.el('th', { scope: 'col', texto: 'Risco' }))));
+    const corpo = P.el('tbody');
+    for (const c of plano.alocacao) {
+      if (!c.pct) continue;
+      const chave = P.el('span', { class: 'chave-bloco', 'aria-hidden': 'true' });
+      chave.style.background = c.cor;
+      corpo.append(P.el('tr', null,
+        P.el('th', { scope: 'row' }, chave, c.nome, c.exterior ? P.el('span', { class: 'etiqueta', texto: 'exterior' }) : null),
+        P.el('td', { class: 'numero', 'data-rotulo': 'Fatia', texto: fmt.pct(c.pct, 0) }),
+        temValores ? P.el('td', { class: 'numero', 'data-rotulo': 'Hoje', texto: fmt.brl(c.hoje, 0) }) : null,
+        temValores ? P.el('td', { class: 'numero', 'data-rotulo': 'Por mês', texto: plano.reserva.faltaDepois > 0 ? 'após a reserva' : fmt.brl(c.mes, 0) }) : null,
+        P.el('td', { 'data-rotulo': 'Onde', texto: c.onde }),
+        P.el('td', { 'data-rotulo': 'Risco', texto: c.risco })));
+    }
+    t.append(corpo);
+    cont.append(P.el('div', { class: 'tabela-rolagem' }, t));
+    cont.append(P.el('p', { class: 'nota', texto: 'Os nomes de ETFs são exemplos de produtos amplos e de baixo custo, para você pesquisar — não são recomendação de compra. Confira taxas, liquidez e tributação antes de investir.' }));
+  }
+
+  /* ---------- Simulador ---------- */
+  const CAMPOS_SIM = ['inicial', 'mensal', 'anos', 'retorno', 'cambio', 'custo'];
+
+  function montarSimulador() {
+    const salvos = P.armazenamento.ler('simulador', {});
+    for (const c of CAMPOS_SIM) if (num(salvos[c])) { $('s-' + c).value = salvos[c]; $('s-' + c).dataset.editado = '1'; }
+    $('simulador').addEventListener('input', (ev) => {
+      if (ev.target && ev.target.id) ev.target.dataset.editado = '1';
+      const s = {};
+      for (const c of CAMPOS_SIM) if ($('s-' + c).dataset.editado) s[c] = parseFloat($('s-' + c).value);
+      P.armazenamento.gravar('simulador', s);
+      renderSimulador();
+    });
+    $('simulador').addEventListener('submit', (ev) => ev.preventDefault());
+  }
+
+  function sincronizarSimulador(v) {
+    if (!$('s-inicial').dataset.editado && v.disponivel > 0) $('s-inicial').value = v.disponivel;
+    if (!$('s-mensal').dataset.editado && v.aporte > 0) $('s-mensal').value = v.aporte;
+  }
+
+  function cambioPadrao(ctx) {
+    // Paridade de inflação: no longo prazo, o real tende a perder valor na diferença entre a inflação daqui e a dos EUA.
+    const ipcaBr = C.focusItem(ctx, 'IPCA', ANO + 1);
+    const infl = ctx.fmi && ctx.fmi.inflacao;
+    const eua = infl && infl.USA ? C.mediaFmi(infl, 'USA', ANO + 1, ANO + 3) : null;
+    const br = ipcaBr ? ipcaBr.mediana : infl && infl.BRA ? C.mediaFmi(infl, 'BRA', ANO + 1, ANO + 3) : null;
+    if (num(br) && num(eua)) return { valor: Math.round((((1 + br / 100) / (1 + eua / 100)) - 1) * 1000) / 10, br, eua };
+    return null;
+  }
+
+  function renderSimulador() {
+    const ctx = contexto();
+    const cp = cambioPadrao(ctx);
+    if (cp && !$('s-cambio').dataset.editado) $('s-cambio').value = cp.valor;
+
+    const ler = (c, padrao) => { const n = parseFloat($('s-' + c).value); return num(n) ? n : padrao; };
+    const anos = Math.max(1, Math.min(40, Math.round(ler('anos', 10))));
+    const caminho = [];
+    if (num(ctx.selic)) caminho.push(ctx.selic);
+    for (let a = ANO + 1; a <= ANO + 3; a++) {
+      const it = C.focusItem(ctx, 'Selic', a);
+      if (it) caminho.push(it.mediana);
+    }
+    const premissas = $('s-premissas');
+    const graf = $('graf-simulador');
+    const resultado = P.limpar($('s-resultado'));
+    if (!caminho.length) {
+      premissas.textContent = 'Aguardando a Selic do Banco Central para simular a renda fixa…';
+      P.limpar(graf);
+      return;
+    }
+    const p = {
+      inicial: Math.max(0, ler('inicial', 0)), mensal: Math.max(0, ler('mensal', 0)), anos,
+      selicCaminho: caminho, retornoUsd: ler('retorno', 7), cambio: ler('cambio', 3), custo: Math.max(0, ler('custo', 1.5)),
+    };
+    premissas.textContent = 'Premissas: Selic de ' + caminho.map((v) => fmt.pct(v, 2)).join(' → ') + ' nos próximos anos (atual e Focus), depois estável. '
+      + 'Carteira global: ' + fmt.pct(p.retornoUsd, 1) + ' ao ano em dólar e dólar subindo ' + fmt.pct(p.cambio, 1) + ' ao ano'
+      + (cp ? ' (padrão calculado pela diferença de inflação: Brasil ' + fmt.pct(cp.br, 1) + ' × EUA ' + fmt.pct(cp.eua, 1) + ')' : '')
+      + '. No longo prazo, as ações globais renderam algo entre 7% e 10% ao ano em dólar, com anos de queda forte.';
+
+    const r = C.simular(p);
+    const series = [
+      { nome: 'Poupança', cor: 'var(--serie-4)', y: r.poupanca },
+      { nome: 'CDB 100% do CDI', cor: 'var(--serie-1)', y: r.cdb },
+      { nome: 'Carteira global (hipótese)', cor: 'var(--serie-3)', y: r.global },
+      { nome: 'Total investido', cor: 'var(--mudo)', y: r.aportado },
+    ];
+    G.linha(graf, {
+      titulo: 'Simulação de patrimônio', x: r.x, series, rotuloX: 'Ano',
+      formatoX: (a) => (a === 0 ? 'hoje' : 'ano ' + fmt.num(a, Number.isInteger(a) ? 0 : 1)), formatoXLongo: (a) => (a === 0 ? 'Hoje' : 'Após ' + fmt.num(a, Number.isInteger(a) ? 0 : 1) + (a === 1 ? ' ano' : ' anos')),
+      formatoY: fmt.brlCompacto, formatoYLongo: (v) => fmt.brl(v, 0), incluirZero: true, altura: 280,
+    });
+
+    const fim = r.x.length - 1;
+    const investido = r.aportado[fim];
+    const t = P.el('table', { class: 'tabela-plano' });
+    t.append(P.el('thead', null, P.el('tr', null, ['Cenário', 'Valor final', 'Ganho líquido', 'Em relação ao investido'].map((h) => P.el('th', { scope: 'col', texto: h })))));
+    const corpo = P.el('tbody');
+    for (const se of series.slice(0, 3)) {
+      const v = se.y[fim];
+      const chave = P.el('span', { class: 'chave-linha', 'aria-hidden': 'true' });
+      chave.style.background = se.cor;
+      corpo.append(P.el('tr', null,
+        P.el('th', { scope: 'row' }, chave, se.nome),
+        P.el('td', { class: 'numero', texto: fmt.brl(v, 0) }),
+        P.el('td', { class: 'numero', texto: fmt.brl(v - investido, 0) }),
+        P.el('td', { class: 'numero', texto: investido ? fmt.pct((v / investido - 1) * 100, 0, true) : '—' })));
+    }
+    corpo.append(P.el('tr', null, P.el('th', { scope: 'row', texto: 'Total investido' }), P.el('td', { class: 'numero', texto: fmt.brl(investido, 0) }), P.el('td', { texto: '' }), P.el('td', { texto: '' })));
+    t.append(corpo);
+    resultado.append(t);
+  }
+
+  /* ---------- Fontes e configurações ---------- */
+  function renderFontes() {
+    const cont = P.limpar($('tabela-fontes'));
+    const t = P.el('table', { class: 'tabela-fontes' });
+    t.append(P.el('thead', null, P.el('tr', null, ['Fonte', 'Tipo', 'Para que serve', 'Situação'].map((h) => P.el('th', { scope: 'col', texto: h })))));
+    const corpo = P.el('tbody');
+    const cfg = config();
+    for (const id in P.FONTES) {
+      const f = P.FONTES[id];
+      const r = resumoFonte(id);
+      let estado;
+      if (!r) {
+        if (id === 'twelve' && !cfg.twelve) estado = P.el('span', { class: 'estado estado-neutro', texto: '○ Sem chave (opcional)' });
+        else if (id === 'bancoMundial') estado = P.el('span', { class: 'estado estado-neutro', texto: '○ Não foi necessário' });
+        else estado = P.el('span', { class: 'estado estado-neutro', texto: E.carregando ? '… Carregando' : '○ Sem consulta' });
+      } else if (r.estado === 'ok') {
+        estado = P.el('span', { class: 'estado estado-ok', texto: '✓ Ok · ' + fmt.dataHora(r.quando) + (r.parcial ? ' (parcial)' : '') });
+      } else if (r.estado === 'cache') {
+        estado = P.el('span', { class: 'estado estado-cache', texto: '⚠ Usando dado salvo de ' + fmt.dataHora(r.quando) });
+      } else {
+        estado = P.el('span', { class: 'estado estado-erro', texto: '✕ Indisponível' });
+      }
+      const detalheErro = r && r.erro && r.estado !== 'ok' ? P.el('div', { class: 'sub', texto: r.erro }) : null;
+      corpo.append(P.el('tr', null,
+        P.el('th', { scope: 'row' }, P.el('a', { href: f.site, target: '_blank', rel: 'noopener noreferrer', texto: f.nome })),
+        P.el('td', { texto: f.tipo }),
+        P.el('td', { texto: f.uso }),
+        P.el('td', null, estado, detalheErro)));
+    }
+    t.append(corpo);
+    cont.append(t);
+  }
+
+  function montarConfig() {
+    const cfg = config();
+    $('c-twelve').value = cfg.twelve;
+    $('c-brapi').value = cfg.brapi;
+    $('c-b3').value = cfg.b3;
+    $('c-b3').placeholder = (cfg.brapi ? P.B3_COM_TOKEN : P.B3_SEM_TOKEN).join(',');
+    $('config').addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const limpa = (s) => s.trim().replace(/[^A-Za-z0-9_-]/g, '');
+      const novo = { twelve: limpa($('c-twelve').value), brapi: limpa($('c-brapi').value), b3: $('c-b3').value.trim().toUpperCase() };
+      P.armazenamento.gravar('config', novo);
+      $('c-b3').placeholder = (novo.brapi ? P.B3_COM_TOKEN : P.B3_SEM_TOKEN).join(',');
+      $('c-mensagem').textContent = 'Configurações salvas neste navegador. Atualizando…';
+      Promise.all([carregarB3(true), carregarEua(true)]).then(() => {
+        $('c-mensagem').textContent = 'Pronto. Veja a situação de cada fonte na tabela acima.';
+        renderTudo();
+        situacao();
+      });
+    });
+    $('c-apagar').addEventListener('click', () => {
+      P.armazenamento.gravar('config', { twelve: '', brapi: '', b3: $('c-b3').value.trim().toUpperCase() });
+      P.armazenamento.remover('cache:twelve-eua');
+      $('c-twelve').value = '';
+      $('c-brapi').value = '';
+      $('c-mensagem').textContent = 'Chaves apagadas deste navegador.';
+      Promise.all([carregarB3(false), carregarEua(false)]).then(renderTudo);
+    });
+  }
+
+  /* ---------- Tema, filtros e início ---------- */
+  function montarTema() {
+    const salvo = P.armazenamento.ler('tema', null);
+    if (salvo) document.documentElement.dataset.theme = salvo;
+    $('btn-tema').addEventListener('click', () => {
+      const atual = document.documentElement.dataset.theme
+        || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const novo = atual === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = novo;
+      P.armazenamento.gravar('tema', novo);
+    });
+  }
+
+  function montarFiltros() {
+    document.querySelectorAll('.filtro').forEach((b) => {
+      b.addEventListener('click', () => {
+        E.filtro = b.dataset.filtro;
+        document.querySelectorAll('.filtro').forEach((x) => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+        const primeiro = (E.ativos || []).find((a) => E.filtro === 'todos' || a.grupo === E.filtro);
+        if (primeiro && E.filtro !== 'todos') E.selecionado = primeiro.id;
+        renderMercados();
+      });
+    });
+  }
+
+  function iniciar() {
+    montarTema();
+    montarFiltros();
+    montarQuestionario();
+    montarValores();
+    montarSimulador();
+    montarConfig();
+    sincronizarSimulador(valores());
+    renderTudo();
+    $('btn-atualizar').addEventListener('click', () => carregar(true));
+    carregar(false);
+    // Atualiza sozinho a cada 10 minutos (o cache evita excesso de consultas).
+    setInterval(() => { if (!document.hidden) carregar(false); }, 10 * 60000);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
+  else iniciar();
+})(window.Painel);
