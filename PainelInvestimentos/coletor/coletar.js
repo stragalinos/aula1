@@ -31,6 +31,7 @@ require(path.join(__dirname, '..', 'js', 'util.js'));
 require(path.join(__dirname, '..', 'js', 'fontes.js'));
 const P = globalThis.Painel;
 P.TEMPO_LIMITE = 40000; // no servidor dá para esperar mais que no navegador
+P.TENTATIVAS = 3; // e insistir em falhas passageiras (o Banco Central às vezes responde 502)
 const mesclar = P.serie.mesclar;
 
 /* Pregão aberto (com folga para o fechamento), em dias úteis, no horário UTC. */

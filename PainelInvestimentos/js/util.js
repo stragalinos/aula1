@@ -100,13 +100,14 @@ window.Painel = window.Painel || {};
     }
     if (resp.status === 429) throw new ErroFonte('Limite de consultas da fonte atingido. Tente de novo em alguns minutos.', 'limite');
     if (resp.status === 401 || resp.status === 403) throw new ErroFonte('Acesso negado pela fonte: confira a chave/token informado.', 'acesso');
-    if (!resp.ok) throw new ErroFonte('A fonte respondeu com erro ' + resp.status + '.', 'http');
+    if (!resp.ok) throw new ErroFonte('A fonte respondeu com erro ' + resp.status + '.', resp.status >= 500 ? 'instavel' : 'http');
     try { return await resp.json(); } catch (_) { throw new ErroFonte('A fonte respondeu em formato inesperado.', 'formato'); }
   }
 
   /* Busca JSON com cache: devolve o cache se ainda estiver no prazo (ttlMin),
      e usa o último dado bom (marcado como antigo) se a fonte falhar.
      `urls` pode ser uma lista de endereços alternativos, tentados em ordem.
+     Falhas passageiras (rede, demora, erro 5xx) são repetidas P.TENTATIVAS vezes.
      A chave do cache nunca inclui tokens. */
   P.buscar = async function (chave, urls, opcoes = {}) {
     const { ttlMin = 30, forcar = false, transformar, validar, timeout = P.TEMPO_LIMITE || 15000 } = opcoes;
@@ -117,21 +118,26 @@ window.Painel = window.Painel || {};
     }
     const lista = Array.isArray(urls) ? urls : [urls];
     let ultimoErro;
+    const tentativas = P.TENTATIVAS || 1;
     for (const url of lista) {
-      try {
-        const bruto = await baixar(url, timeout);
-        let dados;
+      for (let k = 1; k <= tentativas; k++) {
         try {
-          dados = transformar ? transformar(bruto) : bruto;
+          const bruto = await baixar(url, timeout);
+          let dados;
+          try {
+            dados = transformar ? transformar(bruto) : bruto;
+          } catch (e) {
+            throw e instanceof ErroFonte ? e : new ErroFonte('A fonte respondeu em formato inesperado.', 'formato');
+          }
+          const problema = validar ? validar(dados) : null;
+          if (problema) throw new ErroFonte('Dado reprovado na verificação de segurança: ' + problema + '.', 'validacao');
+          P.armazenamento.gravar('cache:' + chave, { t: agora, dados });
+          return { dados, quando: agora, origem: 'rede' };
         } catch (e) {
-          throw e instanceof ErroFonte ? e : new ErroFonte('A fonte respondeu em formato inesperado.', 'formato');
+          ultimoErro = e;
+          if (k === tentativas || (e.tipo !== 'rede' && e.tipo !== 'instavel')) break;
+          await new Promise((ok) => setTimeout(ok, 3000 * k));
         }
-        const problema = validar ? validar(dados) : null;
-        if (problema) throw new ErroFonte('Dado reprovado na verificação de segurança: ' + problema + '.', 'validacao');
-        P.armazenamento.gravar('cache:' + chave, { t: agora, dados });
-        return { dados, quando: agora, origem: 'rede' };
-      } catch (e) {
-        ultimoErro = e;
       }
     }
     if (salvo) return { dados: salvo.dados, quando: salvo.t, origem: 'cache-antigo', erro: ultimoErro.message };
