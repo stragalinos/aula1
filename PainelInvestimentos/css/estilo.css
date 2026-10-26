@@ -105,6 +105,7 @@ h2 { font-size: 22px; line-height: 1.25; margin: 0; text-wrap: balance; }
 h3 { font-size: 16px; margin: 0 0 4px; }
 h4 { font-size: 14px; margin: 16px 0 6px; }
 p { margin: 0 0 8px; }
+code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.9em; background: var(--superficie-2); border: 1px solid var(--borda); padding: 0 5px; border-radius: 4px; }
 
 .pular {
   position: absolute; left: -999px; top: 8px; z-index: 10;

@@ -6,7 +6,16 @@
 
   const DIA = P.DIA;
 
+  /* Repositório usado quando o painel é aberto fora do GitHub Pages (ex.: arquivo local). */
+  P.REPOSITORIO = ['stragalinos', 'aula1'];
+
   P.FONTES = {
+    coletor: {
+      nome: 'Coletor automático (GitHub Actions)',
+      tipo: 'Próprio · a cada 30 min, 24 h',
+      site: 'https://github.com/' + P.REPOSITORIO.join('/') + '/actions',
+      uso: 'Busca todas as fontes num servidor do GitHub, inclusive as que exigem chave, e guarda o histórico. O painel abre com esses dados e completa com cotações ao vivo.',
+    },
     bcb: {
       nome: 'Banco Central do Brasil (SGS)',
       tipo: 'Oficial · Brasil',

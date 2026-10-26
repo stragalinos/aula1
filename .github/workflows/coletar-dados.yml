@@ -1,0 +1,68 @@
+# Coleta os dados do Painel do Investidor a cada 30 minutos, 24 horas por dia,
+# e publica o resultado na branch "dados" (o painel lê de lá).
+# Chaves opcionais: Settings → Secrets and variables → Actions
+#   secrets: TWELVE_DATA_KEY (bolsa americana), BRAPI_TOKEN (B3)
+#   variable: TICKERS_B3 (ex.: BOVA11,IVVB11,PETR4)
+name: Coletar dados do painel
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: coletar-dados
+  cancel-in-progress: false
+
+jobs:
+  coletar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Recupera a coleta anterior (para manter o histórico)
+        run: |
+          mkdir -p saida
+          if git fetch --depth=1 origin dados:refs/remotes/origin/dados; then
+            git show origin/dados:painel.json > saida/anterior.json || echo '{}' > saida/anterior.json
+          else
+            echo '{}' > saida/anterior.json
+          fi
+
+      - name: Coleta
+        env:
+          TWELVE_DATA_KEY: ${{ secrets.TWELVE_DATA_KEY }}
+          BRAPI_TOKEN: ${{ secrets.BRAPI_TOKEN }}
+          TICKERS_B3: ${{ vars.TICKERS_B3 }}
+        run: node PainelInvestimentos/coletor/coletar.js saida/anterior.json saida/painel.json
+
+      - name: Publica na branch dados
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir publicar
+          cp saida/painel.json publicar/
+          cd publicar
+          git init -q -b dados
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add painel.json
+          git commit -q -m "Coleta de $(date -u +'%Y-%m-%d %H:%M') UTC"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dados
+
+      # O GitHub pausa agendamentos de repositórios públicos sem atividade por 60 dias;
+      # reativar o próprio fluxo a cada execução evita essa pausa.
+      - name: Mantém o agendamento ativo
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api --method PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/coletar-dados.yml/enable"
