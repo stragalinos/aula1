@@ -37,6 +37,31 @@ e simula quanto seu dinheiro pode render.
 
 Suas respostas, números e chaves ficam salvos só no seu navegador; ninguém mais vê.
 
+## Coleta automática 24 horas
+
+Um fluxo do GitHub Actions (`.github/workflows/coletar-dados.yml`) roda a cada 30 minutos,
+mesmo com o painel fechado:
+
+1. Busca todas as fontes num servidor do GitHub (sem as restrições do navegador).
+2. Junta com a coleta anterior, guardando um ponto por dia por até ~5 anos, então o
+   histórico cresce além do que as APIs gratuitas devolvem.
+3. Grava tudo em `painel.json` na branch `dados`. O painel abre com esse arquivo e
+   completa com cotações ao vivo.
+
+B3 e bolsa americana só são consultadas durante o pregão, em dias úteis, para economizar
+a cota gratuita. Cripto e câmbio são consultados o tempo todo.
+
+**Configurar as chaves (uma vez só):** no GitHub, *Settings → Secrets and variables → Actions*:
+
+| Tipo | Nome | Valor |
+|---|---|---|
+| Secret | `TWELVE_DATA_KEY` | chave da [Twelve Data](https://twelvedata.com/) (bolsa americana) |
+| Secret | `BRAPI_TOKEN` | token da [brapi](https://brapi.dev/) (B3) |
+| Variable (opcional) | `TICKERS_B3` | ativos da B3, ex.: `BOVA11,IVVB11,GOLD11,PETR4,VALE3,ITUB4` |
+
+Depois, em *Actions → Coletar dados do painel → Run workflow*, rode a primeira coleta.
+O GitHub pode atrasar execuções agendadas em alguns minutos nos horários de pico.
+
 ## O que tem no painel
 
 | Seção | O que mostra |
@@ -106,6 +131,7 @@ ao próprio provedor. Nunca coloque chaves no código nem as publique no GitHub.
 ```
 PainelInvestimentos/
 ├── index.html        página e guia de investimento no exterior
+├── coletor/coletar.js  coleta automática (roda no GitHub Actions)
 ├── css/estilo.css    visual (tema claro e escuro, celular)
 └── js/
     ├── util.js       formatação, busca com cache e verificações

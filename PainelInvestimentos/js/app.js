@@ -33,14 +33,17 @@
   /* ---------- Registro da situação de cada fonte ---------- */
   function anotar(fonte, resultado, erro) {
     (E.status[fonte] = E.status[fonte] || []).push(resultado
-      ? { origem: resultado.origem, quando: resultado.quando, erro: resultado.erro }
+      ? { origem: resultado.origem, quando: resultado.quando, erro: resultado.erro, deColetor: resultado.deColetor }
       : { origem: 'erro', erro: erro ? erro.message : 'erro desconhecido' });
   }
   function resumoFonte(fonte) {
     const lista = E.status[fonte];
     if (!lista || !lista.length) return null;
-    const boas = lista.filter((r) => r.origem === 'rede' || r.origem === 'cache-recente');
-    if (boas.length) return { estado: 'ok', quando: Math.min(...boas.map((r) => r.quando)), parcial: boas.length < lista.length, erro: (lista.find((r) => r.erro) || {}).erro };
+    const diretas = lista.filter((r) => !r.deColetor);
+    const boas = diretas.filter((r) => r.origem === 'rede' || r.origem === 'cache-recente');
+    if (boas.length) return { estado: 'ok', quando: Math.min(...boas.map((r) => r.quando)), parcial: boas.length < diretas.length, erro: (diretas.find((r) => r.erro) || {}).erro };
+    const coletadas = lista.filter((r) => r.deColetor && r.origem === 'rede');
+    if (coletadas.length) return { estado: 'ok', quando: Math.min(...coletadas.map((r) => r.quando)), viaColetor: true };
     const antigas = lista.filter((r) => r.origem === 'cache-antigo');
     if (antigas.length) return { estado: 'cache', quando: Math.min(...antigas.map((r) => r.quando)), erro: antigas[0].erro };
     return { estado: 'erro', erro: lista[0].erro };
@@ -64,15 +67,64 @@
     }
   }
 
-  /* ---------- Carregamento ---------- */
+  /* ---------- Coletor automático (GitHub Actions) ---------- */
+  function enderecoColetor() {
+    const host = location.hostname;
+    const repo = location.pathname.split('/').filter(Boolean)[0];
+    const [dono, nome] = host.endsWith('.github.io') && repo ? [host.split('.')[0], repo] : P.REPOSITORIO;
+    return {
+      json: 'https://raw.githubusercontent.com/' + dono + '/' + nome + '/dados/painel.json',
+      actions: 'https://github.com/' + dono + '/' + nome + '/actions/workflows/coletar-dados.yml',
+    };
+  }
+
+  async function carregarColetor(forcar) {
+    const end = enderecoColetor();
+    P.FONTES.coletor.site = end.actions;
+    try {
+      const r = await P.buscar('coletor', end.json, {
+        ttlMin: 5,
+        forcar,
+        timeout: 12000,
+        validar: (d) => (d && d.versao === 1 && d.dados && num(d.geradoEm) ? null : 'formato desconhecido'),
+      });
+      anotar('coletor', { origem: r.origem, quando: r.dados.geradoEm, erro: r.erro });
+      aplicarColetor(r.dados);
+    } catch (e) {
+      anotar('coletor', null, e);
+    }
+  }
+
+  /* O arquivo do coletor vira o ponto de partida; as fontes ao vivo só substituem quando respondem. */
+  function aplicarColetor(snap) {
+    const d = snap.dados;
+    for (const k of ['selic', 'cdi', 'ipca12', 'dolar', 'euro', 'focus', 'bce', 'agora']) if (d[k]) E[k] = d[k];
+    if (d.fmi) { Object.assign(E.fmi, d.fmi); Object.assign(E.fmiOrigem, d.fmiOrigem || {}); }
+    if (d.cripto) Object.assign(E.cripto, d.cripto);
+    E.coletor = { geradoEm: snap.geradoEm, b3: d.b3 || {}, b3Erros: d.b3Erros || {}, eua: d.eua || null, euaErro: d.euaErro || null };
+    for (const fonte in snap.fontes || {}) {
+      if (!P.FONTES[fonte] || fonte === 'coletor') continue;
+      for (const s of snap.fontes[fonte]) {
+        if (s.origem === 'rede') anotar(fonte, { origem: 'rede', quando: s.quando, deColetor: true });
+        else if (s.origem === 'anterior') anotar(fonte, { origem: 'cache-antigo', quando: s.quando, erro: s.erro, deColetor: true });
+      }
+    }
+    renderBrasil();
+    renderFocus();
+    renderMundo();
+  }
+
+  /* ---------- Carregamento ao vivo ---------- */
+  const juntar = (chave) => (d) => { E[chave] = P.serie.mesclar(E[chave], d); };
+
   function carregarBrasil(forcar) {
     const sgs = P.dados.sgs;
     return Promise.all([
-      guardar('bcb', sgs(432, { anos: 2, faixa: [0, 60], forcar }), (d) => { E.selic = d; }),
-      guardar('bcb', sgs(4389, { ultimos: 10, faixa: [0, 60], forcar }), (d) => { E.cdi = d; }),
-      guardar('bcb', sgs(13522, { anos: 3, faixa: [-10, 100], ttlMin: 360, forcar }), (d) => { E.ipca12 = d; }),
-      guardar('bcb', sgs(1, { anos: 1, faixa: [1, 20], forcar }), (d) => { E.dolar = d; }),
-      guardar('bcb', sgs(21619, { anos: 1, faixa: [1, 25], forcar }), (d) => { E.euro = d; }),
+      guardar('bcb', sgs(432, { anos: 2, faixa: [0, 60], forcar }), juntar('selic')),
+      guardar('bcb', sgs(4389, { ultimos: 10, faixa: [0, 60], forcar }), juntar('cdi')),
+      guardar('bcb', sgs(13522, { anos: 3, faixa: [-10, 100], ttlMin: 360, forcar }), juntar('ipca12')),
+      guardar('bcb', sgs(1, { anos: 1, faixa: [1, 20], forcar }), juntar('dolar')),
+      guardar('bcb', sgs(21619, { anos: 1, faixa: [1, 25], forcar }), juntar('euro')),
     ]).then(() => { renderBrasil(); agendar(); });
   }
 
@@ -83,7 +135,7 @@
   function carregarMundo(forcar) {
     return Promise.all(Object.keys(P.FMI_INDICADORES).map(async (chave) => {
       const ok = await guardar('fmi', P.dados.fmi(chave, forcar), (d) => { E.fmi[chave] = d; E.fmiOrigem[chave] = 'fmi'; });
-      if (!ok && P.FMI_INDICADORES[chave].bancoMundial) {
+      if (!ok && !E.fmi[chave] && P.FMI_INDICADORES[chave].bancoMundial) {
         await guardar('bancoMundial', P.dados.bancoMundial(chave, forcar), (d) => { E.fmi[chave] = d; E.fmiOrigem[chave] = 'bancoMundial'; });
       }
     })).then(() => { renderMundo(); agendar(); });
@@ -97,35 +149,55 @@
   }
 
   function carregarCripto(forcar) {
-    return Promise.all(P.CRIPTO.map((c) => guardar('coingecko', P.dados.cripto(c.id, forcar), (d) => { E.cripto[c.ativo] = d; }))).then(agendar);
+    return Promise.all(P.CRIPTO.map((c) => guardar('coingecko', P.dados.cripto(c.id, forcar), (d) => {
+      E.cripto[c.ativo] = P.serie.mesclar(E.cripto[c.ativo], d);
+    }))).then(agendar);
   }
 
   function carregarB3(forcar) {
     const cfg = config();
+    const col = E.coletor || { b3: {}, b3Erros: {} };
+    E.status.brapi = (E.status.brapi || []).filter((r) => r.deColetor);
+    if (!cfg.brapi && Object.keys(col.b3).length) {
+      // Sem token neste navegador: usa o que o coletor buscou (com o token guardado no GitHub).
+      E.b3 = Object.assign({}, col.b3);
+      E.b3Erros = Object.assign({}, col.b3Erros);
+      return Promise.resolve(agendar());
+    }
     E.b3 = {};
     E.b3Erros = {};
-    E.status.brapi = [];
     return Promise.all(tickersB3(cfg).map(async (tk) => {
+      const antigo = col.b3[tk];
       try {
         const r = await P.dados.b3(tk, cfg.brapi, forcar);
         anotar('brapi', r);
-        E.b3[tk] = r.dados;
+        E.b3[tk] = Object.assign({}, r.dados, { serie: P.serie.mesclar(antigo && antigo.serie, r.dados.serie) });
       } catch (e) {
         anotar('brapi', null, e);
-        E.b3Erros[tk] = e.message;
+        if (antigo) E.b3[tk] = antigo; else E.b3Erros[tk] = e.message;
       }
     })).then(agendar);
   }
 
   function carregarEua(forcar) {
     const cfg = config();
-    E.eua = null;
-    E.euaErro = null;
-    E.status.twelve = [];
+    const col = E.coletor || {};
+    E.status.twelve = (E.status.twelve || []).filter((r) => r.deColetor);
+    E.eua = col.eua || null;
+    E.euaErro = col.eua ? null : col.euaErro || null;
     if (!cfg.twelve) return Promise.resolve(agendar());
     return P.dados.eua(cfg.twelve, forcar)
-      .then((r) => { anotar('twelve', r); E.eua = r.dados; })
-      .catch((e) => { anotar('twelve', null, e); E.euaErro = e.message; })
+      .then((r) => {
+        anotar('twelve', r);
+        const novo = {};
+        for (const s of Object.keys(r.dados)) {
+          const antigo = col.eua && col.eua[s];
+          novo[s] = r.dados[s].serie ? { serie: P.serie.mesclar(antigo && antigo.serie, r.dados[s].serie) } : antigo || r.dados[s];
+        }
+        E.eua = novo;
+        E.euaErro = null;
+      })
+      .catch((e) => { anotar('twelve', null, e); if (!E.eua) E.euaErro = e.message; })
       .then(agendar);
   }
 
@@ -133,6 +205,8 @@
     E.status = {};
     E.carregando++;
     situacao();
+    await carregarColetor(forcar);
+    agendar();
     await Promise.all([
       carregarBrasil(forcar), carregarFocus(forcar), carregarMundo(forcar), carregarCambio(forcar),
       carregarCripto(forcar), carregarB3(forcar), carregarEua(forcar),
@@ -148,7 +222,12 @@
     if (E.carregando > 0) { el.textContent = 'Atualizando dados…'; return; }
     const resumos = Object.keys(P.FONTES).map(resumoFonte).filter(Boolean);
     const falhas = resumos.filter((r) => r.estado !== 'ok' || r.parcial).length;
-    el.textContent = 'Atualizado às ' + fmt.hora(E.ultimaAtualizacao) + (falhas ? ' · ' + falhas + (falhas > 1 ? ' fontes com problema' : ' fonte com problema') : ' · todas as fontes ok');
+    let texto = 'Atualizado às ' + fmt.hora(E.ultimaAtualizacao);
+    if (E.coletor) {
+      const parado = Date.now() - E.coletor.geradoEm > 3 * 3600000;
+      texto += parado ? ' · coletor parado desde ' + fmt.dataHora(E.coletor.geradoEm) : ' · coletor ' + fmt.hora(E.coletor.geradoEm);
+    }
+    el.textContent = texto + (falhas ? ' · ' + falhas + (falhas > 1 ? ' fontes com problema' : ' fonte com problema') : ' · todas as fontes ok');
   }
 
   let agendado = false;
@@ -520,7 +599,7 @@
     if ((E.filtro === 'todos' || E.filtro === 'exterior') && !E.eua) {
       cont.append(P.el('div', { class: 'ativo cartao ativo-aviso' },
         P.el('strong', { texto: E.euaErro ? 'Bolsa americana indisponível' : 'Bolsa americana (S&P 500, Nasdaq, mundo, Treasuries)' }),
-        P.el('p', { texto: E.euaErro ? E.euaErro : cfg.twelve ? 'Carregando…' : 'Crie uma chave gratuita na Twelve Data e cole na seção Fontes para ver os ETFs americanos e suas tendências.' }),
+        P.el('p', { texto: E.euaErro ? E.euaErro : cfg.twelve ? 'Carregando…' : 'Crie uma chave gratuita na Twelve Data e guarde como segredo TWELVE_DATA_KEY no GitHub (veja a seção Fontes) para o coletor buscar os ETFs americanos 24 horas.' }),
         P.el('a', { href: '#fontes', texto: 'Configurar chave' })));
     }
     const errosB3 = Object.entries(E.b3Erros);
@@ -811,13 +890,15 @@
         else if (id === 'bancoMundial') estado = P.el('span', { class: 'estado estado-neutro', texto: '○ Não foi necessário' });
         else estado = P.el('span', { class: 'estado estado-neutro', texto: E.carregando ? '… Carregando' : '○ Sem consulta' });
       } else if (r.estado === 'ok') {
-        estado = P.el('span', { class: 'estado estado-ok', texto: '✓ Ok · ' + fmt.dataHora(r.quando) + (r.parcial ? ' (parcial)' : '') });
+        estado = P.el('span', { class: 'estado estado-ok', texto: '✓ Ok · ' + fmt.dataHora(r.quando) + (r.viaColetor ? ' (via coletor)' : r.parcial ? ' (parcial)' : '') });
+      } else if (id === 'coletor' && /404/.test(r.erro || '')) {
+        estado = P.el('span', { class: 'estado estado-neutro', texto: '○ Ainda não rodou: veja o passo a passo abaixo' });
       } else if (r.estado === 'cache') {
         estado = P.el('span', { class: 'estado estado-cache', texto: '⚠ Usando dado salvo de ' + fmt.dataHora(r.quando) });
       } else {
         estado = P.el('span', { class: 'estado estado-erro', texto: '✕ Indisponível' });
       }
-      const detalheErro = r && r.erro && r.estado !== 'ok' ? P.el('div', { class: 'sub', texto: r.erro }) : null;
+      const detalheErro = r && r.erro && r.estado !== 'ok' && !(id === 'coletor' && /404/.test(r.erro)) ? P.el('div', { class: 'sub', texto: r.erro }) : null;
       corpo.append(P.el('tr', null,
         P.el('th', { scope: 'row' }, P.el('a', { href: f.site, target: '_blank', rel: 'noopener noreferrer', texto: f.nome })),
         P.el('td', { texto: f.tipo }),

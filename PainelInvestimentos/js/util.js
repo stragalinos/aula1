@@ -155,5 +155,15 @@ window.Painel = window.Painel || {};
     variacaoUltima(s) {
       return s && s.length > 1 && s[s.length - 2].v ? (s[s.length - 1].v / s[s.length - 2].v - 1) * 100 : null;
     },
+    /* Junta duas séries mantendo um ponto por dia (o mais novo vale) e no máximo
+       ~5 anos. Assim o histórico guardado pelo coletor cresce além do que as APIs gratuitas devolvem. */
+    mesclar(antiga, nova, max = 1900) {
+      if (!antiga || !antiga.length) return nova || antiga || null;
+      if (!nova || !nova.length) return antiga;
+      const porDia = new Map();
+      for (const p of antiga) porDia.set(Math.floor(p.t / P.DIA), p);
+      for (const p of nova) porDia.set(Math.floor(p.t / P.DIA), p);
+      return [...porDia.values()].sort((a, b) => a.t - b.t).slice(-max);
+    },
   };
 })(window.Painel);
